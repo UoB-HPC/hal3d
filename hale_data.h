@@ -27,6 +27,24 @@ typedef struct {
   double* wF_y;     // Momentum in the z direction flux in the y direction
 } HaleData;
 
+typedef struct {
+
+  // Handles unstructured mesh
+  double* vertices_x;
+  double* vertices_y;
+  double* cell_centroids_x;
+  double* cell_centroids_y;
+  double* volume;
+  int* cells_vertices;
+  int* edge_vertex0;
+  int* edge_vertex1;
+  int* cells_edges;
+  int* edges_cells;
+
+  int nedges;
+
+} UnstructuredMesh;
+
 // Initialises the state variables for two dimensional applications
 void initialise_hale_data_2d(
     const int local_nx, const int local_ny, HaleData* hale_data);
