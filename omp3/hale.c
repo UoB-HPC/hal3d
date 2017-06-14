@@ -9,30 +9,67 @@
 
 // Solve a single timestep on the given mesh
 void solve_unstructured_hydro_2d(
-    Mesh* mesh, int* cell_centroids_x, int* cell_centroids_y, int* cells_to_nodes, 
-    int* nodes_to_cells, int* nodes_to_cells_off, int* cells_to_nodes_off, 
-    double* nodes_x, double* nodes_y, double* node_volume, double* energy, 
-    double* density, double* velocity_x, double* velocity_y, double* force_x,
-    double* force_y)
+    Mesh* mesh, const int ncells, const int nnodes, int* cell_centroids_x, 
+    int* cell_centroids_y, int* cells_to_nodes, int* nodes_to_cells, 
+    int* nodes_to_cells_off, int* cells_to_nodes_off, double* nodes_x, 
+    double* nodes_y, double* node_volume, double* energy, double* density, 
+    double* velocity_x, double* velocity_y, double* force_x, double* force_y,
+    double* pressure)
 {
   // Random constants
   const double c1 = 1.0;
   const double c2 = 1.0;
-  const int ncells = 100;
 
   // TODO: Calculate the limiter?
   double limiter = 0.0;
 
-  // Calculating artificial viscosity for all edges of all cells
+  // Calculate the force contributions for pressure gradients
   for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
-    const int nnodes_around_cell = cells_to_nodes_off[(cc)+1]-nodes_off;
+    const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
+
+    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+      // Determine the three point stencil of nodes around current node
+      const int node_left_index = (nn == 0) 
+        ? cells_to_nodes[(nodes_off+nnodes_around_cell-1)] 
+        : cells_to_nodes[(nodes_off)+(nn-1)]; 
+      const int node_center_index = cells_to_nodes[(nodes_off)+(nn)]; 
+      const int node_right_index = (nn == nnodes_around_cell) 
+        ? cells_to_nodes[0] : cells_to_nodes[(nodes_off)+(nn+1)];
+
+      double S_x = 0.0;
+      double S_y = 0.0;
+
+      // Get the nodal coords of the three point stencil
+      const double node_left_x = nodes_x[node_left_index];
+      const double node_left_y = nodes_y[node_left_index];
+      const double node_center_x = nodes_x[node_center_index];
+      const double node_center_y = nodes_y[node_center_index];
+      const double node_right_x = nodes_x[node_right_index];
+      const double node_right_y = nodes_y[node_right_index];
+
+      // Calculate the half edge area vectors
+      S_x = 0.25*(node_center_y-node_left_y) + 0.25*(node_right_y-node_center_y);
+      S_y = -(0.25*(node_center_x-node_left_x) + 0.25*(node_right_x-node_center_x));
+      
+      // Add the contributions of the edge based artifical viscous terms
+      // to the main force terms
+      force_x[node_center_index] = pressure[(cc)]*S_x;
+      force_y[node_center_index] = pressure[(cc)]*S_y;
+    }
+  }
+
+  // Calculating artificial viscous terms for all edges of all cells
+  for(int cc = 0; cc < ncells; ++cc) {
+    const int nodes_off = cells_to_nodes_off[(cc)];
+    const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
     for(int nn = 0; nn < nnodes_around_cell; ++nn) {
       int node_index[NNODES_PER_EDGE]; 
       node_index[0] = cells_to_nodes[(nodes_off)+(nn)]; 
       node_index[1] = (nn == nnodes_around_cell) 
-        ? 0 : cells_to_nodes[(nodes_off)+(nn+1)];
+        ? cells_to_nodes[(nodes_off)] 
+        : cells_to_nodes[(nodes_off)+(nn+1)];
 
       // Calculate area weighted averages of the density and soundspeed here.
       double density_node[NNODES_PER_EDGE];
@@ -107,6 +144,7 @@ void solve_unstructured_hydro_2d(
       }
     }
   }
+
 }
 
 #if 0
