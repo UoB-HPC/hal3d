@@ -36,41 +36,15 @@ void solve_unstructured_hydro_2d(
       cell_centroids_y[(cc)] += nodes_y[(nodes_off)+(nn)]*inv_Np;
     }
   }
-
-  // Calculate the cell mass
-  for(int cc = 0; cc < ncells; ++cc) {
-    const int nodes_off = cells_to_nodes_off[(cc)];
-    const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
-
-    // Use shoelace formula to get the mass of the cell
-    double cell_volume = 0.0;
-    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
-      cell_volume += 
-        0.5*(nodes_x[nn]+nodes_x[nn%nnodes_around_cell])*
-        (nodes_y[nn%nnodes_around_cell]+nodes_y[nn]);
-    }
-
-    cell_mass[(cc)] = density[(cc)]*cell_volume;
-  }
   
-#if 0
-  // Calculate the nodal mass
-  for(int nn = 0; nn < nnodes; ++nn) {
-    const int cells_off = nodes_to_cells_off[(nn)];
-    const int ncells_around_node = nodes_to_cells_off[(nn+1)]-cells_off;
-
-    for(int cc = 0; cc < ncells_around_node; ++cc) {
-      const double cell_centroid_x = cell_centroids_x[(cc)];
-      const double cell_centroid_y = cell_centroids_x[(cc)];
-    }
-  }
-#endif // if 0
+  // Calculate the nodal and cell mass
   for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
     const double cell_centroid_x = cell_centroids_x[(cc)];
     const double cell_centroid_y = cell_centroids_x[(cc)];
 
+    double cell_volume = 0.0;
     cell_mass[(cc)] = 0.0;
     for(int nn = 0; nn < nnodes_around_cell; ++nn) {
       // Determine the three point stencil of nodes around current node
@@ -96,7 +70,13 @@ void solve_unstructured_hydro_2d(
         (node_center_x*node_left_y + node_right_x*node_center_y + 
          cell_centroid_x*node_right_y + node_left_x*cell_centroid_y);
       nodal_mass[(node_center_index)] += density[(cc)]*sub_cell_volume;
+
+      cell_volume += 
+        0.5*(nodes_x[node_center_index]+nodes_x[node_right_index])*
+        (nodes_y[node_right_index]+nodes_y[node_center_index]);
     }
+
+    cell_mass[(cc)] = density[(cc)]*cell_volume;
   }
 
   // Calculate the force contributions for pressure gradients
