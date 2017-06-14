@@ -3,11 +3,16 @@
 
 #pragma once
 
+#include <stdlib.h> 
+#include "../mesh.h"
+
 #define C_T 0.3
 #define VALIDATE_TOLERANCE     1.0e-5
 #define ARCH_ROOT_PARAMS "../arch.params"
 #define HALE_PARAMS "hale.params"
 #define HALE_TESTS  "hale.tests"
+#define NNODES_PER_EDGE 2
+#define NCELLS_PER_EDGE 2
 
 typedef struct {
   // Hale-specific state
@@ -30,26 +35,24 @@ typedef struct {
 typedef struct {
 
   // Handles unstructured mesh
-  double* vertices_x;
-  double* vertices_y;
-  double* cell_centroids_x;
-  double* cell_centroids_y;
-  double* volume;
-  int* cells_vertices;
-  int* edge_vertex0;
-  int* edge_vertex1;
-  int* cells_edges;
-  int* edges_cells;
+  double* nodes_x;
+  double* nodes_y;
+  int* nodes_cells;
+  int* cells_nodes;
+  int* nodes_cells_off;
+  int* cells_nodes_off;
 
   int nedges;
 
 } UnstructuredMesh;
 
 // Initialises the state variables for two dimensional applications
-void initialise_hale_data_2d(
+size_t initialise_hale_data_2d(
     const int local_nx, const int local_ny, HaleData* hale_data);
 void deallocate_hale_data_2d(
     HaleData* hale_data);
+size_t initialise_unstructured_mesh(
+    Mesh* mesh, UnstructuredMesh* unstructured_mesh);
 
 // Validates the results of the simulation
 void validate(
