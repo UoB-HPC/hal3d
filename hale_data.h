@@ -37,6 +37,7 @@ typedef struct {
   // Handles unstructured mesh
   double* nodes_x;
   double* nodes_y;
+  double* sub_cell_volume;
   int* nodes_cells;
   int* cells_nodes;
   int* nodes_cells_off;

@@ -14,7 +14,7 @@ void solve_unstructured_hydro_2d(
     int* nodes_to_cells_off, int* cells_to_nodes_off, double* nodes_x, 
     double* nodes_y, double* node_volume, double* energy, double* density, 
     double* velocity_x, double* velocity_y, double* force_x, double* force_y,
-    double* pressure)
+    double* pressure, double* cell_mass, double* nodal_mass)
 {
   // Random constants
   const double c1 = 1.0;
@@ -22,6 +22,82 @@ void solve_unstructured_hydro_2d(
 
   // TODO: Calculate the limiter?
   double limiter = 0.0;
+
+  // Calculate the cell centroids
+  for(int cc = 0; cc < ncells; ++cc) {
+    const int nodes_off = cells_to_nodes_off[(cc)];
+    const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
+    const double inv_Np = 1.0/(double)nnodes_around_cell;
+
+    cell_centroids_x[(cc)] = 0.0;
+    cell_centroids_y[(cc)] = 0.0;
+    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+      cell_centroids_x[(cc)] += nodes_x[(nodes_off)+(nn)]*inv_Np;
+      cell_centroids_y[(cc)] += nodes_y[(nodes_off)+(nn)]*inv_Np;
+    }
+  }
+
+  // Calculate the cell mass
+  for(int cc = 0; cc < ncells; ++cc) {
+    const int nodes_off = cells_to_nodes_off[(cc)];
+    const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
+
+    // Use shoelace formula to get the mass of the cell
+    double cell_volume = 0.0;
+    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+      cell_volume += 
+        0.5*(nodes_x[nn]+nodes_x[nn%nnodes_around_cell])*
+        (nodes_y[nn%nnodes_around_cell]+nodes_y[nn]);
+    }
+
+    cell_mass[(cc)] = density[(cc)]*cell_volume;
+  }
+  
+#if 0
+  // Calculate the nodal mass
+  for(int nn = 0; nn < nnodes; ++nn) {
+    const int cells_off = nodes_to_cells_off[(nn)];
+    const int ncells_around_node = nodes_to_cells_off[(nn+1)]-cells_off;
+
+    for(int cc = 0; cc < ncells_around_node; ++cc) {
+      const double cell_centroid_x = cell_centroids_x[(cc)];
+      const double cell_centroid_y = cell_centroids_x[(cc)];
+    }
+  }
+#endif // if 0
+  for(int cc = 0; cc < ncells; ++cc) {
+    const int nodes_off = cells_to_nodes_off[(cc)];
+    const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
+    const double cell_centroid_x = cell_centroids_x[(cc)];
+    const double cell_centroid_y = cell_centroids_x[(cc)];
+
+    cell_mass[(cc)] = 0.0;
+    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+      // Determine the three point stencil of nodes around current node
+      const int node_left_index = (nn == 0) 
+        ? cells_to_nodes[(nodes_off+nnodes_around_cell-1)] 
+        : cells_to_nodes[(nodes_off)+(nn-1)]; 
+      const int node_center_index = cells_to_nodes[(nodes_off)+(nn)]; 
+      const int node_right_index = (nn == nnodes_around_cell) 
+        ? cells_to_nodes[0] : cells_to_nodes[(nodes_off)+(nn+1)];
+
+      // Get the nodal coords of the three point stencil
+      const double node_left_x = nodes_x[node_left_index];
+      const double node_left_y = nodes_y[node_left_index];
+      const double node_center_x = nodes_x[node_center_index];
+      const double node_center_y = nodes_y[node_center_index];
+      const double node_right_x = nodes_x[node_right_index];
+      const double node_right_y = nodes_y[node_right_index];
+
+      // Use shoelace formula to get the volume between node and cell center
+      const double sub_cell_volume =
+        (node_left_x*node_center_y + node_center_x*node_right_y + 
+         node_right_x*cell_centroid_y + cell_centroid_x*node_left_y) -
+        (node_center_x*node_left_y + node_right_x*node_center_y + 
+         cell_centroid_x*node_right_y + node_left_x*cell_centroid_y);
+      nodal_mass[(node_center_index)] += density[(cc)]*sub_cell_volume;
+    }
+  }
 
   // Calculate the force contributions for pressure gradients
   for(int cc = 0; cc < ncells; ++cc) {
@@ -51,7 +127,7 @@ void solve_unstructured_hydro_2d(
       // Calculate the half edge area vectors
       S_x = 0.25*(node_center_y-node_left_y) + 0.25*(node_right_y-node_center_y);
       S_y = -(0.25*(node_center_x-node_left_x) + 0.25*(node_right_x-node_center_x));
-      
+
       // Add the contributions of the edge based artifical viscous terms
       // to the main force terms
       force_x[node_center_index] = pressure[(cc)]*S_x;
