@@ -1,6 +1,7 @@
 #include <math.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <silo.h>
 #include "hale_data.h"
 #include "../shared.h"
 #include "../mesh.h"
@@ -66,8 +67,9 @@ size_t initialise_unstructured_mesh(
       nx*ny*unstructured_mesh->nnodes_by_cell);
   allocated += allocate_int_data(&unstructured_mesh->nodes_to_cells, 
       (nx+1)*(ny+1)*unstructured_mesh->ncells_by_node);
-  allocated += allocate_int_data(&unstructured_mesh->cell_centroids_x, nx*ny);
-  allocated += allocate_int_data(&unstructured_mesh->cell_centroids_y, nx*ny);
+  allocated += allocate_data(&unstructured_mesh->cell_centroids_x, nx*ny);
+  allocated += allocate_data(&unstructured_mesh->cell_centroids_y, nx*ny);
+  allocated += allocate_int_data(&unstructured_mesh->halo_cell, nx*ny);
 
   // Construct the list of nodes contiguously, currently Cartesian
   for(int ii = 0; ii < (ny+1); ++ii) {
@@ -81,31 +83,70 @@ size_t initialise_unstructured_mesh(
   }
 
   // Define the list of nodes surrounding each cell, counter-clockwise
-  unstructured_mesh->nodes_to_cells_off[0] = 0;
-  for(int ii = PAD; ii < ny-PAD; ++ii) {
-    for(int jj = PAD; jj < nx-PAD; ++jj) {
+  for(int ii = 0; ii < ny; ++ii) {
+    for(int jj = 0; jj < nx; ++jj) {
       const int cells_nodes_index = ((ii)*nx+(jj))*unstructured_mesh->nnodes_by_cell;
       unstructured_mesh->cells_to_nodes[(cells_nodes_index)+0] = (ii)*(nx+1)+(jj);
       unstructured_mesh->cells_to_nodes[(cells_nodes_index)+1] = (ii)*(nx+1)+(jj+1);
       unstructured_mesh->cells_to_nodes[(cells_nodes_index)+2] = (ii+1)*(nx+1)+(jj+1);
       unstructured_mesh->cells_to_nodes[(cells_nodes_index)+3] = (ii+1)*(nx+1)+(jj);
-      unstructured_mesh->cells_to_nodes_off[(ii)*nx+(jj)+1] += unstructured_mesh->nnodes_by_cell;
+      unstructured_mesh->cells_to_nodes_off[(ii)*nx+(jj)+1] = 
+        unstructured_mesh->cells_to_nodes_off[(ii)*nx+(jj)] + unstructured_mesh->nnodes_by_cell;
     }
   }
 
   // Define the list of cells connected to each node
-  unstructured_mesh->cells_to_nodes_off[0] = 0;
-  for(int ii = PAD; ii < (ny+1)-PAD; ++ii) {
-    for(int jj = PAD; jj < (nx+1)-PAD; ++jj) {
+  for(int ii = 0; ii < (ny+1); ++ii) {
+    for(int jj = 0; jj < (nx+1); ++jj) {
       const int nodes_cells_index = ((ii)*(nx+1)+(jj))*unstructured_mesh->ncells_by_node;
       unstructured_mesh->nodes_to_cells[(nodes_cells_index)+0] = (ii-1)*nx+(jj-1);
       unstructured_mesh->nodes_to_cells[(nodes_cells_index)+1] = (ii-1)*nx+(jj);
       unstructured_mesh->nodes_to_cells[(nodes_cells_index)+2] = (ii)*nx+(jj-1);
       unstructured_mesh->nodes_to_cells[(nodes_cells_index)+3] = (ii)*nx+(jj);
-      unstructured_mesh->nodes_to_cells_off[(ii)*(nx+1)+(jj)+1] += unstructured_mesh->ncells_by_node;
+      unstructured_mesh->nodes_to_cells_off[(ii)*(nx+1)+(jj)+1] = 
+        unstructured_mesh->nodes_to_cells_off[(ii)*(nx+1)+(jj)] + unstructured_mesh->ncells_by_node;
+    }
+  }
+
+  // Store whether cell is halo.
+  for(int ii = 0; ii < ny; ++ii) {
+    for(int jj = 0; jj < nx; ++jj) {
+      unstructured_mesh->halo_cell[(ii)*nx+(jj)] = 
+        (ii < PAD || ii >= ny-PAD || jj < PAD || jj >= nx-PAD);
     }
   }
 
   return allocated;
+}
+
+// Writes out mesh and data
+void write_quad_data_to_visit(
+    const int nx, const int ny, const int step, double* nodes_x, 
+    double* nodes_y, const double* data, const int nodal)
+{
+  char filename[MAX_STR_LEN];
+  sprintf(filename, "output%04d.silo", step);
+
+  DBfile *dbfile = DBCreate(filename, DB_CLOBBER, DB_LOCAL,
+      "simulation time step", DB_HDF5);
+
+  int dims[] = {nx+1, ny+1};
+  int ndims = 2;
+  double *coords[] = {(double*)nodes_x, (double*)nodes_y};
+  DBPutQuadmesh(dbfile, "quadmesh", NULL, coords, dims, ndims,
+      DB_DOUBLE, DB_NONCOLLINEAR, NULL);
+
+  int local_dims[2];
+  if(nodal) {
+   local_dims[0] = nx+1;
+   local_dims[1] = ny+1;
+  }
+  else {
+   local_dims[0] = nx;
+   local_dims[1] = ny;
+  }
+  DBPutQuadvar1(dbfile, "nodal", "quadmesh", data, local_dims,
+      ndims, NULL, 0, DB_DOUBLE, nodal ? DB_NODECENT : DB_ZONECENT, NULL);
+  DBClose(dbfile);
 }
 

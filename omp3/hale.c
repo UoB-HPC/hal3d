@@ -10,10 +10,10 @@
 // Solve a single timestep on the given mesh
 void solve_unstructured_hydro_2d(
     Mesh* mesh, const int ncells, const int nnodes, const double dt, 
-    int* cell_centroids_x, int* cell_centroids_y, int* cells_to_nodes, 
+    double* cell_centroids_x, double* cell_centroids_y, int* cells_to_nodes, 
     int* nodes_to_cells, int* nodes_to_cells_off, int* cells_to_nodes_off, 
     double* nodes_x0, double* nodes_y0, double* nodes_x1, double* nodes_y1,
-    double* energy0, double* energy1, double* density0, double* density1, 
+    int* halo_cell, double* energy0, double* energy1, double* density0, double* density1, 
     double* pressure0, double* pressure1, double* velocity_x0, double* velocity_y0, 
     double* velocity_x1, double* velocity_y1, double* cell_force_x, 
     double* cell_force_y, double* node_force_x, double* node_force_y, 
@@ -39,17 +39,22 @@ void solve_unstructured_hydro_2d(
     cell_centroids_x[(cc)] = 0.0;
     cell_centroids_y[(cc)] = 0.0;
     for(int nn = 0; nn < nnodes_around_cell; ++nn) {
-      cell_centroids_x[(cc)] += nodes_x0[(nodes_off)+(nn)]*inv_Np;
-      cell_centroids_y[(cc)] += nodes_y0[(nodes_off)+(nn)]*inv_Np;
+      const int node_index = cells_to_nodes[(nodes_off)+(nn)];
+      cell_centroids_x[(cc)] += nodes_x0[node_index]*inv_Np;
+      cell_centroids_y[(cc)] += nodes_y0[node_index]*inv_Np;
     }
   }
   
   // Calculate the nodal and cell mass
   for(int cc = 0; cc < ncells; ++cc) {
+    if(halo_cell[(cc)]) {
+      continue;
+    }
+
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
     const double cell_centroid_x = cell_centroids_x[(cc)];
-    const double cell_centroid_y = cell_centroids_x[(cc)];
+    const double cell_centroid_y = cell_centroids_y[(cc)];
 
     double cell_volume = 0.0;
     cell_mass[(cc)] = 0.0;
@@ -61,6 +66,10 @@ void solve_unstructured_hydro_2d(
       const int node_center_index = cells_to_nodes[(nodes_off)+(nn)]; 
       const int node_right_index = (nn == nnodes_around_cell) 
         ? cells_to_nodes[0] : cells_to_nodes[(nodes_off)+(nn+1)];
+
+      if(nn == 0) {
+        nodal_mass[(node_center_index)] = 0.0;
+      }
 
       // Use shoelace formula to get the volume between node and cell center
       const double sub_cell_volume =
@@ -79,14 +88,16 @@ void solve_unstructured_hydro_2d(
       // Reduce the total cell volume for later calculation
       cell_volume += 
         0.5*(nodes_x0[node_center_index]+nodes_x0[node_right_index])*
-        (nodes_y0[node_right_index]+nodes_y0[node_center_index]);
+        (nodes_y0[node_right_index]-nodes_y0[node_center_index]);
     }
 
-    cell_volumes[(cc)] = cell_volume;
-
-    // Calculate the mass for the whole cell
+    // Calculate the mass and store volume for the whole cell
     cell_mass[(cc)] = density0[(cc)]*cell_volume;
+    cell_volumes[(cc)] = cell_volume;
   }
+
+  write_quad_data_to_visit(
+      mesh->local_nx, mesh->local_ny, 0, nodes_x0, nodes_y0, cell_volumes, 0);
 
   for(int cc = 0; cc < ncells; ++cc) {
     cell_force_x[(cc)] = 0.0;

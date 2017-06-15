@@ -62,17 +62,18 @@ typedef struct {
   int nnodes_by_cell;
   int ncells_by_node;
 
-  int* cell_centroids_x;
-  int* cell_centroids_y;
   int* cells_to_nodes; 
   int* nodes_to_cells; 
   int* nodes_to_cells_off; 
   int* cells_to_nodes_off; 
+  int* halo_cell;
 
   double* nodes_x0; 
   double* nodes_y0; 
   double* nodes_x1; 
   double* nodes_y1;
+  double* cell_centroids_x;
+  double* cell_centroids_y;
 
   double* sub_cell_volume;
 
@@ -86,6 +87,11 @@ void deallocate_hale_data_2d(
     HaleData* hale_data);
 size_t initialise_unstructured_mesh(
     Mesh* mesh, UnstructuredMesh* unstructured_mesh);
+
+// Writes out mesh and data
+void write_quad_data_to_visit(
+    const int nx, const int ny, const int step, double* nodes_x, 
+    double* nodes_y, const double* data, const int nodal);
 
 // Validates the results of the simulation
 void validate(

@@ -42,6 +42,7 @@ int main(int argc, char** argv)
   UnstructuredMesh unstructured_mesh;
   size_t allocated = initialise_unstructured_mesh(&mesh, &unstructured_mesh);
 
+
   int nthreads = 0;
 #pragma omp parallel 
   {
@@ -66,14 +67,13 @@ int main(int argc, char** argv)
 
   HaleData hale_data = {0};
   allocated += initialise_hale_data_2d(mesh.local_nx, mesh.local_ny, &hale_data, &unstructured_mesh);
-  printf("Allocated %.3fGB bytes of data\n", allocated/(1024.0*1024.0*1024.0));
+  printf("Allocated %.3fGB bytes of data\n", allocated/(double)GB);
 
-#if 0
-  set_timestep(
-      mesh.local_nx, mesh.local_ny, shared_data.Qxx, shared_data.Qyy, 
-      shared_data.rho, shared_data.e, &mesh, shared_data.reduce_array0, 
-      0, mesh.celldx, mesh.celldy);
-#endif // if 0
+  if(visit_dump) {
+    write_quad_data_to_visit(
+        mesh.local_nx, mesh.local_ny, 0, unstructured_mesh.nodes_x0, 
+        unstructured_mesh.nodes_y0, shared_data.rho, 0);
+  }
 
   // Prepare for solve
   double wallclock = 0.0;
@@ -96,8 +96,8 @@ int main(int argc, char** argv)
         unstructured_mesh.nodes_to_cells_off, unstructured_mesh.cells_to_nodes_off, 
         unstructured_mesh.nodes_x0, unstructured_mesh.nodes_y0, 
         unstructured_mesh.nodes_x1, unstructured_mesh.nodes_y1,
-        shared_data.e, hale_data.energy1, shared_data.rho, 
-        shared_data.rho_old, shared_data.P, hale_data.pressure1, 
+        unstructured_mesh.halo_cell, shared_data.e, hale_data.energy1, 
+        shared_data.rho, shared_data.rho_old, shared_data.P, hale_data.pressure1, 
         shared_data.u, shared_data.v, hale_data.velocity_x1, 
         hale_data.velocity_y1, hale_data.cell_force_x, hale_data.cell_force_y, 
         hale_data.node_force_x, hale_data.node_force_y, hale_data.cell_volumes, 
