@@ -521,6 +521,7 @@ void solve_unstructured_hydro_2d(
 }
 
 #if 0
+
 // Calculate the pressure from GAMma law equation of state
 void equation_of_state(
     const int nx, const int ny, double* P, const double* density, const double* e)
@@ -572,4 +573,6 @@ void set_timestep(
   mesh->dt = 0.5*(C_T*final_min_dt + mesh->dt_h);
   mesh->dt_h = (first_step) ? mesh->dt : C_T*final_min_dt;
 }
+
+#endif 
 

@@ -45,10 +45,8 @@ size_t initialise_unstructured_mesh(
   const double width = mesh->width;
   const double height = mesh->height;
 
-  unstructured_mesh->nedges = 2*nx*ny+nx+ny;
-
-  allocate_data(&unstructured_mesh->nodes_x, (nx+1)*(ny+1));
-  allocate_data(&unstructured_mesh->nodes_y, (nx+1)*(ny+1));
+  size_t allocated = allocate_data(&unstructured_mesh->nodes_x, (nx+1)*(ny+1));
+  allocated += allocate_data(&unstructured_mesh->nodes_y, (nx+1)*(ny+1));
 
   // Construct the list of nodes contiguously, currently Cartesian
   for(int ii = 0; ii < (ny+1); ++ii) {
@@ -63,12 +61,13 @@ size_t initialise_unstructured_mesh(
 
   const int nnodes_by_cell = 4;
   const int ncells_by_node = 4;
-  allocate_data(&unstructured_mesh->nodes_x, (nx+1)*(ny+1));
-  allocate_data(&unstructured_mesh->nodes_y, (nx+1)*(ny+1));
-  allocate_int_data(&unstructured_mesh->nnodes_by_cell, nx*ny+1);
-  allocate_int_data(&unstructured_mesh->ncells_by_node, nx*ny+1);
-  allocate_int_data(&unstructured_mesh->cells_nodes, nx*ny*nnodes_by_cell);
-  allocate_int_data(&unstructured_mesh->nodes_cells, (nx+1)*(ny+1)*ncells_by_node);
+  allocated += allocate_data(&unstructured_mesh->nodes_x, (nx+1)*(ny+1));
+  allocated += allocate_data(&unstructured_mesh->nodes_y, (nx+1)*(ny+1));
+  allocated += allocate_int_data(&unstructured_mesh->nodes_cells_off, nx*ny+1);
+  allocated += allocate_int_data(&unstructured_mesh->cells_nodes_off, nx*ny+1);
+  allocated += allocate_int_data(&unstructured_mesh->cells_nodes, nx*ny*nnodes_by_cell);
+  allocated += 
+    allocate_int_data(&unstructured_mesh->nodes_cells, (nx+1)*(ny+1)*ncells_by_node);
   
   // Define the list of nodes surrounding each cell, counter-clockwise
   unstructured_mesh->nodes_cells_off[0] = 0;
@@ -79,7 +78,7 @@ size_t initialise_unstructured_mesh(
       unstructured_mesh->cells_nodes[(cells_nodes_index)+1] = (ii)*(nx+1)+(jj+1);
       unstructured_mesh->cells_nodes[(cells_nodes_index)+2] = (ii+1)*(nx+1)+(jj+1);
       unstructured_mesh->cells_nodes[(cells_nodes_index)+3] = (ii+1)*(nx+1)+(jj);
-      unstructured_mesh->nodes_cells_off[(ii)*nx+(jj)+1] += nnodes_by_cell;
+      unstructured_mesh->cells_nodes_off[(ii)*nx+(jj)+1] += nnodes_by_cell;
     }
   }
 
@@ -92,9 +91,12 @@ size_t initialise_unstructured_mesh(
       unstructured_mesh->nodes_cells[(nodes_cells_index)+1] = (ii-1)*nx+(jj);
       unstructured_mesh->nodes_cells[(nodes_cells_index)+2] = (ii)*nx+(jj-1);
       unstructured_mesh->nodes_cells[(nodes_cells_index)+3] = (ii)*nx+(jj);
-      unstructured_mesh->ncells_by_node[(ii)*(nx+1)+(jj)+1] += ncells_by_node;
+      unstructured_mesh->nodes_cells_off[(ii)*(nx+1)+(jj)+1] += ncells_by_node;
     }
   }
+
+  return allocated;
+}
 
 #if 0
   // Ordered by node_vertex_0 is closest to bottom left
@@ -196,5 +198,4 @@ size_t initialise_unstructured_mesh(
     }
   }
 #endif // if 0
-}
 

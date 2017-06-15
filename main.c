@@ -39,6 +39,9 @@ int main(int argc, char** argv)
   initialise_devices(mesh.rank);
   initialise_mesh_2d(&mesh);
 
+  UnstructuredMesh unstructured_mesh;
+  size_t allocated = initialise_unstructured_mesh(&mesh, &unstructured_mesh);
+
   int nthreads = 0;
 #pragma omp parallel 
   {
@@ -64,10 +67,12 @@ int main(int argc, char** argv)
   HaleData hale_data = {0};
   initialise_hale_data_2d(mesh.local_nx, mesh.local_ny, &hale_data);
 
+#if 0
   set_timestep(
       mesh.local_nx, mesh.local_ny, shared_data.Qxx, shared_data.Qyy, 
       shared_data.rho, shared_data.e, &mesh, shared_data.reduce_array0, 
       0, mesh.celldx, mesh.celldy);
+#endif // if 0
 
   // Prepare for solve
   double wallclock = 0.0;
@@ -83,16 +88,25 @@ int main(int argc, char** argv)
 
     double w0 = omp_get_wtime();
 
-    solve_hydro_2d(
-        &mesh, tt, shared_data.P, shared_data.rho, shared_data.rho_old, 
-        shared_data.e, shared_data.u, shared_data.v, hale_data.rho_u, 
-        hale_data.rho_v, shared_data.Qxx, shared_data.Qyy, hale_data.F_x, 
-        hale_data.F_y, hale_data.uF_x, hale_data.uF_y, hale_data.vF_x, 
-        hale_data.vF_y, shared_data.reduce_array0);
+    solve_unstructured_hydro_2d(
+        &mesh, unstructured_mesh.ncells, unstructured_mesh.nnodes, mesh.dt, 
+        unstructured_mesh.cell_centroids_x, unstructured_mesh.cell_centroids_y, 
+        unstructured_mesh.cells_to_nodes, unstructured_mesh.nodes_to_cells, 
+        unstructured_mesh.nodes_to_cells_off, unstructured_mesh.cells_to_nodes_off, 
+        unstructured_mesh.nodes_x0, unstructured_mesh.nodes_y0, 
+        unstructured_mesh.nodes_x1, unstructured_mesh.nodes_y1,
+        hale_data.energy0, hale_data.energy1, hale_data.density0, 
+        hale_data.density1, hale_data.pressure0, hale_data.pressure1, 
+        hale_data.velocity_x0, hale_data.velocity_y0, hale_data.velocity_x1, 
+        hale_data.velocity_y1, hale_data.cell_force_x, hale_data.cell_force_y, 
+        hale_data.node_force_x, hale_data.node_force_y, hale_data.cell_volumes, 
+        hale_data.cell_mass, hale_data.nodal_mass);
 
+#if 0
     print_conservation(
         mesh.local_nx, mesh.local_ny, shared_data.rho, shared_data.e, 
         shared_data.reduce_array0, &mesh);
+#endif // if 0
 
     wallclock += omp_get_wtime()-w0;
     elapsed_sim_time += mesh.dt;

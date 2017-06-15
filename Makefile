@@ -60,7 +60,7 @@ endif
 ARCH_LINKER    			= $(ARCH_COMPILER_CC)
 ARCH_FLAGS     			= $(CFLAGS_$(COMPILER))
 ARCH_LDFLAGS   			= $(ARCH_FLAGS) -lm
-ARCH_BUILD_DIR 			= ../obj/flow/
+ARCH_BUILD_DIR 			= ../obj/hale/
 ARCH_DIR       			= ..
 
 ifeq ($(KERNELS), cuda)
@@ -75,8 +75,8 @@ SRC 			+= $(subst main.c,, $(wildcard $(ARCH_DIR)/*.c))
 SRC_CLEAN  = $(subst $(ARCH_DIR)/,,$(SRC))
 OBJS 			+= $(patsubst %.c, $(ARCH_BUILD_DIR)/%.o, $(SRC_CLEAN))
 
-flow: make_build_dir $(OBJS) Makefile
-	$(ARCH_LINKER) $(OBJS) $(ARCH_LDFLAGS) -o flow.$(KERNELS)
+hale: make_build_dir $(OBJS) Makefile
+	$(ARCH_LINKER) $(OBJS) $(ARCH_LDFLAGS) -o hale.$(KERNELS)
 
 # Rule to make controlling code
 $(ARCH_BUILD_DIR)/%.o: %.c Makefile 
@@ -90,5 +90,5 @@ make_build_dir:
 	@mkdir -p $(ARCH_BUILD_DIR)/$(KERNELS)
 
 clean:
-	rm -rf $(ARCH_BUILD_DIR)/* flow.exe *.vtk *.bov *.dat *.optrpt *.cub *.ptx *.i *.bc *.o *.s *.lk
+	rm -rf $(ARCH_BUILD_DIR)/* hale.exe *.vtk *.bov *.dat *.optrpt *.cub *.ptx *.i *.bc *.o *.s *.lk
 
