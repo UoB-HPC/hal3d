@@ -51,20 +51,16 @@ typedef struct {
 
 } HaleData;
 
-
+// Stores unstructured mesh
 typedef struct {
-
-  // Handles unstructured mesh
-  double* nodes_x;
-  double* nodes_y;
-  double* sub_cell_volume;
-  int* nodes_cells;
-  int* cells_nodes;
-  int* nodes_cells_off;
-  int* cells_nodes_off;
 
   int ncells;
   int nnodes;
+
+  // TODO: These two shouldn't be used, need to make more general
+  // setup phase from some input file.
+  int nnodes_by_cell;
+  int ncells_by_node;
 
   int* cell_centroids_x;
   int* cell_centroids_y;
@@ -78,11 +74,14 @@ typedef struct {
   double* nodes_x1; 
   double* nodes_y1;
 
+  double* sub_cell_volume;
+
 } UnstructuredMesh;
 
 // Initialises the state variables for two dimensional applications
 size_t initialise_hale_data_2d(
-    const int local_nx, const int local_ny, HaleData* hale_data);
+    const int local_nx, const int local_ny, HaleData* hale_data, 
+    UnstructuredMesh* unstructured_mesh);
 void deallocate_hale_data_2d(
     HaleData* hale_data);
 size_t initialise_unstructured_mesh(

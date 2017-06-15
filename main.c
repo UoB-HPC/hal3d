@@ -65,7 +65,8 @@ int main(int argc, char** argv)
       mesh.local_nx, mesh.local_ny, &mesh, shared_data.e, NO_INVERT, PACK);
 
   HaleData hale_data = {0};
-  initialise_hale_data_2d(mesh.local_nx, mesh.local_ny, &hale_data);
+  allocated += initialise_hale_data_2d(mesh.local_nx, mesh.local_ny, &hale_data, &unstructured_mesh);
+  printf("Allocated %.3fGB bytes of data\n", allocated/(1024.0*1024.0*1024.0));
 
 #if 0
   set_timestep(
@@ -95,9 +96,9 @@ int main(int argc, char** argv)
         unstructured_mesh.nodes_to_cells_off, unstructured_mesh.cells_to_nodes_off, 
         unstructured_mesh.nodes_x0, unstructured_mesh.nodes_y0, 
         unstructured_mesh.nodes_x1, unstructured_mesh.nodes_y1,
-        hale_data.energy0, hale_data.energy1, hale_data.density0, 
-        hale_data.density1, hale_data.pressure0, hale_data.pressure1, 
-        hale_data.velocity_x0, hale_data.velocity_y0, hale_data.velocity_x1, 
+        shared_data.e, hale_data.energy1, shared_data.rho, 
+        shared_data.rho_old, shared_data.P, hale_data.pressure1, 
+        shared_data.u, shared_data.v, hale_data.velocity_x1, 
         hale_data.velocity_y1, hale_data.cell_force_x, hale_data.cell_force_y, 
         hale_data.node_force_x, hale_data.node_force_y, hale_data.cell_volumes, 
         hale_data.cell_mass, hale_data.nodal_mass);
