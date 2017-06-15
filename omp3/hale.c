@@ -30,6 +30,11 @@ void solve_unstructured_hydro_2d(
    *    PREDICTOR
    */
 
+  // Calculate the pressure using the ideal gas equation of state
+  for(int cc = 0; cc < ncells; ++cc) {
+    pressure0[(cc)] = (GAM-1.0)*energy0[(cc)]*density0[(cc)];
+  }
+
   // Calculate the cell centroids
   for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
@@ -47,9 +52,6 @@ void solve_unstructured_hydro_2d(
   
   // Calculate the nodal and cell mass
   for(int cc = 0; cc < ncells; ++cc) {
-    if(halo_cell[(cc)]) {
-      continue;
-    }
 
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
@@ -100,13 +102,6 @@ void solve_unstructured_hydro_2d(
     cell_volumes[(cc)] = cell_volume;
   }
 
-  write_quad_data_to_visit(
-      mesh->local_nx, mesh->local_ny, 0, nodes_x0, nodes_y0, cell_mass, 0);
-
-  for(int cc = 0; cc < ncells; ++cc) {
-    cell_force_x[(cc)] = 0.0;
-    cell_force_y[(cc)] = 0.0;
-  }
   for(int nn = 0; nn < nnodes; ++nn) {
     node_force_x[(nn)] = 0.0;
     node_force_y[(nn)] = 0.0;
@@ -114,8 +109,15 @@ void solve_unstructured_hydro_2d(
 
   // Calculate the force contributions for pressure gradients
   for(int cc = 0; cc < ncells; ++cc) {
+    if(halo_cell[(cc)]) {
+      continue;
+    }
+
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
+
+    cell_force_x[(cc)] = 0.0;
+    cell_force_y[(cc)] = 0.0;
 
     for(int nn = 0; nn < nnodes_around_cell; ++nn) {
       // Determine the three point stencil of nodes around current node
@@ -123,17 +125,18 @@ void solve_unstructured_hydro_2d(
         ? cells_to_nodes[(nodes_off+nnodes_around_cell-1)] 
         : cells_to_nodes[(nodes_off)+(nn-1)]; 
       const int node_center_index = cells_to_nodes[(nodes_off)+(nn)]; 
-      const int node_right_index = (nn == nnodes_around_cell) 
-        ? cells_to_nodes[0] : cells_to_nodes[(nodes_off)+(nn+1)];
+      const int node_right_index = (nn == nnodes_around_cell-1) 
+        ? cells_to_nodes[(nodes_off)]
+        : cells_to_nodes[(nodes_off)+(nn+1)];
 
       // Calculate the area vectors away from cell through node, using
       // the half edge vectors adjacent to the node combined
-      const double S_x = 
-        0.25*((nodes_y0[node_center_index]-nodes_y0[node_left_index]) + 
-            (nodes_y0[node_right_index]-nodes_y0[node_center_index]));
-      const double S_y = 
-        -0.25*((nodes_x0[node_center_index]-nodes_x0[node_left_index]) +
-            (nodes_x0[node_right_index]-nodes_x0[node_center_index]));
+      const double S_x =
+        0.25*((nodes_y0[(node_center_index)]-nodes_y0[(node_left_index)]) +
+            (nodes_y0[(node_right_index)]-nodes_y0[(node_center_index)]));
+      const double S_y =
+        -0.25*((nodes_x0[(node_center_index)]-nodes_x0[(node_left_index)]) +
+            (nodes_x0[(node_right_index)]-nodes_x0[(node_center_index)]));
 
       // Add the contributions of the edge based artifical viscous terms
       // to the main force terms
@@ -146,6 +149,10 @@ void solve_unstructured_hydro_2d(
 
   // Calculating artificial viscous terms for all edges of all cells
   for(int cc = 0; cc < ncells; ++cc) {
+    if(halo_cell[(cc)]) {
+      continue;
+    }
+
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
@@ -157,13 +164,13 @@ void solve_unstructured_hydro_2d(
         : cells_to_nodes[(nodes_off)+(nn+1)];
 
       // Calculate area weighted averages of the density and soundspeed here.
-      double density_node[NNODES_PER_EDGE];
-      double cs_node[NNODES_PER_EDGE];
+      double density_node[NNODES_PER_EDGE] = { 0.0, 0.0 };
+      double cs_node[NNODES_PER_EDGE] = { 0.0, 0.0 };
       for(int oo = 0; oo < NNODES_PER_EDGE; ++oo) {
         double total_volume = 0.0;
         const int cells_by_node_off = nodes_to_cells_off[(node_index[oo])];
         const int ncells_around_node = 
-          cells_to_nodes_off[(node_index[oo]+1)]-cells_by_node_off;
+          nodes_to_cells_off[(node_index[oo]+1)]-cells_by_node_off;
         for(int zz = 0; zz < ncells_around_node; ++zz) {
           const int cell_index = nodes_to_cells[(cells_by_node_off)+(zz)];
           // TODO: should this be node volume???
@@ -190,9 +197,9 @@ void solve_unstructured_hydro_2d(
 
       // Velocity gradients
       const double grad_velocity_x = 
-        velocity_x0[node_index[1]]-velocity_x0[node_index[0]];
+        velocity_x0[(node_index[1])]-velocity_x0[(node_index[0])];
       const double grad_velocity_y = 
-        velocity_y0[node_index[1]]-velocity_y0[node_index[0]];
+        velocity_y0[(node_index[1])]-velocity_y0[(node_index[0])];
       const double grad_velocity_mag =
         sqrt(grad_velocity_x*grad_velocity_x+grad_velocity_y*grad_velocity_y);
       const double grad_velocity_unit_x = grad_velocity_x/grad_velocity_mag;
