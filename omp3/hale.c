@@ -59,36 +59,40 @@ void solve_unstructured_hydro_2d(
     double cell_volume = 0.0;
     cell_mass[(cc)] = 0.0;
     for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+
       // Determine the three point stencil of nodes around current node
       const int node_left_index = (nn == 0) 
         ? cells_to_nodes[(nodes_off+nnodes_around_cell-1)] 
         : cells_to_nodes[(nodes_off)+(nn-1)]; 
       const int node_center_index = cells_to_nodes[(nodes_off)+(nn)]; 
-      const int node_right_index = (nn == nnodes_around_cell) 
-        ? cells_to_nodes[0] : cells_to_nodes[(nodes_off)+(nn+1)];
+      const int node_right_index = (nn == nnodes_around_cell-1) 
+        ? cells_to_nodes[(nodes_off)] : cells_to_nodes[(nodes_off)+(nn+1)];
+
+      const double node_center_x = nodes_x0[node_center_index];
+      const double node_center_y = nodes_y0[node_center_index];
+
+      // Get the midpoints between left and right nodes and current node
+      const double node_left_x = 0.5*(nodes_x0[node_left_index]+node_center_x);
+      const double node_left_y = 0.5*(nodes_y0[node_left_index]+node_center_y);
+      const double node_right_x = 0.5*(node_center_x+nodes_x0[node_right_index]);
+      const double node_right_y = 0.5*(node_center_y+nodes_y0[node_right_index]);
+
+      // Use shoelace formula to get the volume between node and cell center
+      const double sub_cell_volume =
+        0.5*((node_left_x*node_center_y + node_center_x*node_right_y +
+         node_right_x*cell_centroid_y + cell_centroid_x*node_left_y) -
+        (node_center_x*node_left_y + node_right_x*node_center_y +
+         cell_centroid_x*node_right_y + node_left_x*cell_centroid_y));
 
       if(nn == 0) {
         nodal_mass[(node_center_index)] = 0.0;
       }
 
-      // Use shoelace formula to get the volume between node and cell center
-      const double sub_cell_volume =
-        (nodes_x0[node_left_index]*nodes_y0[node_center_index] + 
-         nodes_x0[node_center_index]*nodes_y0[node_right_index] + 
-         nodes_x0[node_right_index]*cell_centroid_y +
-         cell_centroid_x*nodes_y0[node_left_index]) -
-        (nodes_x0[node_center_index]*nodes_y0[node_left_index] +
-         nodes_x0[node_right_index]*nodes_y0[node_center_index] + 
-         cell_centroid_x*nodes_y0[node_right_index] +
-         nodes_x0[node_left_index]*cell_centroid_y);
-
       // Add contributions to the nodal mass from adjacent sub-cells
       nodal_mass[(node_center_index)] += density0[(cc)]*sub_cell_volume;
 
       // Reduce the total cell volume for later calculation
-      cell_volume += 
-        0.5*(nodes_x0[node_center_index]+nodes_x0[node_right_index])*
-        (nodes_y0[node_right_index]-nodes_y0[node_center_index]);
+      cell_volume += sub_cell_volume;
     }
 
     // Calculate the mass and store volume for the whole cell
@@ -97,7 +101,7 @@ void solve_unstructured_hydro_2d(
   }
 
   write_quad_data_to_visit(
-      mesh->local_nx, mesh->local_ny, 0, nodes_x0, nodes_y0, cell_volumes, 0);
+      mesh->local_nx, mesh->local_ny, 0, nodes_x0, nodes_y0, cell_mass, 0);
 
   for(int cc = 0; cc < ncells; ++cc) {
     cell_force_x[(cc)] = 0.0;
