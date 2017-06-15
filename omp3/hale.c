@@ -30,6 +30,15 @@ void solve_unstructured_hydro_2d(
    *    PREDICTOR
    */
 
+  /// HACKING IN THE VALUES FOR THE HALO CELLS, GOING TO ADD HALO EXCHANGE
+  //  AND LOCAL UPDATES LATER
+  for(int cc = 0; cc < ncells; ++cc) {
+    if(halo_cell[(cc)]) {
+      density0[(cc)] = 0.125;
+      energy0[(cc)] = 2.0;
+    }
+  }
+
   // Calculate the pressure using the ideal gas equation of state
   for(int cc = 0; cc < ncells; ++cc) {
     pressure0[(cc)] = (GAM-1.0)*energy0[(cc)]*density0[(cc)];
@@ -70,8 +79,8 @@ void solve_unstructured_hydro_2d(
       const int node_right_index = (nn == nnodes_around_cell-1) 
         ? cells_to_nodes[(nodes_off)] : cells_to_nodes[(nodes_off)+(nn+1)];
 
-      const double node_center_x = nodes_x0[node_center_index];
-      const double node_center_y = nodes_y0[node_center_index];
+      const double node_center_x = nodes_x0[(node_center_index)];
+      const double node_center_y = nodes_y0[(node_center_index)];
 
       // Get the midpoints between left and right nodes and current node
       const double node_left_x = 0.5*(nodes_x0[node_left_index]+node_center_x);
@@ -85,6 +94,18 @@ void solve_unstructured_hydro_2d(
          node_right_x*cell_centroid_y + cell_centroid_x*node_left_y) -
         (node_center_x*node_left_y + node_right_x*node_center_y +
          cell_centroid_x*node_right_y + node_left_x*cell_centroid_y));
+
+
+
+
+      // TODO: nodal mass calculation is wrong, it's missing whole row and col
+      //
+      
+
+      fdafdasf
+
+
+
 
       if(nn == 0) {
         nodal_mass[(node_center_index)] = 0.0;
@@ -102,6 +123,12 @@ void solve_unstructured_hydro_2d(
     cell_volumes[(cc)] = cell_volume;
   }
 
+
+  write_quad_data_to_visit(
+      mesh->local_nx, mesh->local_ny, 0, nodes_x0, nodes_y0, nodal_mass, 1);
+
+
+
   for(int nn = 0; nn < nnodes; ++nn) {
     node_force_x[(nn)] = 0.0;
     node_force_y[(nn)] = 0.0;
@@ -109,10 +136,6 @@ void solve_unstructured_hydro_2d(
 
   // Calculate the force contributions for pressure gradients
   for(int cc = 0; cc < ncells; ++cc) {
-    if(halo_cell[(cc)]) {
-      continue;
-    }
-
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
@@ -147,12 +170,9 @@ void solve_unstructured_hydro_2d(
     }
   }
 
+#if 0
   // Calculating artificial viscous terms for all edges of all cells
   for(int cc = 0; cc < ncells; ++cc) {
-    if(halo_cell[(cc)]) {
-      continue;
-    }
-
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
@@ -202,8 +222,10 @@ void solve_unstructured_hydro_2d(
         velocity_y0[(node_index[1])]-velocity_y0[(node_index[0])];
       const double grad_velocity_mag =
         sqrt(grad_velocity_x*grad_velocity_x+grad_velocity_y*grad_velocity_y);
-      const double grad_velocity_unit_x = grad_velocity_x/grad_velocity_mag;
-      const double grad_velocity_unit_y = grad_velocity_y/grad_velocity_mag;
+      const double grad_velocity_unit_x = 
+        (grad_velocity_x != 0.0) ? grad_velocity_x/grad_velocity_mag : 0.0;
+      const double grad_velocity_unit_y = 
+        (grad_velocity_y != 0.0) ? grad_velocity_y/grad_velocity_mag : 0.0;
 
       // Calculate the minimum soundspeed
       const double cs = min(cs_node[0], cs_node[1]);
@@ -239,6 +261,7 @@ void solve_unstructured_hydro_2d(
       }
     }
   }
+#endif // if 0
 
   // Calculate the half timestep evolved velocities, by first calculating the
   // predicted values at the new timestep and then averaging with current velocity
@@ -251,6 +274,10 @@ void solve_unstructured_hydro_2d(
 
   // Calculate the predicted energy
   for(int cc = 0; cc < ncells; ++cc) {
+    if(halo_cell[(cc)]) {
+      continue;
+    }
+
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
@@ -268,9 +295,23 @@ void solve_unstructured_hydro_2d(
 
   // Move the nodes by the predicted velocity
   for(int nn = 0; nn < nnodes; ++nn) {
-    nodes_x1[(nn)] = nodes_x0[(nn)] + dt*velocity_x0[(nn)];
-    nodes_y1[(nn)] = nodes_y0[(nn)] + dt*velocity_y0[(nn)];
+    nodes_x1[(nn)] = nodes_x0[(nn)] + dt*velocity_x1[(nn)];
+    nodes_y1[(nn)] = nodes_y0[(nn)] + dt*velocity_y1[(nn)];
   }
+
+
+
+#if 0
+  write_quad_data_to_visit(
+      mesh->local_nx, mesh->local_ny, 0, nodes_x1, nodes_y1, energy1, 0);
+#endif // if 0
+
+
+
+
+
+
+
 
   // Calculate the new cell centroids
   for(int cc = 0; cc < ncells; ++cc) {

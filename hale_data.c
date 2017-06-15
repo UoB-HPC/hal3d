@@ -56,12 +56,13 @@ size_t initialise_unstructured_mesh(
   unstructured_mesh->nnodes_by_cell = 4;
   unstructured_mesh->ncells_by_node = 4;
   unstructured_mesh->ncells = mesh->local_nx*mesh->local_ny;
+  unstructured_mesh->nnodes = (nx+1)*(nx+1);
 
-  size_t allocated = allocate_data(&unstructured_mesh->nodes_x0, (nx+1)*(ny+1));
-  allocated += allocate_data(&unstructured_mesh->nodes_y0, (nx+1)*(ny+1));
-  allocated = allocate_data(&unstructured_mesh->nodes_x1, (nx+1)*(ny+1));
-  allocated += allocate_data(&unstructured_mesh->nodes_y1, (nx+1)*(ny+1));
-  allocated += allocate_int_data(&unstructured_mesh->nodes_to_cells_off, (nx+1)*(ny+1)+1);
+  size_t allocated = allocate_data(&unstructured_mesh->nodes_x0, unstructured_mesh->nnodes);
+  allocated += allocate_data(&unstructured_mesh->nodes_y0, unstructured_mesh->nnodes);
+  allocated = allocate_data(&unstructured_mesh->nodes_x1, unstructured_mesh->nnodes);
+  allocated += allocate_data(&unstructured_mesh->nodes_y1, unstructured_mesh->nnodes);
+  allocated += allocate_int_data(&unstructured_mesh->nodes_to_cells_off, unstructured_mesh->nnodes+1);
   allocated += allocate_int_data(&unstructured_mesh->cells_to_nodes_off, nx*ny+1);
   allocated += allocate_int_data(&unstructured_mesh->cells_to_nodes, 
       nx*ny*unstructured_mesh->nnodes_by_cell);
@@ -99,10 +100,10 @@ size_t initialise_unstructured_mesh(
   for(int ii = 0; ii < (ny+1); ++ii) {
     for(int jj = 0; jj < (nx+1); ++jj) {
       const int nodes_cells_index = ((ii)*(nx+1)+(jj))*unstructured_mesh->ncells_by_node;
-      unstructured_mesh->nodes_to_cells[(nodes_cells_index)+0] = (ii-1)*nx+(jj-1);
-      unstructured_mesh->nodes_to_cells[(nodes_cells_index)+1] = (ii-1)*nx+(jj);
-      unstructured_mesh->nodes_to_cells[(nodes_cells_index)+2] = (ii)*nx+(jj-1);
-      unstructured_mesh->nodes_to_cells[(nodes_cells_index)+3] = (ii)*nx+(jj);
+      unstructured_mesh->nodes_to_cells[(nodes_cells_index)+0] = (ii)*nx+(jj);
+      unstructured_mesh->nodes_to_cells[(nodes_cells_index)+1] = (ii)*nx+(jj+1);
+      unstructured_mesh->nodes_to_cells[(nodes_cells_index)+2] = (ii+1)*nx+(jj);
+      unstructured_mesh->nodes_to_cells[(nodes_cells_index)+3] = (ii+1)*nx+(jj+1);
       unstructured_mesh->nodes_to_cells_off[(ii)*(nx+1)+(jj)+1] = 
         unstructured_mesh->nodes_to_cells_off[(ii)*(nx+1)+(jj)] + unstructured_mesh->ncells_by_node;
     }
