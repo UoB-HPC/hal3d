@@ -445,6 +445,79 @@ void solve_unstructured_hydro_2d(
     }
   }
 
+  // Calculate the corrected half timestep velocities
+  for(int nn = 0; nn < nnodes; ++nn) {
+    velocity_x0[(nn)] = 
+      velocity_x0[(nn)] + 0.5*(dt/nodal_mass[(nn)])*node_force_x[(nn)];
+    velocity_y0[(nn)] = 
+      velocity_y0[(nn)] + 0.5*(dt/nodal_mass[(nn)])*node_force_y[(nn)];
+  }
+
+  // Calculate the corrected node movements
+  for(int nn = 0; nn < nnodes; ++nn) {
+    nodes_x0[(nn)] = nodes_x0[(nn)] + dt*velocity_x0[(nn)];
+    nodes_y0[(nn)] = nodes_y0[(nn)] + dt*velocity_y0[(nn)];
+  }
+
+  // Calculate the final energy
+  for(int cc = 0; cc < ncells; ++cc) {
+    const int nodes_off = cells_to_nodes_off[(cc)];
+    const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
+
+    // Sum the half timestep velocity by the sub-cell forces
+    double force = 0.0;
+    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+      const int node_index = cells_to_nodes[(nodes_off)+(nn)];
+      force += 
+        (velocity_x0[(node_index)]*cell_force_x[(nodes_off)+(nn)] +
+         velocity_y0[(node_index)]*cell_force_y[(nodes_off)+(nn)]);
+    }
+
+    energy0[(cc)] = energy0[(cc)] - (dt/cell_mass[(cc)])*force;
+  }
+
+  // TODO: NECESSARY???
+  
+  // Calculate the cell centroids
+  for(int cc = 0; cc < ncells; ++cc) {
+    const int nodes_off = cells_to_nodes_off[(cc)];
+    const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
+    const double inv_Np = 1.0/(double)nnodes_around_cell;
+
+    cell_centroids_x[(cc)] = 0.0;
+    cell_centroids_y[(cc)] = 0.0;
+    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+      cell_centroids_x[(cc)] += nodes_x0[(nodes_off)+(nn)]*inv_Np;
+      cell_centroids_y[(cc)] += nodes_y0[(nodes_off)+(nn)]*inv_Np;
+    }
+  }
+
+  // Using the new corrected volume, calculate the density
+  for(int cc = 0; cc < ncells; ++cc) {
+    const int nodes_off = cells_to_nodes_off[(cc)];
+    const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
+
+    double cell_volume = 0.0;
+    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+
+      // Calculate the new volume of the cell
+      const int node_center_index = cells_to_nodes[(nodes_off)+(nn)]; 
+      const int node_right_index = (nn == nnodes_around_cell) 
+        ? cells_to_nodes[0] : cells_to_nodes[(nodes_off)+(nn+1)];
+      cell_volume += 
+        0.5*(nodes_x0[node_center_index]+nodes_x0[node_right_index])*
+        (nodes_y0[node_right_index]+nodes_y0[node_center_index]);
+    }
+
+    cell_volumes[(cc)] = cell_volume;
+    density0[(cc)] = cell_mass[(cc)]/cell_volume;
+  }
+
+  // Calculate the half step pressure from mid point between original and 
+  // predicted pressures
+  for(int cc = 0; cc < ncells; ++cc) {
+    pressure0[(cc)] = 0.5*(pressure0[(cc)] + (GAM-1.0)*energy0[(cc)]*density0[(cc)]);
+  }
 }
 
 #if 0
