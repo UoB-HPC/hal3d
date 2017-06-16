@@ -92,7 +92,8 @@ size_t initialise_unstructured_mesh(
       unstructured_mesh->cells_to_nodes[(cells_nodes_index)+2] = (ii+1)*(nx+1)+(jj+1);
       unstructured_mesh->cells_to_nodes[(cells_nodes_index)+3] = (ii+1)*(nx+1)+(jj);
       unstructured_mesh->cells_to_nodes_off[(ii)*nx+(jj)+1] = 
-        unstructured_mesh->cells_to_nodes_off[(ii)*nx+(jj)] + unstructured_mesh->nnodes_by_cell;
+        unstructured_mesh->cells_to_nodes_off[(ii)*nx+(jj)] +
+        unstructured_mesh->nnodes_by_cell;
     }
   }
 
@@ -100,12 +101,13 @@ size_t initialise_unstructured_mesh(
   for(int ii = 0; ii < (ny+1); ++ii) {
     for(int jj = 0; jj < (nx+1); ++jj) {
       const int nodes_cells_index = ((ii)*(nx+1)+(jj))*unstructured_mesh->ncells_by_node;
-      unstructured_mesh->nodes_to_cells[(nodes_cells_index)+0] = (ii)*nx+(jj);
-      unstructured_mesh->nodes_to_cells[(nodes_cells_index)+1] = (ii)*nx+(jj+1);
-      unstructured_mesh->nodes_to_cells[(nodes_cells_index)+2] = (ii+1)*nx+(jj);
-      unstructured_mesh->nodes_to_cells[(nodes_cells_index)+3] = (ii+1)*nx+(jj+1);
+      unstructured_mesh->nodes_to_cells[(nodes_cells_index)+0] = (ii-1)*nx+(jj-1);
+      unstructured_mesh->nodes_to_cells[(nodes_cells_index)+1] = (ii-1)*nx+(jj);
+      unstructured_mesh->nodes_to_cells[(nodes_cells_index)+2] = (ii)*nx+(jj-1);
+      unstructured_mesh->nodes_to_cells[(nodes_cells_index)+3] = (ii)*nx+(jj);
       unstructured_mesh->nodes_to_cells_off[(ii)*(nx+1)+(jj)+1] = 
-        unstructured_mesh->nodes_to_cells_off[(ii)*(nx+1)+(jj)] + unstructured_mesh->ncells_by_node;
+        unstructured_mesh->nodes_to_cells_off[(ii)*(nx+1)+(jj)] +
+        unstructured_mesh->ncells_by_node;
     }
   }
 

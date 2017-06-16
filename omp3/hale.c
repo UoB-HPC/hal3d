@@ -19,6 +19,11 @@ void solve_unstructured_hydro_2d(
     double* cell_force_y, double* node_force_x, double* node_force_y, 
     double* cell_volumes, double* cell_mass, double* nodal_mass)
 {
+  handle_boundary_2d(
+      mesh->local_nx, mesh->local_ny, mesh, density0, NO_INVERT, PACK);
+  handle_boundary_2d(
+      mesh->local_nx, mesh->local_ny, mesh, energy0, NO_INVERT, PACK);
+
   // Random constants
   const double c1 = 1.0;
   const double c2 = 1.0;
@@ -29,6 +34,8 @@ void solve_unstructured_hydro_2d(
   /*
    *    PREDICTOR
    */
+
+
 
   /// HACKING IN THE VALUES FOR THE HALO CELLS, GOING TO ADD HALO EXCHANGE
   //  AND LOCAL UPDATES LATER
@@ -57,6 +64,10 @@ void solve_unstructured_hydro_2d(
       cell_centroids_x[(cc)] += nodes_x0[node_index]*inv_Np;
       cell_centroids_y[(cc)] += nodes_y0[node_index]*inv_Np;
     }
+  }
+
+  for(int nn = 0; nn < nnodes; ++nn) {
+    nodal_mass[(nn)] = 0.0;
   }
   
   // Calculate the nodal and cell mass
@@ -95,22 +106,6 @@ void solve_unstructured_hydro_2d(
         (node_center_x*node_left_y + node_right_x*node_center_y +
          cell_centroid_x*node_right_y + node_left_x*cell_centroid_y));
 
-
-
-
-      // TODO: nodal mass calculation is wrong, it's missing whole row and col
-      //
-      
-
-      fdafdasf
-
-
-
-
-      if(nn == 0) {
-        nodal_mass[(node_center_index)] = 0.0;
-      }
-
       // Add contributions to the nodal mass from adjacent sub-cells
       nodal_mass[(node_center_index)] += density0[(cc)]*sub_cell_volume;
 
@@ -122,12 +117,6 @@ void solve_unstructured_hydro_2d(
     cell_mass[(cc)] = density0[(cc)]*cell_volume;
     cell_volumes[(cc)] = cell_volume;
   }
-
-
-  write_quad_data_to_visit(
-      mesh->local_nx, mesh->local_ny, 0, nodes_x0, nodes_y0, nodal_mass, 1);
-
-
 
   for(int nn = 0; nn < nnodes; ++nn) {
     node_force_x[(nn)] = 0.0;
@@ -170,16 +159,19 @@ void solve_unstructured_hydro_2d(
     }
   }
 
-#if 0
   // Calculating artificial viscous terms for all edges of all cells
   for(int cc = 0; cc < ncells; ++cc) {
+    if(halo_cell[(cc)]) {
+      continue;
+    }
+
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
     for(int nn = 0; nn < nnodes_around_cell; ++nn) {
       int node_index[NNODES_PER_EDGE]; 
       node_index[0] = cells_to_nodes[(nodes_off)+(nn)]; 
-      node_index[1] = (nn == nnodes_around_cell) 
+      node_index[1] = (nn == nnodes_around_cell-1) 
         ? cells_to_nodes[(nodes_off)] 
         : cells_to_nodes[(nodes_off)+(nn+1)];
 
@@ -261,7 +253,11 @@ void solve_unstructured_hydro_2d(
       }
     }
   }
-#endif // if 0
+
+  write_quad_data_to_visit(
+      mesh->local_nx, mesh->local_ny, 0, nodes_x0, nodes_y0, node_force_y, 1);
+
+
 
   // Calculate the half timestep evolved velocities, by first calculating the
   // predicted values at the new timestep and then averaging with current velocity
@@ -299,20 +295,6 @@ void solve_unstructured_hydro_2d(
     nodes_y1[(nn)] = nodes_y0[(nn)] + dt*velocity_y1[(nn)];
   }
 
-
-
-#if 0
-  write_quad_data_to_visit(
-      mesh->local_nx, mesh->local_ny, 0, nodes_x1, nodes_y1, energy1, 0);
-#endif // if 0
-
-
-
-
-
-
-
-
   // Calculate the new cell centroids
   for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
@@ -337,11 +319,11 @@ void solve_unstructured_hydro_2d(
 
       // Calculate the new volume of the cell
       const int node_center_index = cells_to_nodes[(nodes_off)+(nn)]; 
-      const int node_right_index = (nn == nnodes_around_cell) 
-        ? cells_to_nodes[0] : cells_to_nodes[(nodes_off)+(nn+1)];
+      const int node_right_index = (nn == nnodes_around_cell-1) 
+        ? cells_to_nodes[(nodes_off)] : cells_to_nodes[(nodes_off)+(nn+1)];
       cell_volume += 
         0.5*(nodes_x1[node_center_index]+nodes_x1[node_right_index])*
-        (nodes_y1[node_right_index]+nodes_y1[node_center_index]);
+        (nodes_y1[node_right_index]-nodes_y1[node_center_index]);
     }
 
     cell_volumes[(cc)] = cell_volume;
@@ -378,10 +360,6 @@ void solve_unstructured_hydro_2d(
     }
   }
   
-  for(int cc = 0; cc < ncells; ++cc) {
-    cell_force_x[(cc)] = 0.0;
-    cell_force_y[(cc)] = 0.0;
-  }
   for(int nn = 0; nn < nnodes; ++nn) {
     node_force_x[(nn)] = 0.0;
     node_force_y[(nn)] = 0.0;
@@ -392,23 +370,27 @@ void solve_unstructured_hydro_2d(
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
+    cell_force_x[(cc)] = 0.0;
+    cell_force_y[(cc)] = 0.0;
+
     for(int nn = 0; nn < nnodes_around_cell; ++nn) {
       // Determine the three point stencil of nodes around current node
       const int node_left_index = (nn == 0) 
         ? cells_to_nodes[(nodes_off+nnodes_around_cell-1)] 
         : cells_to_nodes[(nodes_off)+(nn-1)]; 
       const int node_center_index = cells_to_nodes[(nodes_off)+(nn)]; 
-      const int node_right_index = (nn == nnodes_around_cell) 
-        ? cells_to_nodes[0] : cells_to_nodes[(nodes_off)+(nn+1)];
+      const int node_right_index = (nn == nnodes_around_cell-1) 
+        ? cells_to_nodes[(nodes_off)]
+        : cells_to_nodes[(nodes_off)+(nn+1)];
 
       // Calculate the area vectors away from cell through node, using
       // the half edge vectors adjacent to the node combined
-      const double S_x = 
-        0.25*((nodes_y1[node_center_index]-nodes_y1[node_left_index]) + 
-            (nodes_y1[node_right_index]-nodes_y1[node_center_index]));
-      const double S_y = 
-        -0.25*((nodes_x1[node_center_index]-nodes_x1[node_left_index]) +
-            (nodes_x1[node_right_index]-nodes_x1[node_center_index]));
+      const double S_x =
+        0.25*((nodes_y1[(node_center_index)]-nodes_y1[(node_left_index)]) +
+            (nodes_y1[(node_right_index)]-nodes_y1[(node_center_index)]));
+      const double S_y =
+        -0.25*((nodes_x1[(node_center_index)]-nodes_x1[(node_left_index)]) +
+            (nodes_x1[(node_right_index)]-nodes_x1[(node_center_index)]));
 
       // Add the contributions of the edge based artifical viscous terms
       // to the main force terms
@@ -421,24 +403,29 @@ void solve_unstructured_hydro_2d(
 
   // Calculating artificial viscous terms for all edges of all cells
   for(int cc = 0; cc < ncells; ++cc) {
+
+    if(halo_cell[(cc)]) {
+      continue;
+    }
+
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
     for(int nn = 0; nn < nnodes_around_cell; ++nn) {
       int node_index[NNODES_PER_EDGE]; 
       node_index[0] = cells_to_nodes[(nodes_off)+(nn)]; 
-      node_index[1] = (nn == nnodes_around_cell) 
+      node_index[1] = (nn == nnodes_around_cell-1) 
         ? cells_to_nodes[(nodes_off)] 
         : cells_to_nodes[(nodes_off)+(nn+1)];
 
       // Calculate area weighted averages of the density and soundspeed here.
-      double density_node[NNODES_PER_EDGE];
-      double cs_node[NNODES_PER_EDGE];
+      double density_node[NNODES_PER_EDGE] = { 0.0, 0.0 };
+      double cs_node[NNODES_PER_EDGE] = { 0.0, 0.0 };
       for(int oo = 0; oo < NNODES_PER_EDGE; ++oo) {
         double total_volume = 0.0;
         const int cells_by_node_off = nodes_to_cells_off[(node_index[oo])];
         const int ncells_around_node = 
-          cells_to_nodes_off[(node_index[oo]+1)]-cells_by_node_off;
+          nodes_to_cells_off[(node_index[oo]+1)]-cells_by_node_off;
         for(int zz = 0; zz < ncells_around_node; ++zz) {
           const int cell_index = nodes_to_cells[(cells_by_node_off)+(zz)];
           // TODO: should this be node volume???
@@ -465,13 +452,15 @@ void solve_unstructured_hydro_2d(
 
       // Velocity gradients
       const double grad_velocity_x = 
-        velocity_x1[node_index[1]]-velocity_x1[node_index[0]];
+        velocity_x1[(node_index[1])]-velocity_x1[(node_index[0])];
       const double grad_velocity_y = 
-        velocity_y1[node_index[1]]-velocity_y1[node_index[0]];
+        velocity_y1[(node_index[1])]-velocity_y1[(node_index[0])];
       const double grad_velocity_mag =
         sqrt(grad_velocity_x*grad_velocity_x+grad_velocity_y*grad_velocity_y);
-      const double grad_velocity_unit_x = grad_velocity_x/grad_velocity_mag;
-      const double grad_velocity_unit_y = grad_velocity_y/grad_velocity_mag;
+      const double grad_velocity_unit_x = 
+        (grad_velocity_x != 0.0) ? grad_velocity_x/grad_velocity_mag : 0.0;
+      const double grad_velocity_unit_y = 
+        (grad_velocity_y != 0.0) ? grad_velocity_y/grad_velocity_mag : 0.0;
 
       // Calculate the minimum soundspeed
       const double cs = min(cs_node[0], cs_node[1]);
@@ -565,11 +554,11 @@ void solve_unstructured_hydro_2d(
 
       // Calculate the new volume of the cell
       const int node_center_index = cells_to_nodes[(nodes_off)+(nn)]; 
-      const int node_right_index = (nn == nnodes_around_cell) 
-        ? cells_to_nodes[0] : cells_to_nodes[(nodes_off)+(nn+1)];
+      const int node_right_index = (nn == nnodes_around_cell-1) 
+        ? cells_to_nodes[(nodes_off)] : cells_to_nodes[(nodes_off)+(nn+1)];
       cell_volume += 
         0.5*(nodes_x0[node_center_index]+nodes_x0[node_right_index])*
-        (nodes_y0[node_right_index]+nodes_y0[node_center_index]);
+        (nodes_y0[node_right_index]-nodes_y0[node_center_index]);
     }
 
     cell_volumes[(cc)] = cell_volume;
