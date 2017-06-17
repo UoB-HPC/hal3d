@@ -48,6 +48,9 @@ typedef struct {
   double* cell_volumes; 
   double* cell_mass;
   double* nodal_mass;
+  double* nodal_volumes;
+  double* nodal_soundspeed;
+  double* limiter;
 
 } HaleData;
 

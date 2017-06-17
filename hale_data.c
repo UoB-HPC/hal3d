@@ -25,6 +25,9 @@ size_t initialise_hale_data_2d(
   allocated = allocate_data(&hale_data->cell_mass, (local_nx)*(local_ny));
   allocated = allocate_data(&hale_data->cell_volumes, (local_nx)*(local_ny));
   allocated = allocate_data(&hale_data->nodal_mass, (local_nx+1)*(local_ny+1));
+  allocated = allocate_data(&hale_data->nodal_volumes, (local_nx+1)*(local_ny+1));
+  allocated = allocate_data(&hale_data->nodal_soundspeed, (local_nx+1)*(local_ny+1));
+  allocated = allocate_data(&hale_data->limiter, (local_nx+1)*(local_ny+1));
   return allocated;
 }
 

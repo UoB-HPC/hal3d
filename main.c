@@ -101,7 +101,8 @@ int main(int argc, char** argv)
         shared_data.u, shared_data.v, hale_data.velocity_x1, 
         hale_data.velocity_y1, hale_data.cell_force_x, hale_data.cell_force_y, 
         hale_data.node_force_x, hale_data.node_force_y, hale_data.cell_volumes, 
-        hale_data.cell_mass, hale_data.nodal_mass);
+        hale_data.cell_mass, hale_data.nodal_mass, hale_data.nodal_volumes, 
+        hale_data.nodal_soundspeed, hale_data.limiter);
 
 #if 0
     print_conservation(

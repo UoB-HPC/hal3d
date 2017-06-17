@@ -27,7 +27,8 @@ extern "C" {
       double* pressure0, double* pressure1, double* velocity_x0, double* velocity_y0, 
       double* velocity_x1, double* velocity_y1, double* cell_force_x, 
       double* cell_force_y, double* node_force_x, double* node_force_y, 
-      double* cell_volumes, double* cell_mass, double* nodal_mass);
+      double* cell_volumes, double* cell_mass, double* nodal_mass, double* nodal_volumes,
+      double* nodal_soundspeed, double* limiter);
 
   // Calculates the timestep from the current state
   void set_timestep(
