@@ -91,5 +91,6 @@ make_build_dir:
 	@mkdir -p $(ARCH_BUILD_DIR)/$(KERNELS)
 
 clean:
-	rm -rf $(ARCH_BUILD_DIR)/* hale.exe *.vtk *.bov *.dat *.optrpt *.cub *.ptx *.i *.bc *.o *.s *.lk
+	rm -rf $(ARCH_BUILD_DIR)/* hale.exe *.vtk *.bov *.dat *.optrpt *.cub \
+		*.ptx *.i *.bc *.o *.s *.lk *.silo
 
