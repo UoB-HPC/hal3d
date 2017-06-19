@@ -8,6 +8,10 @@
 #include "../../params.h"
 #include "../../shared.h"
 
+// Enforce reflective boundary conditions on the problem state
+void handle_unstructured_boundary_2d(
+    const int ncells, const int* halo_cell, double* arr, const int invert);
+
 // Solve a single timestep on the given mesh
 void solve_unstructured_hydro_2d(
     Mesh* mesh, const int ncells, const int nnodes, const double dt, 
@@ -29,12 +33,9 @@ void solve_unstructured_hydro_2d(
    *    PREDICTOR
    */
 
-  for(int cc = 0; cc < ncells; ++cc) {
-    if(halo_cell[(cc)]) {
-      density0[(cc)] = 0.125;
-      energy0[(cc)] = 2.0;
-    }
-  }
+#if 0
+  handle_unstructured_boundary_2d(ncells, halo_cell, density0, 0);
+  handle_unstructured_boundary_2d(ncells, halo_cell, energy0, 0);
 
   // Calculate the pressure using the ideal gas equation of state
   for(int cc = 0; cc < ncells; ++cc) {
@@ -64,7 +65,6 @@ void solve_unstructured_hydro_2d(
 
   // Calculate the nodal and cell mass
   for(int cc = 0; cc < ncells; ++cc) {
-
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
     const double cell_centroid_x = cell_centroids_x[(cc)];
@@ -173,10 +173,6 @@ void solve_unstructured_hydro_2d(
 
   // Calculate the predicted energy
   for(int cc = 0; cc < ncells; ++cc) {
-    if(halo_cell[(cc)]) {
-      continue;
-    }
-
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
@@ -345,56 +341,6 @@ void solve_unstructured_hydro_2d(
     }
   }
 
-#if 0
-  // Calculate the limiter
-  for(int cc = 0; cc < ncells; ++cc) {
-
-    if(halo_cell[(cc)]) {
-      continue;
-    }
-
-    const int nodes_off = cells_to_nodes_off[(cc)];
-    const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
-
-    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
-      const int node_l_index = (nn == 0) 
-        ? cells_to_nodes[(nodes_off+nnodes_around_cell-1)] 
-        : cells_to_nodes[(nodes_off)+(nn-1)]; 
-      const int node_c_index = cells_to_nodes[(nodes_off)+(nn)]; 
-      const int node_r_index = (nn == nnodes_around_cell-1) 
-        ? cells_to_nodes[(nodes_off)] : cells_to_nodes[(nodes_off)+(nn+1)];
-
-      const double velocity_mag = 
-        sqrt((velocity_x1[(node_c_index)]*velocity_x1[(node_c_index)]+
-              velocity_y1[(node_c_index)]*velocity_y1[(node_c_index)]);
-            const double nodes_mag = 
-            sqrt(nodes_x1[(node_c_index)]*nodes_x1[(node_c_index)]+
-              nodes_y1[(node_c_index)]*nodes_y1[(node_c_index)]);
-            const double velocity_x1_unit = velocity_x1[(node_c_index)]/velocity_mag;
-            const double velocity_y1_unit = velocity_y1[(node_c_index)]/velocity_mag;
-            const double nodes_x1_unit = nodes_x1[(node_c_index)]/nodes_mag;
-            const double nodes_y1_unit = nodes_y1[(node_c_index)]/nodes_mag;
-
-            const double cond = nodes_mag/velocity_mag;
-            const double r_l = 
-            ((velocity_x1[(node_c_index)]-velocity_x1[(node_l_index)])*velocity_x1_unit+
-             (velocity_y1[(node_l_index)]-velocity_y1[(node_l_index)])*velocity_y1_unit)/
-            ((nodes_x1[(node_c_index)]-nodes_x1[(node_l_index)])*nodes_x1_unit+
-             (nodes_y1[(node_c_index)]-nodes_y1[(node_l_index)])*nodes_y1_unit)*cond;
-            const double r_r = 
-            ((velocity_x1[(node_r_index)]-velocity_x1[(node_c_index)])*velocity_x1_unit+
-             (velocity_y1[(node_r_index)]-velocity_y1[(node_r_index)])*velocity_y1_unit)/
-            ((nodes_x1[(node_r_index)]-nodes_x1[(node_c_index)])*nodes_x1_unit+
-             (nodes_y1[(node_r_index)]-nodes_y1[(node_c_index)])*nodes_y1_unit)*cond;
-
-            double limiter_i = min(0.5*(r_l+r_r), 2.0*r_l);
-            limiter_i = min(limiter_i, 2.0*r_r);
-            limiter_i = min(limiter_i, 1.0);
-            limiter[(node_c_index)] = max(0.0, limiter_i);
-    }
-  }
-#endif // if 0
-
   calculate_artificial_viscosity(
       ncells, c1, c2, halo_cell, cells_to_nodes_off, cells_to_nodes, 
       nodes_x1, nodes_y1, cell_centroids_x, cell_centroids_y,
@@ -457,6 +403,7 @@ void solve_unstructured_hydro_2d(
     // Update the density using the new volume
     density0[(cc)] = cell_mass[(cc)]/cell_volume;
   }
+#endif // if 0
 }
 
 // Calculates the artificial viscous forces for momentum acceleration
@@ -473,10 +420,6 @@ void calculate_artificial_viscosity(
 {
   // Calculating artificial viscous terms for all edges of all cells
   for(int cc = 0; cc < ncells; ++cc) {
-    if(halo_cell[(cc)]) {
-      continue;
-    }
-
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
@@ -548,4 +491,68 @@ void calculate_artificial_viscosity(
     }
   }
 }
+
+// Enforce reflective boundary conditions on the problem state
+void handle_unstructured_boundary_2d(
+    const int ncells, const int* halo_cell, double* arr, const int invert)
+{
+  START_PROFILING(&comms_profile);
+
+  // Perform the local halo update with reflective boundary condition
+  for(int cc = 0; cc < ncells; ++cc) {
+    arr[(cc)] = (invert ? (-1) : (1))*arr[(halo_cell[(cc)])];
+  }
+
+  STOP_PROFILING(&comms_profile, __func__);
+}
+
+#if 0
+  // Calculate the limiter
+  for(int cc = 0; cc < ncells; ++cc) {
+
+    if(halo_cell[(cc)]) {
+      continue;
+    }
+
+    const int nodes_off = cells_to_nodes_off[(cc)];
+    const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
+
+    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+      const int node_l_index = (nn == 0) 
+        ? cells_to_nodes[(nodes_off+nnodes_around_cell-1)] 
+        : cells_to_nodes[(nodes_off)+(nn-1)]; 
+      const int node_c_index = cells_to_nodes[(nodes_off)+(nn)]; 
+      const int node_r_index = (nn == nnodes_around_cell-1) 
+        ? cells_to_nodes[(nodes_off)] : cells_to_nodes[(nodes_off)+(nn+1)];
+
+      const double velocity_mag = 
+        sqrt((velocity_x1[(node_c_index)]*velocity_x1[(node_c_index)]+
+              velocity_y1[(node_c_index)]*velocity_y1[(node_c_index)]);
+            const double nodes_mag = 
+            sqrt(nodes_x1[(node_c_index)]*nodes_x1[(node_c_index)]+
+              nodes_y1[(node_c_index)]*nodes_y1[(node_c_index)]);
+            const double velocity_x1_unit = velocity_x1[(node_c_index)]/velocity_mag;
+            const double velocity_y1_unit = velocity_y1[(node_c_index)]/velocity_mag;
+            const double nodes_x1_unit = nodes_x1[(node_c_index)]/nodes_mag;
+            const double nodes_y1_unit = nodes_y1[(node_c_index)]/nodes_mag;
+
+            const double cond = nodes_mag/velocity_mag;
+            const double r_l = 
+            ((velocity_x1[(node_c_index)]-velocity_x1[(node_l_index)])*velocity_x1_unit+
+             (velocity_y1[(node_l_index)]-velocity_y1[(node_l_index)])*velocity_y1_unit)/
+            ((nodes_x1[(node_c_index)]-nodes_x1[(node_l_index)])*nodes_x1_unit+
+             (nodes_y1[(node_c_index)]-nodes_y1[(node_l_index)])*nodes_y1_unit)*cond;
+            const double r_r = 
+            ((velocity_x1[(node_r_index)]-velocity_x1[(node_c_index)])*velocity_x1_unit+
+             (velocity_y1[(node_r_index)]-velocity_y1[(node_r_index)])*velocity_y1_unit)/
+            ((nodes_x1[(node_r_index)]-nodes_x1[(node_c_index)])*nodes_x1_unit+
+             (nodes_y1[(node_r_index)]-nodes_y1[(node_c_index)])*nodes_y1_unit)*cond;
+
+            double limiter_i = min(0.5*(r_l+r_r), 2.0*r_l);
+            limiter_i = min(limiter_i, 2.0*r_r);
+            limiter_i = min(limiter_i, 1.0);
+            limiter[(node_c_index)] = max(0.0, limiter_i);
+    }
+  }
+#endif // if 0
 

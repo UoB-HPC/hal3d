@@ -59,6 +59,7 @@ typedef struct {
 
   int ncells;
   int nnodes;
+  int pad;
 
   // TODO: These two shouldn't be used, need to make more general
   // setup phase from some input file.

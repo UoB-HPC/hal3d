@@ -21,8 +21,6 @@ int main(int argc, char** argv)
   mesh.global_nx = get_int_parameter("nx", hale_params);
   mesh.global_ny = get_int_parameter("ny", hale_params);
   mesh.niters = get_int_parameter("iterations", hale_params);
-  mesh.local_nx = mesh.global_nx+2*PAD;
-  mesh.local_ny = mesh.global_ny+2*PAD;
   mesh.width = get_double_parameter("width", ARCH_ROOT_PARAMS);
   mesh.height = get_double_parameter("height", ARCH_ROOT_PARAMS);
   mesh.max_dt = get_double_parameter("max_dt", ARCH_ROOT_PARAMS);
@@ -32,6 +30,11 @@ int main(int argc, char** argv)
   mesh.rank = MASTER;
   mesh.nranks = 1;
 
+  UnstructuredMesh unstructured_mesh;
+  unstructured_mesh.pad = 1;
+  mesh.local_nx = mesh.global_nx+2*unstructured_mesh.pad;
+  mesh.local_ny = mesh.global_ny+2*unstructured_mesh.pad;
+
   const int visit_dump = get_int_parameter("visit_dump", hale_params);
 
   initialise_mpi(argc, argv, &mesh.rank, &mesh.nranks);
@@ -39,9 +42,7 @@ int main(int argc, char** argv)
   initialise_devices(mesh.rank);
   initialise_mesh_2d(&mesh);
 
-  UnstructuredMesh unstructured_mesh;
   size_t allocated = initialise_unstructured_mesh(&mesh, &unstructured_mesh);
-
 
   int nthreads = 0;
 #pragma omp parallel 
@@ -126,8 +127,8 @@ int main(int argc, char** argv)
 
     if(visit_dump) {
       write_quad_data_to_visit(
-          mesh.local_nx, mesh.local_ny, tt, unstructured_mesh.nodes_x1, 
-          unstructured_mesh.nodes_y1, shared_data.rho, 0);
+          mesh.local_nx, mesh.local_ny, tt, unstructured_mesh.nodes_x0, 
+          unstructured_mesh.nodes_y0, shared_data.rho, 0);
     }
   }
 
@@ -140,13 +141,6 @@ int main(int argc, char** argv)
     PRINT_PROFILING_RESULTS(&comms_profile);
     printf("Wallclock %.4fs, Elapsed Simulation Time %.4fs\n", 
         wallclock, elapsed_sim_time);
-  }
-
-  if(visit_dump) {
-    write_all_ranks_to_visit(
-        mesh.global_nx+2*PAD, mesh.global_ny+2*PAD, mesh.local_nx, mesh.local_ny, 
-        mesh.x_off, mesh.y_off, mesh.rank, mesh.nranks, mesh.neighbours, 
-        shared_data.rho, "density", 0, elapsed_sim_time);
   }
 
   finalise_shared_data(&shared_data);

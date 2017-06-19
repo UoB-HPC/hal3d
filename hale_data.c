@@ -58,6 +58,7 @@ size_t initialise_unstructured_mesh(
   const double height = mesh->height;
   unstructured_mesh->nnodes_by_cell = 4;
   unstructured_mesh->ncells_by_node = 4;
+  unstructured_mesh->pad = 1;
   unstructured_mesh->ncells = mesh->local_nx*mesh->local_ny;
   unstructured_mesh->nnodes = (nx+1)*(nx+1);
 
@@ -81,8 +82,8 @@ size_t initialise_unstructured_mesh(
       const int index = (ii)*(nx+1)+(jj);
       const double cell_width = (width/(double)global_nx);
       const double cell_height = (height/(double)global_ny);
-      unstructured_mesh->nodes_x0[index] = (double)((jj)-PAD)*cell_width;
-      unstructured_mesh->nodes_y0[index] = (double)((ii)-PAD)*cell_height;
+      unstructured_mesh->nodes_x0[index] = (double)((jj)-unstructured_mesh->pad)*cell_width;
+      unstructured_mesh->nodes_y0[index] = (double)((ii)-unstructured_mesh->pad)*cell_height;
     }
   }
 
@@ -114,11 +115,29 @@ size_t initialise_unstructured_mesh(
     }
   }
 
-  // Store whether cell is halo.
+  // Store the immediate neighbour of a halo cell
   for(int ii = 0; ii < ny; ++ii) {
     for(int jj = 0; jj < nx; ++jj) {
-      unstructured_mesh->halo_cell[(ii)*nx+(jj)] = 
-        (ii < PAD || ii >= ny-PAD || jj < PAD || jj >= nx-PAD);
+      int i = ii;
+      int j = jj;
+      if(ii < unstructured_mesh->pad) {
+        i = ii+1;
+      }
+      else if(ii >= ny-unstructured_mesh->pad) { 
+        i = ii-1;
+      }
+      else if(jj < unstructured_mesh->pad) {
+        j = jj+1;
+      }
+      else if(jj >= nx-unstructured_mesh->pad) {
+        j = jj-1;
+      }
+      else {
+        i = 0;
+        j = 0;
+      }
+
+      unstructured_mesh->halo_cell[(ii)*nx+(jj)] = (i)*nx+(j);
     }
   }
 
@@ -144,12 +163,12 @@ void write_quad_data_to_visit(
 
   int local_dims[2];
   if(nodal) {
-   local_dims[0] = nx+1;
-   local_dims[1] = ny+1;
+    local_dims[0] = nx+1;
+    local_dims[1] = ny+1;
   }
   else {
-   local_dims[0] = nx;
-   local_dims[1] = ny;
+    local_dims[0] = nx;
+    local_dims[1] = ny;
   }
   DBPutQuadvar1(dbfile, "nodal", "quadmesh", data, local_dims,
       ndims, NULL, 0, DB_DOUBLE, nodal ? DB_NODECENT : DB_ZONECENT, NULL);
