@@ -96,7 +96,8 @@ int main(int argc, char** argv)
         unstructured_mesh.nodes_to_cells_off, unstructured_mesh.cells_to_nodes_off, 
         unstructured_mesh.nodes_x0, unstructured_mesh.nodes_y0, 
         unstructured_mesh.nodes_x1, unstructured_mesh.nodes_y1,
-        unstructured_mesh.halo_cell, shared_data.e, hale_data.energy1, 
+        unstructured_mesh.halo_cell, unstructured_mesh.halo_node, 
+        shared_data.e, hale_data.energy1, 
         shared_data.rho, shared_data.rho_old, shared_data.P, hale_data.pressure1, 
         shared_data.u, shared_data.v, hale_data.velocity_x1, 
         hale_data.velocity_y1, hale_data.cell_force_x, hale_data.cell_force_y, 
@@ -133,7 +134,9 @@ int main(int argc, char** argv)
 
   barrier();
 
-  validate(mesh.local_nx, mesh.local_ny, hale_params, mesh.rank, shared_data.rho, shared_data.e);
+  validate(
+      mesh.local_nx, mesh.local_ny, hale_params, 
+      mesh.rank, shared_data.rho, shared_data.e);
 
   if(mesh.rank == MASTER) {
     PRINT_PROFILING_RESULTS(&compute_profile);

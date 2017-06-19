@@ -75,6 +75,7 @@ size_t initialise_unstructured_mesh(
   allocated += allocate_data(&unstructured_mesh->cell_centroids_x, nx*ny);
   allocated += allocate_data(&unstructured_mesh->cell_centroids_y, nx*ny);
   allocated += allocate_int_data(&unstructured_mesh->halo_cell, nx*ny);
+  allocated += allocate_int_data(&unstructured_mesh->halo_node, (nx+1)*(ny+1));
 
   // Construct the list of nodes contiguously, currently Cartesian
   for(int ii = 0; ii < (ny+1); ++ii) {
@@ -120,24 +121,39 @@ size_t initialise_unstructured_mesh(
     for(int jj = 0; jj < nx; ++jj) {
       int i = ii;
       int j = jj;
+      int t = 0;
       if(ii < unstructured_mesh->pad) {
         i = ii+1;
+        t = 1;
       }
-      else if(ii >= ny-unstructured_mesh->pad) { 
+      if(ii >= ny-unstructured_mesh->pad) { 
         i = ii-1;
+        t = 1;
       }
-      else if(jj < unstructured_mesh->pad) {
+      if(jj < unstructured_mesh->pad) {
         j = jj+1;
+        t = 1;
       }
-      else if(jj >= nx-unstructured_mesh->pad) {
+      if(jj >= nx-unstructured_mesh->pad) {
         j = jj-1;
+        t = 1;
       }
-      else {
+
+      if(!t) {
         i = 0;
         j = 0;
       }
 
       unstructured_mesh->halo_cell[(ii)*nx+(jj)] = (i)*nx+(j);
+    }
+  }
+
+  for(int ii = 0; ii < (ny+1); ++ii) {
+    for(int jj = 0; jj < (nx+1); ++jj) {
+      if(ii <= unstructured_mesh->pad || ii >= ny-unstructured_mesh->pad-1 ||
+         jj <= unstructured_mesh->pad || jj >= ny-unstructured_mesh->pad-1) {
+        unstructured_mesh->halo_node[(ii)*(nx+1)+(jj)] = 1;
+      }
     }
   }
 

@@ -18,10 +18,10 @@ void solve_unstructured_hydro_2d(
     double* cell_centroids_x, double* cell_centroids_y, int* cells_to_nodes, 
     int* nodes_to_cells, int* nodes_to_cells_off, int* cells_to_nodes_off, 
     double* nodes_x0, double* nodes_y0, double* nodes_x1, double* nodes_y1,
-    int* halo_cell, double* energy0, double* energy1, double* density0, double* density1, 
-    double* pressure0, double* pressure1, double* velocity_x0, double* velocity_y0, 
-    double* velocity_x1, double* velocity_y1, double* cell_force_x, 
-    double* cell_force_y, double* node_force_x, double* node_force_y, 
+    int* halo_cell, int* halo_node, double* energy0, double* energy1, 
+    double* density0, double* density1, double* pressure0, double* pressure1, 
+    double* velocity_x0, double* velocity_y0, double* velocity_x1, double* velocity_y1, 
+    double* cell_force_x, double* cell_force_y, double* node_force_x, double* node_force_y, 
     double* cell_volumes, double* cell_mass, double* nodal_mass, double* nodal_volumes,
     double* nodal_soundspeed, double* limiter)
 {
@@ -161,6 +161,10 @@ void solve_unstructured_hydro_2d(
   // Calculate the time centered evolved velocities, by first calculating the
   // predicted values at the new timestep and then averaging with current velocity
   for(int nn = 0; nn < nnodes; ++nn) {
+    if(halo_node[(nn)]) {
+      continue;
+    }
+
     // Determine the predicted velocity
     velocity_x1[(nn)] = velocity_x0[(nn)] + dt*node_force_x[(nn)]/nodal_mass[(nn)];
     velocity_y1[(nn)] = velocity_y0[(nn)] + dt*node_force_y[(nn)]/nodal_mass[(nn)];
@@ -215,6 +219,9 @@ void solve_unstructured_hydro_2d(
     density1[(cc)] = cell_mass[(cc)]/cell_volume;
   }
 
+  handle_unstructured_boundary_2d(ncells, halo_cell, density1, 0);
+  handle_unstructured_boundary_2d(ncells, halo_cell, energy1, 0);
+
   // Calculate the time centered pressure from mid point between original and 
   // predicted pressures
   for(int cc = 0; cc < ncells; ++cc) {
@@ -227,6 +234,10 @@ void solve_unstructured_hydro_2d(
 
   // Prepare time centered variables for the corrector step
   for(int nn = 0; nn < nnodes; ++nn) {
+    if(halo_node[(nn)]) {
+      continue;
+    }
+
     nodes_x1[(nn)] = 0.5*(nodes_x1[(nn)] + nodes_x0[(nn)]);
     nodes_y1[(nn)] = 0.5*(nodes_y1[(nn)] + nodes_y0[(nn)]);
     node_force_x[(nn)] = 0.0;
@@ -349,6 +360,10 @@ void solve_unstructured_hydro_2d(
 
   // Calculate the corrected time centered velocities
   for(int nn = 0; nn < nnodes; ++nn) {
+    if(halo_node[(nn)]) {
+      continue;
+    }
+
     // Calculate the new velocities
     velocity_x1[(nn)] = velocity_x1[(nn)] + dt*node_force_x[(nn)]/nodal_mass[(nn)];
     velocity_y1[(nn)] = velocity_y1[(nn)] + dt*node_force_y[(nn)]/nodal_mass[(nn)];
@@ -360,6 +375,10 @@ void solve_unstructured_hydro_2d(
 
   // Calculate the corrected node movements
   for(int nn = 0; nn < nnodes; ++nn) {
+    if(halo_node[(nn)]) {
+      continue;
+    }
+
     nodes_x0[(nn)] += dt*velocity_x0[(nn)];
     nodes_y0[(nn)] += dt*velocity_y0[(nn)];
   }
@@ -416,7 +435,6 @@ void calculate_artificial_viscosity(
     double* node_force_x, double* node_force_y,
     double* cell_force_x, double* cell_force_y)
 {
-  // Calculating artificial viscous terms for all edges of all cells
   for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
@@ -427,7 +445,7 @@ void calculate_artificial_viscosity(
         ? cells_to_nodes[(nodes_off)] 
         : cells_to_nodes[(nodes_off)+(nn+1)];
 
-      // Area vector for cell c to edge midpoint
+      // Get cell center point and edge center point
       const double cell_x = cell_centroids_x[(cc)];
       const double cell_y = cell_centroids_y[(cc)];
       const double edge_mid_x = 
