@@ -33,7 +33,6 @@ void solve_unstructured_hydro_2d(
    *    PREDICTOR
    */
 
-#if 0
   handle_unstructured_boundary_2d(ncells, halo_cell, density0, 0);
   handle_unstructured_boundary_2d(ncells, halo_cell, energy0, 0);
 
@@ -403,7 +402,6 @@ void solve_unstructured_hydro_2d(
     // Update the density using the new volume
     density0[(cc)] = cell_mass[(cc)]/cell_volume;
   }
-#endif // if 0
 }
 
 // Calculates the artificial viscous forces for momentum acceleration
@@ -500,7 +498,9 @@ void handle_unstructured_boundary_2d(
 
   // Perform the local halo update with reflective boundary condition
   for(int cc = 0; cc < ncells; ++cc) {
-    arr[(cc)] = (invert ? (-1) : (1))*arr[(halo_cell[(cc)])];
+    if(halo_cell[(cc)]) {
+      arr[(cc)] = (invert ? (-1) : (1))*arr[(halo_cell[(cc)])];
+    }
   }
 
   STOP_PROFILING(&comms_profile, __func__);

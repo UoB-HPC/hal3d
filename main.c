@@ -20,6 +20,9 @@ int main(int argc, char** argv)
   const char* hale_params = argv[1];
   mesh.global_nx = get_int_parameter("nx", hale_params);
   mesh.global_ny = get_int_parameter("ny", hale_params);
+  mesh.pad = 1;
+  mesh.local_nx = mesh.global_nx+2*mesh.pad;
+  mesh.local_ny = mesh.global_ny+2*mesh.pad;
   mesh.niters = get_int_parameter("iterations", hale_params);
   mesh.width = get_double_parameter("width", ARCH_ROOT_PARAMS);
   mesh.height = get_double_parameter("height", ARCH_ROOT_PARAMS);
@@ -30,11 +33,6 @@ int main(int argc, char** argv)
   mesh.rank = MASTER;
   mesh.nranks = 1;
 
-  UnstructuredMesh unstructured_mesh;
-  unstructured_mesh.pad = 1;
-  mesh.local_nx = mesh.global_nx+2*unstructured_mesh.pad;
-  mesh.local_ny = mesh.global_ny+2*unstructured_mesh.pad;
-
   const int visit_dump = get_int_parameter("visit_dump", hale_params);
 
   initialise_mpi(argc, argv, &mesh.rank, &mesh.nranks);
@@ -42,6 +40,7 @@ int main(int argc, char** argv)
   initialise_devices(mesh.rank);
   initialise_mesh_2d(&mesh);
 
+  UnstructuredMesh unstructured_mesh;
   size_t allocated = initialise_unstructured_mesh(&mesh, &unstructured_mesh);
 
   int nthreads = 0;
@@ -58,7 +57,7 @@ int main(int argc, char** argv)
   SharedData shared_data = {0};
   initialise_shared_data_2d(
       mesh.global_nx, mesh.global_ny, mesh.local_nx, mesh.local_ny, 
-      mesh.x_off, mesh.y_off, mesh.width, mesh.height,
+      mesh.pad, mesh.x_off, mesh.y_off, mesh.width, mesh.height,
       hale_params, mesh.edgex, mesh.edgey, &shared_data);
 
   handle_boundary_2d(
