@@ -126,8 +126,12 @@ size_t initialise_unstructured_mesh(
   // needed later on...
   // Store the halo node's neighbour, and normal
   int halo_index = 0;
-  for(int ii = mesh->pad; ii < (ny+1)-mesh->pad; ++ii) {
-    for(int jj = mesh->pad; jj < (nx+1)-mesh->pad; ++jj) {
+  for(int ii = 0; ii < (ny+1); ++ii) {
+    for(int jj = 0; jj < (nx+1); ++jj) {
+      if(ii == 0 || ii == (ny+1)-1 || jj == 0 || jj == (nx+1)-1) {
+        unstructured_mesh->halo_index[(ii)*(nx+1)+(jj)] = IS_BOUNDARY;
+        continue;
+      }
 
       int neighbour_index = 0;
       double normal_x = 0.0;

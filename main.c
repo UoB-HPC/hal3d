@@ -28,7 +28,7 @@ int main(int argc, char** argv)
   mesh.height = get_double_parameter("height", ARCH_ROOT_PARAMS);
   mesh.max_dt = get_double_parameter("max_dt", ARCH_ROOT_PARAMS);
   mesh.sim_end = get_double_parameter("sim_end", ARCH_ROOT_PARAMS);
-  mesh.dt = C_T*get_double_parameter("dt", hale_params);
+  mesh.dt = get_double_parameter("dt", hale_params);
   mesh.dt_h = mesh.dt;
   mesh.rank = MASTER;
   mesh.nranks = 1;
@@ -118,7 +118,7 @@ int main(int argc, char** argv)
     if(visit_dump) {
       write_quad_data_to_visit(
           mesh.local_nx, mesh.local_ny, tt, unstructured_mesh.nodes_x0, 
-          unstructured_mesh.nodes_y0, hale_data.node_force_x, 1);
+          unstructured_mesh.nodes_y0, shared_data.rho, 0);
     }
   }
 

@@ -47,7 +47,6 @@ void solve_unstructured_hydro_2d(
     pressure0[(cc)] = (GAM-1.0)*energy0[(cc)]*density0[(cc)];
   }
 
-  handle_unstructured_boundary_2d(ncells, halo_cell, energy0);
   handle_unstructured_boundary_2d(ncells, halo_cell, density0);
   handle_unstructured_boundary_2d(ncells, halo_cell, pressure0);
 
@@ -80,7 +79,6 @@ void solve_unstructured_hydro_2d(
     const double cell_centroid_y = cell_centroids_y[(cc)];
 
     double cell_volume = 0.0;
-    cell_mass[(cc)] = 0.0;
     for(int nn = 0; nn < nnodes_around_cell; ++nn) {
 
       // Determine the three point stencil of nodes around current node
@@ -110,18 +108,13 @@ void solve_unstructured_hydro_2d(
       // Reduce the total cell volume for later calculation
       cell_volume += sub_cell_volume;
 
-      // Calculate the volume at the node
-      nodal_volumes[(node_c_index)] += sub_cell_volume;
-
-      // Add contributions to the nodal mass from adjacent sub-cells
-      nodal_soundspeed[(node_c_index)] += 
-        sqrt(GAM*(GAM-1.0)*energy0[(cc)])*sub_cell_volume;
-
       if(!halo_cell[(cc)]) {
         nodal_mass[(node_c_index)] += density0[(cc)]*sub_cell_volume;
-      }
-      else {
-        nodal_mass[(node_c_index)] = 1.0;
+
+        // Calculate the volume and soundspeed at the node
+        nodal_soundspeed[(node_c_index)] += 
+          sqrt(GAM*(GAM-1.0)*energy0[(cc)])*sub_cell_volume;
+        nodal_volumes[(node_c_index)] += sub_cell_volume;
       }
     }
 
@@ -160,17 +153,15 @@ void solve_unstructured_hydro_2d(
         -0.25*((nodes_x0[(node_c_index)]-nodes_x0[(node_l_index)]) +
             (nodes_x0[(node_r_index)]-nodes_x0[(node_c_index)]));
 
-      if(!halo_cell[(cc)]) {
-        node_force_x[(node_c_index)] += pressure0[(cc)]*S_x;
-        node_force_y[(node_c_index)] += pressure0[(cc)]*S_y;
-        cell_force_x[(nodes_off)+(nn)] = pressure0[(cc)]*S_x;
-        cell_force_y[(nodes_off)+(nn)] = pressure0[(cc)]*S_y;
-      }
+      node_force_x[(node_c_index)] += pressure0[(cc)]*S_x;
+      node_force_y[(node_c_index)] += pressure0[(cc)]*S_y;
+      cell_force_x[(nodes_off)+(nn)] = pressure0[(cc)]*S_x;
+      cell_force_y[(nodes_off)+(nn)] = pressure0[(cc)]*S_y;
     }
   }
 
   calculate_artificial_viscosity(
-      ncells, c1, c2, halo_cell, cells_to_nodes_off, cells_to_nodes, 
+      ncells, c1, c2, halo_index, cells_to_nodes_off, cells_to_nodes, 
       nodes_x0, nodes_y0, cell_centroids_x, cell_centroids_y,
       velocity_x0, velocity_y0, nodal_soundspeed, nodal_mass,
       nodal_volumes, limiter, node_force_x, node_force_y,
@@ -179,6 +170,10 @@ void solve_unstructured_hydro_2d(
   // Calculate the time centered evolved velocities, by first calculating the
   // predicted values at the new timestep and then averaging with current velocity
   for(int nn = 0; nn < nnodes; ++nn) {
+    if(halo_index[(nn)] == IS_BOUNDARY) {
+      continue;
+    }
+
     // Determine the predicted velocity
     velocity_x1[(nn)] = velocity_x0[(nn)] + dt*node_force_x[(nn)]/nodal_mass[(nn)];
     velocity_y1[(nn)] = velocity_y0[(nn)] + dt*node_force_y[(nn)]/nodal_mass[(nn)];
@@ -217,9 +212,41 @@ void solve_unstructured_hydro_2d(
   for(int nn = 0; nn < nnodes; ++nn) {
     nodes_x1[(nn)] = nodes_x0[(nn)];
     nodes_y1[(nn)] = nodes_y0[(nn)];
+
+    if(halo_index[(nn)] == IS_BOUNDARY) {
+      continue;
+    }
+
     nodes_x1[(nn)] += dt*velocity_x1[(nn)];
     nodes_y1[(nn)] += dt*velocity_y1[(nn)];
   }
+
+  for(int cc = 0; cc < ncells; ++cc) {
+    if(halo_cell[(cc)]) {
+      continue;
+    }
+
+    const int nodes_off = cells_to_nodes_off[(cc)];
+    const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
+
+    double shortest_edge = 1.0e10;
+    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+      // Calculate the new volume of the cell
+      const int node_c_index = cells_to_nodes[(nodes_off)+(nn)]; 
+      const int node_r_index = (nn == nnodes_around_cell-1) 
+        ? cells_to_nodes[(nodes_off)] : cells_to_nodes[(nodes_off)+(nn+1)];
+      const double x_component = nodes_x0[(node_c_index)]-nodes_x0[(node_r_index)];
+      const double y_component = nodes_y0[(node_c_index)]-nodes_y0[(node_r_index)];
+      shortest_edge = min(shortest_edge, 
+          sqrt(x_component*x_component+y_component*y_component));
+    }
+
+    const double soundspeed = sqrt(GAM*(GAM-1.0)*energy0[(cc)]);
+    dt = min(dt, shortest_edge/soundspeed);
+  }
+
+  dt = CFL*dt;
+  printf("Timestep %.8fs\n", dt);
 
   // Using the new volume, calculate the predicted density
   for(int cc = 0; cc < ncells; ++cc) {
@@ -261,11 +288,14 @@ void solve_unstructured_hydro_2d(
   }
 
   handle_unstructured_boundary_2d(ncells, halo_cell, density1);
-  handle_unstructured_boundary_2d(ncells, halo_cell, energy1);
   handle_unstructured_boundary_2d(ncells, halo_cell, pressure1);
 
   // Prepare time centered variables for the corrector step
   for(int nn = 0; nn < nnodes; ++nn) {
+    if(halo_index[(nn)] == IS_BOUNDARY) {
+      continue;
+    }
+
     nodes_x1[(nn)] = 0.5*(nodes_x1[(nn)] + nodes_x0[(nn)]);
     nodes_y1[(nn)] = 0.5*(nodes_y1[(nn)] + nodes_y0[(nn)]);
     node_force_x[(nn)] = 0.0;
@@ -295,10 +325,6 @@ void solve_unstructured_hydro_2d(
 
   // Calculate the new nodal soundspeed and volumes
   for(int cc = 0; cc < ncells; ++cc) {
-    if(halo_cell[(cc)]) {
-      continue;
-    }
-
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
@@ -370,17 +396,15 @@ void solve_unstructured_hydro_2d(
 
       // Add the contributions of the edge based artifical viscous terms
       // to the main force terms
-      if(!halo_cell[(cc)]) {
-        node_force_x[(node_c_index)] += pressure1[(cc)]*S_x;
-        node_force_y[(node_c_index)] += pressure1[(cc)]*S_y;
-        cell_force_x[(nodes_off)+(nn)] = pressure1[(cc)]*S_x;
-        cell_force_y[(nodes_off)+(nn)] = pressure1[(cc)]*S_y;
-      }
+      node_force_x[(node_c_index)] += pressure1[(cc)]*S_x;
+      node_force_y[(node_c_index)] += pressure1[(cc)]*S_y;
+      cell_force_x[(nodes_off)+(nn)] = pressure1[(cc)]*S_x;
+      cell_force_y[(nodes_off)+(nn)] = pressure1[(cc)]*S_y;
     }
   }
 
   calculate_artificial_viscosity(
-      ncells, c1, c2, halo_cell, cells_to_nodes_off, cells_to_nodes, 
+      ncells, c1, c2, halo_index, cells_to_nodes_off, cells_to_nodes, 
       nodes_x1, nodes_y1, cell_centroids_x, cell_centroids_y,
       velocity_x1, velocity_y1, nodal_soundspeed, nodal_mass,
       nodal_volumes, limiter, node_force_x, node_force_y,
@@ -403,12 +427,19 @@ void solve_unstructured_hydro_2d(
 
   // Calculate the corrected node movements
   for(int nn = 0; nn < nnodes; ++nn) {
+    if(halo_index[(nn)] == IS_BOUNDARY) {
+      continue;
+    }
+
     nodes_x0[(nn)] += dt*velocity_x0[(nn)];
     nodes_y0[(nn)] += dt*velocity_y0[(nn)];
   }
 
-  double dt_potential = 1.0e10;
   for(int cc = 0; cc < ncells; ++cc) {
+    if(halo_cell[(cc)]) {
+      continue;
+    }
+
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
@@ -425,12 +456,18 @@ void solve_unstructured_hydro_2d(
     }
 
     const double soundspeed = sqrt(GAM*(GAM-1.0)*energy0[(cc)]);
-    dt_potential = min(dt_potential, shortest_edge/soundspeed);
     dt = min(dt, shortest_edge/soundspeed);
   }
 
+  dt = CFL*dt;
+  printf("Timestep %.8fs\n", dt);
+
   // Calculate the final energy
   for(int cc = 0; cc < ncells; ++cc) {
+    if(halo_cell[(cc)]) {
+      continue;
+    }
+
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
@@ -473,7 +510,7 @@ void solve_unstructured_hydro_2d(
 
 // Calculates the artificial viscous forces for momentum acceleration
 void calculate_artificial_viscosity(
-    const int ncells, const double c1, const double c2, const int* halo_cell, 
+    const int ncells, const double c1, const double c2, const int* halo_index, 
     const int* cells_to_nodes_off, const int* cells_to_nodes, 
     const double* nodes_x0, const double* nodes_y0, 
     const double* cell_centroids_x, const double* cell_centroids_y,
@@ -484,14 +521,14 @@ void calculate_artificial_viscosity(
     double* cell_force_x, double* cell_force_y)
 {
   for(int cc = 0; cc < ncells; ++cc) {
-    if(halo_cell[(cc)]) {
-      continue;
-    }
-
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
     for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+      if(halo_index[(nn)] == IS_BOUNDARY) {
+        continue;
+      }
+
       const int node_c_index = cells_to_nodes[(nodes_off)+(nn)]; 
       const int node_r_index = (nn == nnodes_around_cell-1) 
         ? cells_to_nodes[(nodes_off)] 
@@ -568,7 +605,7 @@ void handle_unstructured_reflect_2d(
 {
   for(int nn = 0; nn < nnodes; ++nn) {
     const int index = halo_index[(nn)];
-    if(index == IS_NOT_HALO) {
+    if(index == IS_NOT_HALO || index == IS_BOUNDARY) {
       continue;
     }
 
@@ -580,9 +617,11 @@ void handle_unstructured_reflect_2d(
       2.0*(velocity_x[(nn)]*halo_normal_x[(index)]+
           velocity_y[(nn)]*halo_normal_y[(index)]);
 
+#if 0
     // Mask out the velocity that doesn't act along the reflective boundary?
     velocity_x[(nn)] = velocity_x[(nn)]*fabs(halo_normal_x[(index)]);
     velocity_y[(nn)] = velocity_y[(nn)]*fabs(halo_normal_y[(index)]);
+#endif // if 0
   }
 }
 

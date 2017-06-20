@@ -6,12 +6,13 @@
 #include <stdlib.h> 
 #include "../mesh.h"
 
-#define C_T 0.3
+#define CFL 0.3
 #define VALIDATE_TOLERANCE     1.0e-5
 #define ARCH_ROOT_PARAMS "../arch.params"
 #define HALE_PARAMS "hale.params"
 #define HALE_TESTS  "hale.tests"
 #define IS_NOT_HALO -1
+#define IS_BOUNDARY -2
 
 typedef struct {
   // Hale-specific state
