@@ -59,7 +59,6 @@ typedef struct {
 
   int ncells;
   int nnodes;
-  int pad;
 
   // TODO: These two shouldn't be used, need to make more general
   // setup phase from some input file.
@@ -67,11 +66,10 @@ typedef struct {
   int ncells_by_node;
 
   int* cells_to_nodes; 
-  int* nodes_to_cells; 
-  int* nodes_to_cells_off; 
   int* cells_to_nodes_off; 
   int* halo_cell;
   int* halo_node;
+  int* halo_neighbour;
 
   double* nodes_x0; 
   double* nodes_y0; 
@@ -79,6 +77,8 @@ typedef struct {
   double* nodes_y1;
   double* cell_centroids_x;
   double* cell_centroids_y;
+  double* halo_normal_x;
+  double* halo_normal_y;
 
   double* sub_cell_volume;
 

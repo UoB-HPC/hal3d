@@ -23,7 +23,6 @@ size_t initialise_hale_data_2d(
   allocated = allocate_data(&hale_data->node_force_x, (local_nx+1)*(local_ny+1));
   allocated = allocate_data(&hale_data->node_force_y, (local_nx+1)*(local_ny+1));
   allocated = allocate_data(&hale_data->cell_mass, (local_nx)*(local_ny));
-  allocated = allocate_data(&hale_data->cell_volumes, (local_nx)*(local_ny));
   allocated = allocate_data(&hale_data->nodal_mass, (local_nx+1)*(local_ny+1));
   allocated = allocate_data(&hale_data->nodal_volumes, (local_nx+1)*(local_ny+1));
   allocated = allocate_data(&hale_data->nodal_soundspeed, (local_nx+1)*(local_ny+1));
@@ -58,7 +57,6 @@ size_t initialise_unstructured_mesh(
   const double height = mesh->height;
   unstructured_mesh->nnodes_by_cell = 4;
   unstructured_mesh->ncells_by_node = 4;
-  unstructured_mesh->pad = 1;
   unstructured_mesh->ncells = mesh->local_nx*mesh->local_ny;
   unstructured_mesh->nnodes = (nx+1)*(nx+1);
 
@@ -66,16 +64,16 @@ size_t initialise_unstructured_mesh(
   allocated += allocate_data(&unstructured_mesh->nodes_y0, unstructured_mesh->nnodes);
   allocated = allocate_data(&unstructured_mesh->nodes_x1, unstructured_mesh->nnodes);
   allocated += allocate_data(&unstructured_mesh->nodes_y1, unstructured_mesh->nnodes);
-  allocated += allocate_int_data(&unstructured_mesh->nodes_to_cells_off, unstructured_mesh->nnodes+1);
-  allocated += allocate_int_data(&unstructured_mesh->cells_to_nodes_off, nx*ny+1);
   allocated += allocate_int_data(&unstructured_mesh->cells_to_nodes, 
       nx*ny*unstructured_mesh->nnodes_by_cell);
-  allocated += allocate_int_data(&unstructured_mesh->nodes_to_cells, 
-      (nx+1)*(ny+1)*unstructured_mesh->ncells_by_node);
+  allocated += allocate_int_data(&unstructured_mesh->cells_to_nodes_off, nx*ny+1);
   allocated += allocate_data(&unstructured_mesh->cell_centroids_x, nx*ny);
   allocated += allocate_data(&unstructured_mesh->cell_centroids_y, nx*ny);
   allocated += allocate_int_data(&unstructured_mesh->halo_cell, nx*ny);
   allocated += allocate_int_data(&unstructured_mesh->halo_node, (nx+1)*(ny+1));
+  allocated += allocate_int_data(&unstructured_mesh->halo_neighbour, 2*(nx+ny));
+  allocated += allocate_data(&unstructured_mesh->halo_normal_x, 2*(nx+ny));
+  allocated += allocate_data(&unstructured_mesh->halo_normal_y, 2*(nx+ny));
 
   // Construct the list of nodes contiguously, currently Cartesian
   for(int ii = 0; ii < (ny+1); ++ii) {
@@ -83,8 +81,8 @@ size_t initialise_unstructured_mesh(
       const int index = (ii)*(nx+1)+(jj);
       const double cell_width = (width/(double)global_nx);
       const double cell_height = (height/(double)global_ny);
-      unstructured_mesh->nodes_x0[index] = (double)((jj)-unstructured_mesh->pad)*cell_width;
-      unstructured_mesh->nodes_y0[index] = (double)((ii)-unstructured_mesh->pad)*cell_height;
+      unstructured_mesh->nodes_x0[index] = (double)((jj)-mesh->pad)*cell_width;
+      unstructured_mesh->nodes_y0[index] = (double)((ii)-mesh->pad)*cell_height;
     }
   }
 
@@ -102,57 +100,52 @@ size_t initialise_unstructured_mesh(
     }
   }
 
-  // Define the list of cells connected to each node
-  for(int ii = 0; ii < (ny+1); ++ii) {
-    for(int jj = 0; jj < (nx+1); ++jj) {
-      const int nodes_cells_index = ((ii)*(nx+1)+(jj))*unstructured_mesh->ncells_by_node;
-      unstructured_mesh->nodes_to_cells[(nodes_cells_index)+0] = (ii-1)*nx+(jj-1);
-      unstructured_mesh->nodes_to_cells[(nodes_cells_index)+1] = (ii-1)*nx+(jj);
-      unstructured_mesh->nodes_to_cells[(nodes_cells_index)+2] = (ii)*nx+(jj-1);
-      unstructured_mesh->nodes_to_cells[(nodes_cells_index)+3] = (ii)*nx+(jj);
-      unstructured_mesh->nodes_to_cells_off[(ii)*(nx+1)+(jj)+1] = 
-        unstructured_mesh->nodes_to_cells_off[(ii)*(nx+1)+(jj)] +
-        unstructured_mesh->ncells_by_node;
-    }
-  }
-
   // Store the immediate neighbour of a halo cell
   for(int ii = 0; ii < ny; ++ii) {
     for(int jj = 0; jj < nx; ++jj) {
-      int i = ii;
-      int j = jj;
-      int t = 0;
-      if(ii < unstructured_mesh->pad) {
-        i = ii+1;
-        t = 1;
+      int neighbour_index = (ii)*nx+(jj);
+      if(ii < mesh->pad) {
+        neighbour_index += nx;
       }
-      if(ii >= ny-unstructured_mesh->pad) { 
-        i = ii-1;
-        t = 1;
+      if(ii >= ny-mesh->pad) { 
+        neighbour_index -= nx;
       }
-      if(jj < unstructured_mesh->pad) {
-        j = jj+1;
-        t = 1;
+      if(jj < mesh->pad) {
+        neighbour_index++;
       }
-      if(jj >= nx-unstructured_mesh->pad) {
-        j = jj-1;
-        t = 1;
+      if(jj >= nx-mesh->pad) {
+        neighbour_index--;
       }
-
-      if(!t) {
-        i = 0;
-        j = 0;
+      if(neighbour_index != (ii)*nx+(jj)) {
+        unstructured_mesh->halo_cell[(ii)*nx+(jj)] = neighbour_index;
       }
-
-      unstructured_mesh->halo_cell[(ii)*nx+(jj)] = (i)*nx+(j);
     }
   }
 
+  // TODO: Currently serial only, could do some work to parallelise this if
+  // needed later on...
+  int halo_index = 0;
   for(int ii = 0; ii < (ny+1); ++ii) {
     for(int jj = 0; jj < (nx+1); ++jj) {
-      if(ii <= unstructured_mesh->pad || ii >= ny-unstructured_mesh->pad-1 ||
-         jj <= unstructured_mesh->pad || jj >= ny-unstructured_mesh->pad-1) {
-        unstructured_mesh->halo_node[(ii)*(nx+1)+(jj)] = 1;
+      int neighbour_index = (ii)*(nx+1)+(jj);
+      if(ii < mesh->pad) {
+        neighbour_index += (nx+1);
+      }
+      if(ii >= ny-mesh->pad) { 
+        neighbour_index -= (nx+1);
+      }
+      if(jj < mesh->pad) {
+        neighbour_index++;
+      }
+      if(jj >= nx-mesh->pad) {
+        neighbour_index--;
+      }
+      if(neighbour_index != (ii)*nx+(jj)) {
+        unstructured_mesh->halo_node[(ii)*nx+(jj)] = halo_index;
+        unstructured_mesh->halo_neighbour[halo_index] = neighbour_index;
+        unstructured_mesh->halo_normal_x[halo_index] = neighbour_index;
+        unstructured_mesh->halo_normal_y[halo_index] = neighbour_index;
+        halo_index++;
       }
     }
   }

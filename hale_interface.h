@@ -21,13 +21,13 @@ extern "C" {
   void solve_unstructured_hydro_2d(
       Mesh* mesh, const int ncells, const int nnodes, const double dt, 
       double* cell_centroids_x, double* cell_centroids_y, int* cells_to_nodes, 
-      int* nodes_to_cells, int* nodes_to_cells_off, int* cells_to_nodes_off, 
-      double* nodes_x0, double* nodes_y0, double* nodes_x1, double* nodes_y1,
-      int* halo_cell, int* halo_node, double* energy0, double* energy1, 
+      int* cells_to_nodes_off, double* nodes_x0, double* nodes_y0, double* nodes_x1, 
+      double* nodes_y1, int* halo_cell, int* halo_node, int* halo_neighbour,
+      double* halo_normal_x, double* halo_normal_y, double* energy0, double* energy1, 
       double* density0, double* density1, double* pressure0, double* pressure1, 
       double* velocity_x0, double* velocity_y0, double* velocity_x1, double* velocity_y1, 
       double* cell_force_x, double* cell_force_y, double* node_force_x, double* node_force_y, 
-      double* cell_volumes, double* cell_mass, double* nodal_mass, double* nodal_volumes,
+      double* cell_mass, double* nodal_mass, double* nodal_volumes, 
       double* nodal_soundspeed, double* limiter);
 
   // Calculates the timestep from the current state
