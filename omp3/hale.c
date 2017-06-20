@@ -11,6 +11,11 @@
 // Enforce reflective boundary conditions on the problem state
 void handle_unstructured_boundary_2d(
     const int ncells, const int* halo_cell, double* arr);
+// Reflect the node centered velocities on the boundary
+void handle_unstructured_reflect_2d(
+    const int nnodes, const int* halo_node, const int* halo_neighbour, 
+    const double* halo_normal_x, const double* halo_normal_y,
+    double* velocity_x, double* velocity_y);
 
 // Solve a single timestep on the given mesh
 void solve_unstructured_hydro_2d(
@@ -177,6 +182,10 @@ void solve_unstructured_hydro_2d(
     velocity_x1[(nn)] = 0.5*(velocity_x0[(nn)] + velocity_x1[(nn)]);
     velocity_y1[(nn)] = 0.5*(velocity_y0[(nn)] + velocity_y1[(nn)]);
   }
+
+  handle_unstructured_reflect_2d(
+      nnodes, halo_node, halo_neighbour, halo_normal_x, halo_normal_y,
+      velocity_x1, velocity_y1);
 
   // Calculate the predicted energy
   for(int cc = 0; cc < ncells; ++cc) {
@@ -391,6 +400,10 @@ void solve_unstructured_hydro_2d(
     velocity_y0[(nn)] = 0.5*(velocity_y1[(nn)] + velocity_y0[(nn)]);
   }
 
+  handle_unstructured_reflect_2d(
+      nnodes, halo_node, halo_neighbour, halo_normal_x, halo_normal_y,
+      velocity_x0, velocity_y0);
+
   // Calculate the corrected node movements
   for(int nn = 0; nn < nnodes; ++nn) {
     nodes_x0[(nn)] += dt*velocity_x0[(nn)];
@@ -540,13 +553,17 @@ void handle_unstructured_reflect_2d(
 {
   for(int nn = 0; nn < nnodes; ++nn) {
     const int halo_index = halo_node[(nn)];
-    if(halo_index != NO_HALO) {
-      const int neighbour = halo_neighbour[(halo_index)];
-      velocity_x[(neighbour)] -= halo_normal_x[(nn)]*
-        2.0*(velocity_x[(nn)]*halo_normal_x[(nn)]+velocity_y[(nn)]*halo_normal_y[(nn)]);
-      velocity_y[(nn)] -= halo_normal_y[(nn)]*
-        2.0*(velocity_x[(nn)]*halo_normal_x[(nn)]+velocity_y[(nn)]*halo_normal_y[(nn)]);
+    if(halo_index == IS_NOT_HALO) {
+      continue;
     }
+
+    const int neighbour = halo_neighbour[(halo_index)];
+    velocity_x[(neighbour)] -= halo_normal_x[(halo_index)]*
+      2.0*(velocity_x[(neighbour)]*halo_normal_x[(halo_index)]+
+          velocity_y[(neighbour)]*halo_normal_y[(halo_index)]);
+    velocity_y[(neighbour)] -= halo_normal_y[(halo_index)]*
+      2.0*(velocity_x[(neighbour)]*halo_normal_x[(halo_index)]+
+          velocity_y[(neighbour)]*halo_normal_y[(halo_index)]);
   }
 }
 

@@ -118,7 +118,7 @@ int main(int argc, char** argv)
     if(visit_dump) {
       write_quad_data_to_visit(
           mesh.local_nx, mesh.local_ny, tt, unstructured_mesh.nodes_x0, 
-          unstructured_mesh.nodes_y0, shared_data.P, 0);
+          unstructured_mesh.nodes_y0, shared_data.rho, 0);
     }
   }
 

@@ -124,33 +124,133 @@ size_t initialise_unstructured_mesh(
 
   // TODO: Currently serial only, could do some work to parallelise this if
   // needed later on...
-  int halo_index = NO_HALO;
+  // Store the halo node's neighbour, and normal
+  int halo_index = 0;
   for(int ii = 0; ii < (ny+1); ++ii) {
     for(int jj = 0; jj < (nx+1); ++jj) {
+      int t = 0;
       int neighbour_index = (ii)*(nx+1)+(jj);
-      if(ii < mesh->pad) {
-        neighbour_index += (nx+1);
+      int neighbour0 = 0;
+      int neighbour1 = 0;
+      if(ii == mesh->pad) {
+        // Handle corner cases
+        if(jj == mesh->pad) {
+          neighbour0 = neighbour_index-(nx+1);
+          neighbour1 = neighbour_index-1;
+        }
+        else if(jj == (nx+1)-1-mesh->pad) {
+          neighbour0 = neighbour_index-(nx+1);
+          neighbour1 = neighbour_index+1;
+        }
+        else {
+          neighbour0 = neighbour_index+1;
+          neighbour1 = neighbour_index-1;
+        }
       }
-      if(ii >= ny-mesh->pad) { 
-        neighbour_index -= (nx+1);
+      else if(jj == mesh->pad) {
+        if(ii == (ny+1)-1-mesh->pad) {
+          neighbour0 = neighbour_index-1;
+          neighbour1 = neighbour_index+(nx+1);
+        }
+        else { 
+          neighbour0 = neighbour0 + neighbour_index-(nx+1);
+          neighbour1 = neighbour1 + neighbour_index-(nx+1);
+        }
       }
-      if(jj < mesh->pad) {
-        neighbour_index++;
+      else if(jj == (nx+1)-1-mesh->pad) {
+        if(ii == (ny+1)-1-mesh->pad) {
+          neighbour0 = neighbour_index+1;
+          neighbour1 = neighbour_index+(nx+1);
+        }
+        else {
+          neighbour0 = neighbour0 + neighbour_index-(nx+1);
+          neighbour1 = neighbour1 + neighbour_index-(nx+1);
+        }
       }
-      if(jj >= nx-mesh->pad) {
-        neighbour_index--;
+      else if(ii == (ny+1)-1-mesh->pad) {
+        neighbour0 = neighbour_index+1;
+        neighbour1 = neighbour_index-1;
       }
-      if(neighbour_index != (ii)*nx+(jj)) {
-        unstructured_mesh->halo_node[(ii)*nx+(jj)] = halo_index;
-        unstructured_mesh->halo_neighbour[halo_index] = neighbour_index;
-        unstructured_mesh->halo_normal_x[halo_index] = neighbour_index;
-        unstructured_mesh->halo_normal_y[halo_index] = neighbour_index;
+
+
+      double normal_x = 0.0;
+      double normal_y = 0.0;
+
+      const double normal_mag = sqrt(normal_x*normal_x+normal_y*normal_y);
+      normal_x /= normal_mag;
+      normal_y /= normal_mag;
+
+      if() {
+        // Store the normal and neighbour
+        unstructured_mesh->halo_node[(ii)*(nx+1)+(jj)] = halo_index;
+        unstructured_mesh->halo_neighbour[(halo_index)] = neighbour_index;
+        unstructured_mesh->halo_normal_x[(halo_index)] = normal_x;
+        unstructured_mesh->halo_normal_y[(halo_index)] = normal_y;
         halo_index++;
+      }
+      else {
+        unstructured_mesh->halo_node[(ii)*(nx+1)+(jj)] = IS_NOT_HALO;
       }
     }
   }
 
-  return allocated;
+#if 0
+  neighbour_index += (nx+1);
+  normal_y = 1.0;
+  t++;
+
+  // We are looking at a corner case with two adjoining nodes
+  if(jj == mesh->pad) {
+    normal_x = 1.0;
+  }
+  if(jj == (nx+1)-mesh->pad-1){ 
+    t = 2;
+  }
+}
+if(ii >= (ny+1)-mesh->pad) { 
+  neighbour_index -= (nx+1);
+  normal_y = -1.0;
+  t++;
+
+  // We are looking at a corner case with two adjoining nodes
+  if(jj == mesh->pad) {
+    normal_x = 1.0;
+  }
+  else if(jj == (nx+1)-mesh->pad-1) {
+    t = 2;
+  }
+}
+if(jj < mesh->pad) {
+  neighbour_index++;
+  normal_x = 1.0;
+  t++;
+
+  // We are looking at a corner case with two adjoining nodes
+  if(ii == mesh->pad) {
+    normal_y = 1.0;
+  }
+  else if(ii == (ny+1)-mesh->pad-1) {
+    t = 2;
+  }
+}
+if(jj >= (nx+1)-mesh->pad) {
+  neighbour_index--;
+  normal_x = -1.0;
+  t++;
+
+  // We are looking at a corner case with two adjoining nodes
+  if(ii == mesh->pad) {
+    normal_x = 1.0;
+  }
+  else if(ii == (ny+1)-mesh->pad-1) {
+    t = 2;
+  }
+}
+
+#endif // if 0
+}
+
+return allocated;
 }
 
 // Writes out mesh and data

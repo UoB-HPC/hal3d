@@ -11,7 +11,7 @@
 #define ARCH_ROOT_PARAMS "../arch.params"
 #define HALE_PARAMS "hale.params"
 #define HALE_TESTS  "hale.tests"
-#define NO_HALO -1
+#define IS_NOT_HALO -1
 
 typedef struct {
   // Hale-specific state
