@@ -124,7 +124,7 @@ size_t initialise_unstructured_mesh(
 
   // TODO: Currently serial only, could do some work to parallelise this if
   // needed later on...
-  int halo_index = 0;
+  int halo_index = NO_HALO;
   for(int ii = 0; ii < (ny+1); ++ii) {
     for(int jj = 0; jj < (nx+1); ++jj) {
       int neighbour_index = (ii)*(nx+1)+(jj);
