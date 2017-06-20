@@ -70,8 +70,7 @@ size_t initialise_unstructured_mesh(
   allocated += allocate_data(&unstructured_mesh->cell_centroids_x, nx*ny);
   allocated += allocate_data(&unstructured_mesh->cell_centroids_y, nx*ny);
   allocated += allocate_int_data(&unstructured_mesh->halo_cell, nx*ny);
-  allocated += allocate_int_data(&unstructured_mesh->halo_node, (nx+1)*(ny+1));
-  allocated += allocate_int_data(&unstructured_mesh->halo_neighbour, 2*(nx+ny));
+  allocated += allocate_int_data(&unstructured_mesh->halo_index, (nx+1)*(ny+1));
   allocated += allocate_data(&unstructured_mesh->halo_normal_x, 2*(nx+ny));
   allocated += allocate_data(&unstructured_mesh->halo_normal_y, 2*(nx+ny));
 
@@ -126,70 +125,64 @@ size_t initialise_unstructured_mesh(
   // needed later on...
   // Store the halo node's neighbour, and normal
   int halo_index = 0;
-  for(int ii = 0; ii < (ny+1); ++ii) {
-    for(int jj = 0; jj < (nx+1); ++jj) {
-      int t = 0;
-      int neighbour_index = (ii)*(nx+1)+(jj);
-      int neighbour0 = 0;
-      int neighbour1 = 0;
+  for(int ii = mesh->pad; ii < (ny+1)-mesh->pad; ++ii) {
+    for(int jj = mesh->pad; jj < (nx+1)-mesh->pad; ++jj) {
+
+      double normal_x = 0.0;
+      double normal_y = 0.0;
       if(ii == mesh->pad) {
         // Handle corner cases
         if(jj == mesh->pad) {
-          neighbour0 = neighbour_index-(nx+1);
-          neighbour1 = neighbour_index-1;
+          normal_x = 1.0;
+          normal_y = 1.0;
         }
         else if(jj == (nx+1)-1-mesh->pad) {
-          neighbour0 = neighbour_index-(nx+1);
-          neighbour1 = neighbour_index+1;
+          normal_x = -1.0;
+          normal_y = 1.0;
         }
         else {
-          neighbour0 = neighbour_index+1;
-          neighbour1 = neighbour_index-1;
+          normal_x = 0.0;
+          normal_y = 1.0;
         }
       }
       else if(jj == mesh->pad) {
         if(ii == (ny+1)-1-mesh->pad) {
-          neighbour0 = neighbour_index-1;
-          neighbour1 = neighbour_index+(nx+1);
+          normal_x = 1.0;
+          normal_y = -1.0;
         }
         else { 
-          neighbour0 = neighbour0 + neighbour_index-(nx+1);
-          neighbour1 = neighbour1 + neighbour_index-(nx+1);
+          normal_x = 1.0;
+          normal_y = 0.0;
         }
       }
       else if(jj == (nx+1)-1-mesh->pad) {
         if(ii == (ny+1)-1-mesh->pad) {
-          neighbour0 = neighbour_index+1;
-          neighbour1 = neighbour_index+(nx+1);
+          normal_x = -1.0;
+          normal_y = -1.0;
         }
-        else {
-          neighbour0 = neighbour0 + neighbour_index-(nx+1);
-          neighbour1 = neighbour1 + neighbour_index-(nx+1);
+        else { 
+          normal_x = -1.0;
+          normal_y = 0.0;
         }
       }
       else if(ii == (ny+1)-1-mesh->pad) {
-        neighbour0 = neighbour_index+1;
-        neighbour1 = neighbour_index-1;
+        normal_x = 0.0;
+        normal_y = -1.0;
       }
 
-
-      double normal_x = 0.0;
-      double normal_y = 0.0;
-
-      const double normal_mag = sqrt(normal_x*normal_x+normal_y*normal_y);
-      normal_x /= normal_mag;
-      normal_y /= normal_mag;
-
-      if() {
-        // Store the normal and neighbour
-        unstructured_mesh->halo_node[(ii)*(nx+1)+(jj)] = halo_index;
-        unstructured_mesh->halo_neighbour[(halo_index)] = neighbour_index;
-        unstructured_mesh->halo_normal_x[(halo_index)] = normal_x;
-        unstructured_mesh->halo_normal_y[(halo_index)] = normal_y;
-        halo_index++;
+      if(normal_x == 0.0 && normal_y == 0.0) {
+        // The node isn't on the halo boundary
+        unstructured_mesh->halo_index[(ii)*(nx+1)+(jj)] = IS_NOT_HALO;
       }
       else {
-        unstructured_mesh->halo_node[(ii)*(nx+1)+(jj)] = IS_NOT_HALO;
+        // To normalise the normal vector
+        const double normal_mag = sqrt(normal_x*normal_x+normal_y*normal_y);
+
+        // Store the normal and neighbour
+        unstructured_mesh->halo_index[(ii)*(nx+1)+(jj)] = halo_index;
+        unstructured_mesh->halo_normal_x[(halo_index)] = normal_x/normal_mag;
+        unstructured_mesh->halo_normal_y[(halo_index)] = normal_y/normal_mag;
+        halo_index++;
       }
     }
   }
@@ -246,10 +239,7 @@ if(jj >= (nx+1)-mesh->pad) {
     t = 2;
   }
 }
-
-#endif // if 0
-}
-
+#endif
 return allocated;
 }
 

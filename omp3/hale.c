@@ -13,16 +13,15 @@ void handle_unstructured_boundary_2d(
     const int ncells, const int* halo_cell, double* arr);
 // Reflect the node centered velocities on the boundary
 void handle_unstructured_reflect_2d(
-    const int nnodes, const int* halo_node, const int* halo_neighbour, 
-    const double* halo_normal_x, const double* halo_normal_y,
-    double* velocity_x, double* velocity_y);
+    const int nnodes, const int* halo_index, const double* halo_normal_x, 
+    const double* halo_normal_y, double* velocity_x, double* velocity_y);
 
 // Solve a single timestep on the given mesh
 void solve_unstructured_hydro_2d(
     Mesh* mesh, const int ncells, const int nnodes, const double dt, 
     double* cell_centroids_x, double* cell_centroids_y, int* cells_to_nodes, 
     int* cells_to_nodes_off, double* nodes_x0, double* nodes_y0, double* nodes_x1, 
-    double* nodes_y1, int* halo_cell, int* halo_node, int* halo_neighbour,
+    double* nodes_y1, int* halo_cell, int* halo_index, 
     double* halo_normal_x, double* halo_normal_y, double* energy0, double* energy1, 
     double* density0, double* density1, double* pressure0, double* pressure1, 
     double* velocity_x0, double* velocity_y0, double* velocity_x1, double* velocity_y1, 
@@ -116,7 +115,13 @@ void solve_unstructured_hydro_2d(
       // Add contributions to the nodal mass from adjacent sub-cells
       nodal_soundspeed[(node_c_index)] += 
         sqrt(GAM*(GAM-1.0)*energy0[(cc)])*sub_cell_volume;
-      nodal_mass[(node_c_index)] += density0[(cc)]*sub_cell_volume;
+
+      if(!halo_cell[(cc)]) {
+        nodal_mass[(node_c_index)] += density0[(cc)]*sub_cell_volume;
+      }
+      else {
+        nodal_mass[(node_c_index)] = 1.0;
+      }
     }
 
     // Calculate the mass and store volume for the whole cell
@@ -157,10 +162,9 @@ void solve_unstructured_hydro_2d(
       if(!halo_cell[(cc)]) {
         node_force_x[(node_c_index)] += pressure0[(cc)]*S_x;
         node_force_y[(node_c_index)] += pressure0[(cc)]*S_y;
+        cell_force_x[(nodes_off)+(nn)] = pressure0[(cc)]*S_x;
+        cell_force_y[(nodes_off)+(nn)] = pressure0[(cc)]*S_y;
       }
-
-      cell_force_x[(nodes_off)+(nn)] = pressure0[(cc)]*S_x;
-      cell_force_y[(nodes_off)+(nn)] = pressure0[(cc)]*S_y;
     }
   }
 
@@ -184,7 +188,7 @@ void solve_unstructured_hydro_2d(
   }
 
   handle_unstructured_reflect_2d(
-      nnodes, halo_node, halo_neighbour, halo_normal_x, halo_normal_y,
+      nnodes, halo_index, halo_normal_x, halo_normal_y,
       velocity_x1, velocity_y1);
 
   // Calculate the predicted energy
@@ -288,11 +292,6 @@ void solve_unstructured_hydro_2d(
     }
   }
 
-  for(int nn = 0; nn < nnodes; ++nn) {
-    nodal_soundspeed[(nn)] = 0.0;
-    nodal_volumes[(nn)] = 0.0;
-  }
-
   // Calculate the new nodal soundspeed and volumes
   for(int cc = 0; cc < ncells; ++cc) {
     if(halo_cell[(cc)]) {
@@ -340,8 +339,6 @@ void solve_unstructured_hydro_2d(
   }
 
   for(int nn = 0; nn < nnodes; ++nn) {
-    node_force_x[(nn)] = 0.0;
-    node_force_y[(nn)] = 0.0;
     nodal_soundspeed[(nn)] /= nodal_volumes[(nn)];
   }
 
@@ -375,10 +372,9 @@ void solve_unstructured_hydro_2d(
       if(!halo_cell[(cc)]) {
         node_force_x[(node_c_index)] += pressure1[(cc)]*S_x;
         node_force_y[(node_c_index)] += pressure1[(cc)]*S_y;
+        cell_force_x[(nodes_off)+(nn)] = pressure1[(cc)]*S_x;
+        cell_force_y[(nodes_off)+(nn)] = pressure1[(cc)]*S_y;
       }
-
-      cell_force_x[(nodes_off)+(nn)] = pressure1[(cc)]*S_x;
-      cell_force_y[(nodes_off)+(nn)] = pressure1[(cc)]*S_y;
     }
   }
 
@@ -401,7 +397,7 @@ void solve_unstructured_hydro_2d(
   }
 
   handle_unstructured_reflect_2d(
-      nnodes, halo_node, halo_neighbour, halo_normal_x, halo_normal_y,
+      nnodes, halo_index, halo_normal_x, halo_normal_y,
       velocity_x0, velocity_y0);
 
   // Calculate the corrected node movements
@@ -547,23 +543,21 @@ void calculate_artificial_viscosity(
 
 // Reflect the node centered velocities on the boundary
 void handle_unstructured_reflect_2d(
-    const int nnodes, const int* halo_node, const int* halo_neighbour, 
-    const double* halo_normal_x, const double* halo_normal_y,
-    double* velocity_x, double* velocity_y)
+    const int nnodes, const int* halo_index, const double* halo_normal_x, 
+    const double* halo_normal_y, double* velocity_x, double* velocity_y)
 {
   for(int nn = 0; nn < nnodes; ++nn) {
-    const int halo_index = halo_node[(nn)];
-    if(halo_index == IS_NOT_HALO) {
+    const int index = halo_index[(nn)];
+    if(index == IS_NOT_HALO) {
       continue;
     }
 
-    const int neighbour = halo_neighbour[(halo_index)];
-    velocity_x[(neighbour)] -= halo_normal_x[(halo_index)]*
-      2.0*(velocity_x[(neighbour)]*halo_normal_x[(halo_index)]+
-          velocity_y[(neighbour)]*halo_normal_y[(halo_index)]);
-    velocity_y[(neighbour)] -= halo_normal_y[(halo_index)]*
-      2.0*(velocity_x[(neighbour)]*halo_normal_x[(halo_index)]+
-          velocity_y[(neighbour)]*halo_normal_y[(halo_index)]);
+    velocity_x[(nn)] -= halo_normal_x[(index)]*
+      2.0*(velocity_x[(nn)]*halo_normal_x[(index)]+
+          velocity_y[(nn)]*halo_normal_y[(index)]);
+    velocity_y[(nn)] -= halo_normal_y[(index)]*
+      2.0*(velocity_x[(nn)]*halo_normal_x[(index)]+
+          velocity_y[(nn)]*halo_normal_y[(index)]);
   }
 }
 

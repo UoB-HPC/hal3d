@@ -67,8 +67,7 @@ typedef struct {
   int* cells_to_nodes; 
   int* cells_to_nodes_off; 
   int* halo_cell;
-  int* halo_node;
-  int* halo_neighbour;
+  int* halo_index;
 
   double* nodes_x0; 
   double* nodes_y0; 
