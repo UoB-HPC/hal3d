@@ -22,7 +22,7 @@ extern "C" {
       Mesh* mesh, const int ncells, const int nnodes, const double dt, 
       double* cell_centroids_x, double* cell_centroids_y, int* cells_to_nodes, 
       int* cells_to_nodes_off, double* nodes_x0, double* nodes_y0, double* nodes_x1, 
-      double* nodes_y1, int* halo_cell, int* halo_neighbour,
+      double* nodes_y1, int* halo_cell, int* halo_index, int* halo_neighbour,
       double* halo_normal_x, double* halo_normal_y, double* energy0, double* energy1, 
       double* density0, double* density1, double* pressure0, double* pressure1, 
       double* velocity_x0, double* velocity_y0, double* velocity_x1, double* velocity_y1, 

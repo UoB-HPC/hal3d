@@ -73,6 +73,7 @@ size_t initialise_unstructured_mesh(
   allocated += allocate_int_data(&unstructured_mesh->halo_index, (nx+1)*(ny+1));
   allocated += allocate_data(&unstructured_mesh->halo_normal_x, 2*(nx+ny));
   allocated += allocate_data(&unstructured_mesh->halo_normal_y, 2*(nx+ny));
+  allocated += allocate_int_data(&unstructured_mesh->halo_neighbour, 2*(nx+ny));
 
   // Construct the list of nodes contiguously, currently Cartesian
   for(int ii = 0; ii < (ny+1); ++ii) {
@@ -128,6 +129,7 @@ size_t initialise_unstructured_mesh(
   for(int ii = mesh->pad; ii < (ny+1)-mesh->pad; ++ii) {
     for(int jj = mesh->pad; jj < (nx+1)-mesh->pad; ++jj) {
 
+      int neighbour_index = 0;
       double normal_x = 0.0;
       double normal_y = 0.0;
       if(ii == mesh->pad) {
@@ -135,39 +137,47 @@ size_t initialise_unstructured_mesh(
         if(jj == mesh->pad) {
           normal_x = 1.0;
           normal_y = 1.0;
+          neighbour_index = (ii+1)*(nx+1)+(jj+1);
         }
         else if(jj == (nx+1)-1-mesh->pad) {
           normal_x = -1.0;
           normal_y = 1.0;
+          neighbour_index = (ii+1)*(nx+1)+(jj-1);
         }
         else {
           normal_x = 0.0;
           normal_y = 1.0;
+          neighbour_index = (ii+1)*(nx+1)+(jj);
         }
       }
       else if(jj == mesh->pad) {
         if(ii == (ny+1)-1-mesh->pad) {
           normal_x = 1.0;
           normal_y = -1.0;
+          neighbour_index = (ii-1)*(nx+1)+(jj+1);
         }
         else { 
           normal_x = 1.0;
           normal_y = 0.0;
+          neighbour_index = (ii)*(nx+1)+(jj+1);
         }
       }
       else if(jj == (nx+1)-1-mesh->pad) {
         if(ii == (ny+1)-1-mesh->pad) {
           normal_x = -1.0;
           normal_y = -1.0;
+          neighbour_index = (ii-1)*(nx+1)+(jj-1);
         }
         else { 
           normal_x = -1.0;
           normal_y = 0.0;
+          neighbour_index = (ii)*(nx+1)+(jj-1);
         }
       }
       else if(ii == (ny+1)-1-mesh->pad) {
         normal_x = 0.0;
         normal_y = -1.0;
+        neighbour_index = (ii-1)*(nx+1)+(jj);
       }
 
       if(normal_x == 0.0 && normal_y == 0.0) {
@@ -179,68 +189,15 @@ size_t initialise_unstructured_mesh(
         const double normal_mag = sqrt(normal_x*normal_x+normal_y*normal_y);
 
         // Store the normal and neighbour
-        unstructured_mesh->halo_index[(ii)*(nx+1)+(jj)] = halo_index;
+        unstructured_mesh->halo_neighbour[(halo_index)] = neighbour_index;
         unstructured_mesh->halo_normal_x[(halo_index)] = normal_x/normal_mag;
         unstructured_mesh->halo_normal_y[(halo_index)] = normal_y/normal_mag;
-        halo_index++;
+        unstructured_mesh->halo_index[(ii)*(nx+1)+(jj)] = halo_index++;
       }
     }
   }
 
-#if 0
-  neighbour_index += (nx+1);
-  normal_y = 1.0;
-  t++;
-
-  // We are looking at a corner case with two adjoining nodes
-  if(jj == mesh->pad) {
-    normal_x = 1.0;
-  }
-  if(jj == (nx+1)-mesh->pad-1){ 
-    t = 2;
-  }
-}
-if(ii >= (ny+1)-mesh->pad) { 
-  neighbour_index -= (nx+1);
-  normal_y = -1.0;
-  t++;
-
-  // We are looking at a corner case with two adjoining nodes
-  if(jj == mesh->pad) {
-    normal_x = 1.0;
-  }
-  else if(jj == (nx+1)-mesh->pad-1) {
-    t = 2;
-  }
-}
-if(jj < mesh->pad) {
-  neighbour_index++;
-  normal_x = 1.0;
-  t++;
-
-  // We are looking at a corner case with two adjoining nodes
-  if(ii == mesh->pad) {
-    normal_y = 1.0;
-  }
-  else if(ii == (ny+1)-mesh->pad-1) {
-    t = 2;
-  }
-}
-if(jj >= (nx+1)-mesh->pad) {
-  neighbour_index--;
-  normal_x = -1.0;
-  t++;
-
-  // We are looking at a corner case with two adjoining nodes
-  if(ii == mesh->pad) {
-    normal_x = 1.0;
-  }
-  else if(ii == (ny+1)-mesh->pad-1) {
-    t = 2;
-  }
-}
-#endif
-return allocated;
+  return allocated;
 }
 
 // Writes out mesh and data

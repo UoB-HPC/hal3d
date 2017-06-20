@@ -13,15 +13,16 @@ void handle_unstructured_boundary_2d(
     const int ncells, const int* halo_cell, double* arr);
 // Reflect the node centered velocities on the boundary
 void handle_unstructured_reflect_2d(
-    const int nnodes, const int* halo_index, const double* halo_normal_x, 
-    const double* halo_normal_y, double* velocity_x, double* velocity_y);
+    const int nnodes, const int* halo_index, const int* halo_neighbour, 
+    const double* halo_normal_x, const double* halo_normal_y, 
+    double* velocity_x, double* velocity_y);
 
 // Solve a single timestep on the given mesh
 void solve_unstructured_hydro_2d(
-    Mesh* mesh, const int ncells, const int nnodes, const double dt, 
+    Mesh* mesh, const int ncells, const int nnodes, double dt, 
     double* cell_centroids_x, double* cell_centroids_y, int* cells_to_nodes, 
     int* cells_to_nodes_off, double* nodes_x0, double* nodes_y0, double* nodes_x1, 
-    double* nodes_y1, int* halo_cell, int* halo_index, 
+    double* nodes_y1, int* halo_cell, int* halo_index, int* halo_neighbour,
     double* halo_normal_x, double* halo_normal_y, double* energy0, double* energy1, 
     double* density0, double* density1, double* pressure0, double* pressure1, 
     double* velocity_x0, double* velocity_y0, double* velocity_x1, double* velocity_y1, 
@@ -188,7 +189,7 @@ void solve_unstructured_hydro_2d(
   }
 
   handle_unstructured_reflect_2d(
-      nnodes, halo_index, halo_normal_x, halo_normal_y,
+      nnodes, halo_index, halo_neighbour, halo_normal_x, halo_normal_y,
       velocity_x1, velocity_y1);
 
   // Calculate the predicted energy
@@ -397,7 +398,7 @@ void solve_unstructured_hydro_2d(
   }
 
   handle_unstructured_reflect_2d(
-      nnodes, halo_index, halo_normal_x, halo_normal_y,
+      nnodes, halo_index, halo_neighbour, halo_normal_x, halo_normal_y,
       velocity_x0, velocity_y0);
 
   // Calculate the corrected node movements
@@ -406,12 +407,30 @@ void solve_unstructured_hydro_2d(
     nodes_y0[(nn)] += dt*velocity_y0[(nn)];
   }
 
-  // Calculate the final energy
+  double dt_potential = 1.0e10;
   for(int cc = 0; cc < ncells; ++cc) {
-    if(halo_cell[(cc)]) {
-      continue;
+    const int nodes_off = cells_to_nodes_off[(cc)];
+    const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
+
+    double shortest_edge = 1.0e10;
+    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+      // Calculate the new volume of the cell
+      const int node_c_index = cells_to_nodes[(nodes_off)+(nn)]; 
+      const int node_r_index = (nn == nnodes_around_cell-1) 
+        ? cells_to_nodes[(nodes_off)] : cells_to_nodes[(nodes_off)+(nn+1)];
+      const double x_component = nodes_x0[(node_c_index)]-nodes_x0[(node_r_index)];
+      const double y_component = nodes_y0[(node_c_index)]-nodes_y0[(node_r_index)];
+      shortest_edge = min(shortest_edge, 
+          sqrt(x_component*x_component+y_component*y_component));
     }
 
+    const double soundspeed = sqrt(GAM*(GAM-1.0)*energy0[(cc)]);
+    dt_potential = min(dt_potential, shortest_edge/soundspeed);
+    dt = min(dt, shortest_edge/soundspeed);
+  }
+
+  // Calculate the final energy
+  for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
@@ -543,8 +562,9 @@ void calculate_artificial_viscosity(
 
 // Reflect the node centered velocities on the boundary
 void handle_unstructured_reflect_2d(
-    const int nnodes, const int* halo_index, const double* halo_normal_x, 
-    const double* halo_normal_y, double* velocity_x, double* velocity_y)
+    const int nnodes, const int* halo_index, const int* halo_neighbour, 
+    const double* halo_normal_x, const double* halo_normal_y, 
+    double* velocity_x, double* velocity_y)
 {
   for(int nn = 0; nn < nnodes; ++nn) {
     const int index = halo_index[(nn)];
@@ -552,12 +572,17 @@ void handle_unstructured_reflect_2d(
       continue;
     }
 
-    velocity_x[(nn)] -= halo_normal_x[(index)]*
+    const int neighbour_index = halo_neighbour[(index)];
+    velocity_x[(neighbour_index)] -= halo_normal_x[(index)]*
       2.0*(velocity_x[(nn)]*halo_normal_x[(index)]+
           velocity_y[(nn)]*halo_normal_y[(index)]);
-    velocity_y[(nn)] -= halo_normal_y[(index)]*
+    velocity_y[(neighbour_index)] -= halo_normal_y[(index)]*
       2.0*(velocity_x[(nn)]*halo_normal_x[(index)]+
           velocity_y[(nn)]*halo_normal_y[(index)]);
+
+    // Mask out the velocity that doesn't act along the reflective boundary?
+    velocity_x[(nn)] = velocity_x[(nn)]*fabs(halo_normal_x[(index)]);
+    velocity_y[(nn)] = velocity_y[(nn)]*fabs(halo_normal_y[(index)]);
   }
 }
 

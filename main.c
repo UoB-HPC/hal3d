@@ -91,6 +91,7 @@ int main(int argc, char** argv)
         unstructured_mesh.nodes_x0, unstructured_mesh.nodes_y0, 
         unstructured_mesh.nodes_x1, unstructured_mesh.nodes_y1,
         unstructured_mesh.halo_cell, unstructured_mesh.halo_index, 
+        unstructured_mesh.halo_neighbour,
         unstructured_mesh.halo_normal_x, unstructured_mesh.halo_normal_y,
         shared_data.e, hale_data.energy1, shared_data.rho, shared_data.rho_old, 
         shared_data.P, hale_data.pressure1, 
@@ -117,7 +118,7 @@ int main(int argc, char** argv)
     if(visit_dump) {
       write_quad_data_to_visit(
           mesh.local_nx, mesh.local_ny, tt, unstructured_mesh.nodes_x0, 
-          unstructured_mesh.nodes_y0, shared_data.rho, 0);
+          unstructured_mesh.nodes_y0, hale_data.node_force_x, 1);
     }
   }
 
