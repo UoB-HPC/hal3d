@@ -614,27 +614,41 @@ void handle_unstructured_reflect_2d(
 
     const int neighbour_index = halo_neighbour[(index)];
 
-    // Project the velocity onto the face direction
-    const double halo_parallel_x = halo_normal_y[(index)];
-    const double halo_parallel_y = -halo_normal_x[(index)];
-    const double vel_dot_parallel = 
-      (velocity_x[(nn)]*halo_parallel_x+velocity_y[(nn)]*halo_parallel_y);
-    velocity_x[(nn)] = halo_parallel_x*vel_dot_parallel;
-    velocity_y[(nn)] = halo_parallel_y*vel_dot_parallel;
+    // To normalise the normal vector
+    const double normal_mag = 
+      sqrt(halo_normal_x[(nn)]*halo_normal_x[(nn)]+
+          halo_normal_y[(nn)]*halo_normal_y[(nn)]);
 
-    // Calculate the reflected velocity
-    const double reflect_x = velocity_x[(nn)] - 
-      halo_normal_x[(index)]*2.0*(velocity_x[(nn)]*halo_normal_x[(index)]+
-          velocity_y[(nn)]*halo_normal_y[(index)]);
-    const double reflect_y = velocity_y[(nn)] - 
-      halo_normal_y[(index)]*2.0*(velocity_x[(nn)]*halo_normal_x[(index)]+
-          velocity_y[(nn)]*halo_normal_y[(index)]);
+    // Check if this is a fixed boundary node
+    if(normal_mag == 0.0) {
+      velocity_x[(neighbour_index)] = -velocity_x[(nn)];
+      velocity_y[(neighbour_index)] = -velocity_y[(nn)];
+      velocity_x[(nn)] = 0.0;
+      velocity_y[(nn)] = 0.0;
+    }
+    else {
+      // Project the velocity onto the face direction
+      const double halo_parallel_x = halo_normal_y[(index)];
+      const double halo_parallel_y = -halo_normal_x[(index)];
+      const double vel_dot_parallel = 
+        (velocity_x[(nn)]*halo_parallel_x+velocity_y[(nn)]*halo_parallel_y);
+      velocity_x[(nn)] = halo_parallel_x*vel_dot_parallel;
+      velocity_y[(nn)] = halo_parallel_y*vel_dot_parallel;
 
-    // Project the reflected velocity back to the neighbour
-    velocity_x[(neighbour_index)] -= halo_normal_x[(index)]*
-      (reflect_x*halo_normal_x[(index)]+reflect_y*halo_normal_y[(index)]);
-    velocity_y[(neighbour_index)] -= halo_normal_y[(index)]*
-      (reflect_x*halo_normal_x[(index)]+reflect_y*halo_normal_y[(index)]);
+      // Calculate the reflected velocity
+      const double reflect_x = velocity_x[(nn)] - 
+        halo_normal_x[(index)]*2.0*(velocity_x[(nn)]*halo_normal_x[(index)]+
+            velocity_y[(nn)]*halo_normal_y[(index)]);
+      const double reflect_y = velocity_y[(nn)] - 
+        halo_normal_y[(index)]*2.0*(velocity_x[(nn)]*halo_normal_x[(index)]+
+            velocity_y[(nn)]*halo_normal_y[(index)]);
+
+      // Project the reflected velocity back to the neighbour
+      velocity_x[(neighbour_index)] -= halo_normal_x[(index)]*
+        (reflect_x*halo_normal_x[(index)]+reflect_y*halo_normal_y[(index)]);
+      velocity_y[(neighbour_index)] -= halo_normal_y[(index)]*
+        (reflect_x*halo_normal_x[(index)]+reflect_y*halo_normal_y[(index)]);
+    }
   }
 }
 
