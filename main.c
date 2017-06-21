@@ -64,12 +64,6 @@ int main(int argc, char** argv)
       mesh.local_nx, mesh.local_ny, &hale_data, &unstructured_mesh);
   printf("Allocated %.3fGB bytes of data\n", allocated/(double)GB);
 
-  if(visit_dump) {
-    write_quad_data_to_visit(
-        mesh.local_nx, mesh.local_ny, 0, unstructured_mesh.nodes_x0, 
-        unstructured_mesh.nodes_y0, hale_data.velocity_x1, 1);
-  }
-
   // Prepare for solve
   double wallclock = 0.0;
   double elapsed_sim_time = 0.0;
@@ -85,16 +79,15 @@ int main(int argc, char** argv)
     double w0 = omp_get_wtime();
 
     solve_unstructured_hydro_2d(
-        &mesh, unstructured_mesh.ncells, unstructured_mesh.nnodes, mesh.dt, 
+        &mesh, unstructured_mesh.ncells, unstructured_mesh.nnodes, 
         unstructured_mesh.cell_centroids_x, unstructured_mesh.cell_centroids_y, 
         unstructured_mesh.cells_to_nodes, unstructured_mesh.cells_to_nodes_off, 
         unstructured_mesh.nodes_x0, unstructured_mesh.nodes_y0, 
         unstructured_mesh.nodes_x1, unstructured_mesh.nodes_y1,
         unstructured_mesh.halo_cell, unstructured_mesh.halo_index, 
-        unstructured_mesh.halo_neighbour,
-        unstructured_mesh.halo_normal_x, unstructured_mesh.halo_normal_y,
-        shared_data.e, hale_data.energy1, shared_data.rho, shared_data.rho_old, 
-        shared_data.P, hale_data.pressure1, 
+        unstructured_mesh.halo_neighbour, unstructured_mesh.halo_normal_x, 
+        unstructured_mesh.halo_normal_y, shared_data.e, hale_data.energy1, 
+        shared_data.rho, shared_data.rho_old, shared_data.P, hale_data.pressure1, 
         shared_data.u, shared_data.v, hale_data.velocity_x1, 
         hale_data.velocity_y1, hale_data.cell_force_x, hale_data.cell_force_y, 
         hale_data.node_force_x, hale_data.node_force_y, hale_data.cell_mass, 
@@ -116,9 +109,17 @@ int main(int argc, char** argv)
     }
 
     if(visit_dump) {
+      for(int cc = 0; cc < unstructured_mesh.ncells; ++cc) {
+        hale_data.cell_force_x[(cc)] = 
+          hale_data.cell_force_x[(cc*4)+0] +
+          hale_data.cell_force_x[(cc*4)+1] +
+          hale_data.cell_force_x[(cc*4)+2] +
+          hale_data.cell_force_x[(cc*4)+3];
+      }
+
       write_quad_data_to_visit(
           mesh.local_nx, mesh.local_ny, tt, unstructured_mesh.nodes_x0, 
-          unstructured_mesh.nodes_y0, shared_data.rho, 0);
+          unstructured_mesh.nodes_y0, hale_data.velocity_x1, 1);
     }
   }
 
