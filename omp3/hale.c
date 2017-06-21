@@ -8,9 +8,12 @@
 #include "../../params.h"
 #include "../../shared.h"
 
-// Enforce reflective boundary conditions on the problem state
-void handle_unstructured_boundary_2d(
+// Fill boundary cells with interior values
+void handle_cell_boundary(
     const int ncells, const int* halo_cell, double* arr);
+// Fill halo nodes with interior values
+void handle_node_boundary(
+    const int nnodes, const int* halo_index, const int* halo_neighbour, double* arr);
 // Reflect the node centered velocities on the boundary
 void handle_unstructured_reflect_2d(
     const int nnodes, const int* halo_index, const int* halo_neighbour, 
@@ -47,8 +50,8 @@ void solve_unstructured_hydro_2d(
     pressure0[(cc)] = (GAM-1.0)*energy0[(cc)]*density0[(cc)];
   }
 
-  handle_unstructured_boundary_2d(ncells, halo_cell, density0);
-  handle_unstructured_boundary_2d(ncells, halo_cell, pressure0);
+  handle_cell_boundary(ncells, halo_cell, density0);
+  handle_cell_boundary(ncells, halo_cell, pressure0);
 
   // Calculate the cell centroids
   for(int cc = 0; cc < ncells; ++cc) {
@@ -124,6 +127,9 @@ void solve_unstructured_hydro_2d(
     cell_mass[(cc)] = density0[(cc)]*cell_volume;
   }
 
+  handle_node_boundary(
+      nnodes, halo_index, halo_neighbour, nodal_mass);
+
   for(int nn = 0; nn < nnodes; ++nn) {
     node_force_x[(nn)] = 0.0;
     node_force_y[(nn)] = 0.0;
@@ -132,9 +138,6 @@ void solve_unstructured_hydro_2d(
 
   // Calculate the force contributions for pressure gradients
   for(int cc = 0; cc < ncells; ++cc) {
-    if(halo_cell[(cc)]) {
-      continue;
-    }
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
@@ -187,8 +190,6 @@ void solve_unstructured_hydro_2d(
   handle_unstructured_reflect_2d(
       nnodes, halo_index, halo_neighbour, halo_normal_x, halo_normal_y,
       velocity_x1, velocity_y1);
-
-  return;
 
   // Calculate the predicted energy
   for(int cc = 0; cc < ncells; ++cc) {
@@ -287,8 +288,8 @@ void solve_unstructured_hydro_2d(
     pressure1[(cc)] = 0.5*(pressure0[(cc)] + pressure1[(cc)]);
   }
 
-  handle_unstructured_boundary_2d(ncells, halo_cell, density1);
-  handle_unstructured_boundary_2d(ncells, halo_cell, pressure1);
+  handle_cell_boundary(ncells, halo_cell, density1);
+  handle_cell_boundary(ncells, halo_cell, pressure1);
 
   // Prepare time centered variables for the corrector step
   for(int nn = 0; nn < nnodes; ++nn) {
@@ -371,10 +372,6 @@ void solve_unstructured_hydro_2d(
 
   // Calculate the force contributions for pressure gradients
   for(int cc = 0; cc < ncells; ++cc) {
-    if(halo_cell[(cc)]) {
-      continue;
-    }
-
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
@@ -611,6 +608,20 @@ void handle_unstructured_reflect_2d(
 
     const int neighbour_index = halo_neighbour[(index)];
 
+#if 0
+    if(index == IS_BOUNDARY) {
+      // This is a boundary node
+      velocity_x[(nn)] = 0.0;
+      velocity_y[(nn)] = 0.0;
+    }
+    else {
+      const double vel_dot_norm = (velocity_x[(nn)]*halo_normal_x[(index)]+
+          velocity_y[(nn)]*halo_normal_y[(index)]);
+      velocity_x[(nn)] = velocity_x[(nn)] - halo_normal_x[(index)]*2.0*vel_dot_norm;
+      velocity_y[(nn)] = velocity_y[(nn)] - halo_normal_y[(index)]*2.0*vel_dot_norm;
+    }
+#endif // if 0
+
     if(index == IS_BOUNDARY) {
       // This is a boundary node
       velocity_x[(nn)] = 0.0;
@@ -650,13 +661,26 @@ void handle_unstructured_reflect_2d(
 }
 
 // Fill boundary cells with interior values
-void handle_unstructured_boundary_2d(
+void handle_cell_boundary(
     const int ncells, const int* halo_cell, double* arr)
 {
   // Perform the local halo update with reflective boundary condition
   for(int cc = 0; cc < ncells; ++cc) {
     if(halo_cell[(cc)]) {
       arr[(cc)] = arr[(halo_cell[(cc)])];
+    }
+  }
+}
+
+// Fill halo nodes with interior values
+void handle_node_boundary(
+    const int nnodes, const int* halo_index, const int* halo_neighbour, double* arr)
+{
+  for(int nn = 0; nn < nnodes; ++nn) {
+    const int index = halo_index[(nn)];
+
+    if(index != IS_BOUNDARY && index != IS_NOT_HALO) {
+      arr[(nn)] = arr[(halo_neighbour[(index)])];
     }
   }
 }

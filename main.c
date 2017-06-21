@@ -109,17 +109,9 @@ int main(int argc, char** argv)
     }
 
     if(visit_dump) {
-      for(int cc = 0; cc < unstructured_mesh.ncells; ++cc) {
-        hale_data.cell_force_x[(cc)] = 
-          hale_data.cell_force_x[(cc*4)+0] +
-          hale_data.cell_force_x[(cc*4)+1] +
-          hale_data.cell_force_x[(cc*4)+2] +
-          hale_data.cell_force_x[(cc*4)+3];
-      }
-
       write_quad_data_to_visit(
           mesh.local_nx, mesh.local_ny, tt, unstructured_mesh.nodes_x0, 
-          unstructured_mesh.nodes_y0, hale_data.velocity_x1, 1);
+          unstructured_mesh.nodes_y0, shared_data.rho, 0);
     }
   }
 
