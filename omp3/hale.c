@@ -30,12 +30,13 @@ void solve_unstructured_hydro_2d(
     double* density1, double* pressure0, double* pressure1, double* velocity_x0, 
     double* velocity_y0, double* velocity_x1, double* velocity_y1, 
     double* cell_force_x, double* cell_force_y, double* node_force_x, 
-    double* node_force_y, double* cell_mass, double* nodal_mass, 
-    double* nodal_volumes, double* nodal_soundspeed, double* limiter)
+    double* node_force_y, double* node_visc_x, double* node_visc_y, 
+    double* cell_mass, double* nodal_mass, double* nodal_volumes, 
+    double* nodal_soundspeed, double* limiter)
 {
   // Constants for the artificial viscosity
-  const double c1 = 1.0;
-  const double c2 = 1.0;
+  const double c1 = 0.5;
+  const double c2 = 0.5;
 
   /*
    *    PREDICTOR
@@ -50,7 +51,6 @@ void solve_unstructured_hydro_2d(
     pressure0[(cc)] = (GAM-1.0)*energy0[(cc)]*density0[(cc)];
   }
 
-  handle_cell_boundary(ncells, halo_cell, density0);
   handle_cell_boundary(ncells, halo_cell, pressure0);
 
   // Calculate the cell centroids
@@ -74,6 +74,7 @@ void solve_unstructured_hydro_2d(
     nodal_soundspeed[(nn)] = 0.0;
   }
 
+  double total_mass = 0.0;
   // Calculate the nodal and cell mass
   for(int cc = 0; cc < ncells; ++cc) {
     if(halo_cell[(cc)]) {
@@ -125,7 +126,10 @@ void solve_unstructured_hydro_2d(
 
     // Calculate the mass and store volume for the whole cell
     cell_mass[(cc)] = density0[(cc)]*cell_volume;
+    total_mass += cell_mass[(cc)];
   }
+
+  printf("total mass %.12f\n", total_mass);
 
   handle_node_boundary(
       nnodes, halo_index, halo_neighbour, nodal_mass);
@@ -155,10 +159,10 @@ void solve_unstructured_hydro_2d(
       // Calculate the area vectors away from cell through node, using
       // the half edge vectors adjacent to the node combined
       const double S_x =
-        0.25*((nodes_y0[(node_c_index)]-nodes_y0[(node_l_index)]) +
+        0.5*((nodes_y0[(node_c_index)]-nodes_y0[(node_l_index)]) +
             (nodes_y0[(node_r_index)]-nodes_y0[(node_c_index)]));
       const double S_y =
-        -0.25*((nodes_x0[(node_c_index)]-nodes_x0[(node_l_index)]) +
+        -0.5*((nodes_x0[(node_c_index)]-nodes_x0[(node_l_index)]) +
             (nodes_x0[(node_r_index)]-nodes_x0[(node_c_index)]));
 
       node_force_x[(node_c_index)] += pressure0[(cc)]*S_x;
@@ -285,7 +289,6 @@ void solve_unstructured_hydro_2d(
     pressure1[(cc)] = 0.5*(pressure0[(cc)] + pressure1[(cc)]);
   }
 
-  handle_cell_boundary(ncells, halo_cell, density1);
   handle_cell_boundary(ncells, halo_cell, pressure1);
 
   // Prepare time centered variables for the corrector step
@@ -386,10 +389,10 @@ void solve_unstructured_hydro_2d(
       // Calculate the area vectors away from cell through node, using
       // the half edge vectors adjacent to the node combined
       const double S_x =
-        0.25*((nodes_y1[(node_c_index)]-nodes_y1[(node_l_index)]) +
+        0.5*((nodes_y1[(node_c_index)]-nodes_y1[(node_l_index)]) +
             (nodes_y1[(node_r_index)]-nodes_y1[(node_c_index)]));
       const double S_y =
-        -0.25*((nodes_x1[(node_c_index)]-nodes_x1[(node_l_index)]) +
+        -0.5*((nodes_x1[(node_c_index)]-nodes_x1[(node_l_index)]) +
             (nodes_x1[(node_r_index)]-nodes_x1[(node_c_index)]));
 
       node_force_x[(node_c_index)] += pressure1[(cc)]*S_x;
