@@ -261,14 +261,32 @@ size_t read_unstructured_mesh(
     unstructured_mesh->halo_index[(index)] = (is_boundary) ? 1 : 0;
   }
 
-  for(int nn = 0; nn < unstructured_mesh->nnodes; ++nn) {
-    printf("%d %.12f %.12f %d\n", 
-        nn, unstructured_mesh->nodes_x0[(nn)],
-        unstructured_mesh->nodes_y0[(nn)],
-        unstructured_mesh->halo_index[(nn)]);
-  }
+  // Loop through the element file and flatten into data structure
+  while(fgets(temp, MAX_STR_LEN, ele_fp)) {
+    int index;
+    sscanf(temp, "%d", &index); 
 
-  exit(1);
+    int discard;
+    int node0;
+    int node1;
+    int node2;
+    sscanf(temp, "%d%d%d%d", &discard, &node0, &node1, &node2);
+
+    unstructured_mesh->cells_to_nodes[(index*unstructured_mesh->nnodes_by_cell)+0] = node0;
+    unstructured_mesh->cells_to_nodes[(index*unstructured_mesh->nnodes_by_cell)+1] = node1;
+    unstructured_mesh->cells_to_nodes[(index*unstructured_mesh->nnodes_by_cell)+2] = node2;
+    unstructured_mesh->cells_to_nodes_off[(index+1)] = 
+      unstructured_mesh->cells_to_nodes_off[(index)] + unstructured_mesh->nnodes_by_cell;
+
+    if(unstructured_mesh->halo_index[(node0)] == IS_BOUNDARY ||
+        unstructured_mesh->halo_index[(node1)] == IS_BOUNDARY ||
+        unstructured_mesh->halo_index[(node2)] == IS_BOUNDARY) {
+
+
+      // TODO: need to find neighbour here...
+      unstructured_mesh->halo_cell[(index)] = 1;
+    }
+  }
 
   const int nboundary_cells = 0;
   allocated += allocate_data(&unstructured_mesh->halo_normal_x, nboundary_cells);
