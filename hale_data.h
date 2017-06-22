@@ -91,5 +91,23 @@ void validate(
     const int nx, const int ny, const char* params_filename, 
     const int rank, double* density, double* energy);
 
+// Fill boundary cells with interior values
+void handle_unstructured_cell_boundary(
+    const int ncells, const int* halo_cell, double* arr);
+
+// Fill halo nodes with interior values
+void handle_unstructured_node_boundary(
+    const int nnodes, const int* halo_index, const int* halo_neighbour, double* arr);
+
+// Reflect the node centered velocities on the boundary
+void handle_unstructured_reflect(
+    const int nnodes, const int* halo_index, const int* halo_neighbour, 
+    const double* halo_normal_x, const double* halo_normal_y, 
+    double* velocity_x, double* velocity_y);
+
+// Reads an unstructured mesh from an input file
+size_t read_unstructured_mesh(
+    Mesh* mesh, UnstructuredMesh* unstructured_mesh);
+
 #endif
 
