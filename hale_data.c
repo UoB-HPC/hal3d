@@ -44,7 +44,7 @@ void deallocate_hale_data(
   deallocate_data(hale_data->node_force_y);
 }
 
-// Build a fully unstructured mesh, initially n by n rectilinear layout
+// Builds an unstructured mesh with an nx by ny rectilinear layout
 size_t initialise_unstructured_mesh(
     Mesh* mesh, UnstructuredMesh* unstructured_mesh)
 {

@@ -15,22 +15,6 @@
 #define IS_BOUNDARY -2
 
 typedef struct {
-  // Hale-specific state
-  double* rho_u;    // Momentum in the x direction
-  double* rho_v;    // Momentum in the y direction
-
-  double* F_x;      // Mass flux in the x direction
-  double* F_y;      // Mass flux in the y direction
-
-  double* uF_x;     // Momentum in the x direction flux in the x direction 
-  double* uF_y;     // Momentum in the x direction flux in the y direction
-
-  double* vF_x;     // Momentum in the y direction flux in the x direction
-  double* vF_y;     // Momentum in the y direction flux in the y direction
-
-  double* wF_x;     // Momentum in the z direction flux in the x direction
-  double* wF_y;     // Momentum in the z direction flux in the y direction
-
   double* energy0;
   double* energy1;
   double* density0; 
@@ -45,6 +29,8 @@ typedef struct {
   double* cell_force_y; 
   double* node_force_x;
   double* node_force_y;
+  double* node_visc_x;
+  double* node_visc_y;
   double* cell_volumes; 
   double* cell_mass;
   double* nodal_mass;
@@ -52,6 +38,8 @@ typedef struct {
   double* nodal_soundspeed;
   double* limiter;
 
+  double visc_coeff1;
+  double visc_coeff2;
 } HaleData;
 
 // Stores unstructured mesh

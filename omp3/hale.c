@@ -8,21 +8,10 @@
 #include "../../params.h"
 #include "../../shared.h"
 
-// Fill boundary cells with interior values
-void handle_cell_boundary(
-    const int ncells, const int* halo_cell, double* arr);
-// Fill halo nodes with interior values
-void handle_node_boundary(
-    const int nnodes, const int* halo_index, const int* halo_neighbour, double* arr);
-// Reflect the node centered velocities on the boundary
-void handle_unstructured_reflect_2d(
-    const int nnodes, const int* halo_index, const int* halo_neighbour, 
-    const double* halo_normal_x, const double* halo_normal_y, 
-    double* velocity_x, double* velocity_y);
-
 // Solve a single timestep on the given mesh
 void solve_unstructured_hydro_2d(
-    Mesh* mesh, const int ncells, const int nnodes, double* cell_centroids_x, 
+    Mesh* mesh, const int ncells, const int nnodes, const double visc_coeff1, 
+    const double visc_coeff2, double* cell_centroids_x, 
     double* cell_centroids_y, int* cells_to_nodes, int* cells_to_nodes_off, 
     double* nodes_x0, double* nodes_y0, double* nodes_x1, double* nodes_y1, 
     int* halo_cell, int* halo_index, int* halo_neighbour, double* halo_normal_x, 
@@ -172,7 +161,7 @@ void solve_unstructured_hydro_2d(
   }
 
   calculate_artificial_viscosity(
-      ncells, c1, c2, halo_cell, cells_to_nodes_off, cells_to_nodes, 
+      ncells, visc_coeff1, visc_coeff2, halo_cell, cells_to_nodes_off, cells_to_nodes, 
       nodes_x0, nodes_y0, cell_centroids_x, cell_centroids_y,
       velocity_x0, velocity_y0, nodal_soundspeed, nodal_mass,
       nodal_volumes, limiter, node_force_x, node_force_y);
@@ -402,7 +391,7 @@ void solve_unstructured_hydro_2d(
   }
 
   calculate_artificial_viscosity(
-      ncells, c1, c2, halo_cell, cells_to_nodes_off, cells_to_nodes, 
+      ncells, visc_coeff1, visc_coeff2, halo_cell, cells_to_nodes_off, cells_to_nodes, 
       nodes_x1, nodes_y1, cell_centroids_x, cell_centroids_y,
       velocity_x1, velocity_y1, nodal_soundspeed, nodal_mass,
       nodal_volumes, limiter, node_force_x, node_force_y);
@@ -505,7 +494,7 @@ void solve_unstructured_hydro_2d(
 
 // Calculates the artificial viscous forces for momentum acceleration
 void calculate_artificial_viscosity(
-    const int ncells, const double c1, const double c2, const int* halo_cell, 
+    const int ncells, const double visc_coeff1, const double visc_coeff2, const int* halo_cell, 
     const int* cells_to_nodes_off, const int* cells_to_nodes, 
     const double* nodes_x, const double* nodes_y, 
     const double* cell_centroids_x, const double* cell_centroids_y,
@@ -571,12 +560,13 @@ void calculate_artificial_viscosity(
       // contributions to the node forces
       if(expansion_term <= 0.0) {
         const double edge_visc_force_x = 
-          density_edge*(c2*t*fabs(grad_velocity_x) + 
-              sqrt(c2*c2*t*t*grad_velocity_x*grad_velocity_x + c1*c1*cs*cs))*
+          density_edge*(visc_coeff2*t*fabs(grad_velocity_x) + 
+              sqrt(visc_coeff2*visc_coeff2*t*t*grad_velocity_x*grad_velocity_x +
+                visc_coeff1*visc_coeff1*cs*cs))*
           (1.0 - limiter[(node_c_index)])*(grad_velocity_x*S_x)*grad_velocity_unit_x;
         const double edge_visc_force_y = 
-          density_edge*(c2*t*fabs(grad_velocity_y) +
-              sqrt(c2*c2*t*t*grad_velocity_y*grad_velocity_y + c1*c1*cs*cs))*
+          density_edge*(visc_coeff2*t*fabs(grad_velocity_y) +
+              sqrt(visc_coeff2*visc_coeff2*t*t*grad_velocity_y*grad_velocity_y + visc_coeff1*visc_coeff1*cs*cs))*
           (1.0 - limiter[(node_c_index)])*(grad_velocity_y*S_y)*grad_velocity_unit_y;
 
         // Add the contributions of the edge based artifical viscous terms

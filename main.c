@@ -64,6 +64,9 @@ int main(int argc, char** argv)
       mesh.local_nx, mesh.local_ny, &hale_data, &unstructured_mesh);
   printf("Allocated %.3fGB bytes of data\n", allocated/(double)GB);
 
+  hale_data.visc_coeff1 = get_double_parameter("visc_coeff1", hale_params);
+  hale_data.visc_coeff2 = get_double_parameter("visc_coeff2", hale_params);
+
   // Prepare for solve
   double wallclock = 0.0;
   double elapsed_sim_time = 0.0;
@@ -79,20 +82,20 @@ int main(int argc, char** argv)
     double w0 = omp_get_wtime();
 
     solve_unstructured_hydro_2d(
-        &mesh, unstructured_mesh.ncells, unstructured_mesh.nnodes, 
-        unstructured_mesh.cell_centroids_x, unstructured_mesh.cell_centroids_y, 
-        unstructured_mesh.cells_to_nodes, unstructured_mesh.cells_to_nodes_off, 
-        unstructured_mesh.nodes_x0, unstructured_mesh.nodes_y0, 
-        unstructured_mesh.nodes_x1, unstructured_mesh.nodes_y1,
-        unstructured_mesh.halo_cell, unstructured_mesh.halo_index, 
-        unstructured_mesh.halo_neighbour, unstructured_mesh.halo_normal_x, 
-        unstructured_mesh.halo_normal_y, shared_data.e, hale_data.energy1, 
-        shared_data.rho, shared_data.rho_old, shared_data.P, hale_data.pressure1, 
-        shared_data.u, shared_data.v, hale_data.velocity_x1, 
-        hale_data.velocity_y1, hale_data.cell_force_x, hale_data.cell_force_y, 
-        hale_data.node_force_x, hale_data.node_force_y, hale_data.cell_mass, 
-        hale_data.nodal_mass, hale_data.nodal_volumes, hale_data.nodal_soundspeed, 
-        hale_data.limiter);
+        &mesh, unstructured_mesh.ncells, unstructured_mesh.nnodes, hale_data.visc_coeff1, 
+        hale_data.visc_coeff2, unstructured_mesh.cell_centroids_x, 
+        unstructured_mesh.cell_centroids_y, unstructured_mesh.cells_to_nodes, 
+        unstructured_mesh.cells_to_nodes_off, unstructured_mesh.nodes_x0, 
+        unstructured_mesh.nodes_y0, unstructured_mesh.nodes_x1, 
+        unstructured_mesh.nodes_y1, unstructured_mesh.halo_cell, 
+        unstructured_mesh.halo_index, unstructured_mesh.halo_neighbour, 
+        unstructured_mesh.halo_normal_x, unstructured_mesh.halo_normal_y, 
+        shared_data.e, hale_data.energy1, shared_data.rho, shared_data.rho_old, 
+        shared_data.P, hale_data.pressure1, shared_data.u, shared_data.v, 
+        hale_data.velocity_x1, hale_data.velocity_y1, hale_data.cell_force_x, 
+        hale_data.cell_force_y, hale_data.node_force_x, hale_data.node_force_y, 
+        hale_data.cell_mass, hale_data.nodal_mass, hale_data.nodal_volumes, 
+        hale_data.nodal_soundspeed, hale_data.limiter);
 
     wallclock += omp_get_wtime()-w0;
     elapsed_sim_time += mesh.dt;
