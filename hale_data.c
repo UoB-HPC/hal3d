@@ -193,28 +193,17 @@ size_t read_unstructured_mesh(
     Mesh* mesh, UnstructuredMesh* unstructured_mesh)
 {
   // Just setting all cells to have same number of nodes
-  const int nx = mesh->local_nx;
-  const int ny = mesh->local_nx;
-  const int global_nx = mesh->global_nx;
-  const int global_ny = mesh->global_nx;
-  const double width = mesh->width;
-  const double height = mesh->height;
   unstructured_mesh->nnodes_by_cell = 3;
   unstructured_mesh->ncells_by_node = 3;
-  unstructured_mesh->ncells = nx*ny;
-  unstructured_mesh->nnodes = (nx+1)*(nx+1);
-
-  const char* node_filename = "tri.1.node";
-  const char* ele_filename = "tri.1.ele";
 
   // Open the files
-  FILE* node_fp = fopen(node_filename, "r");
-  FILE* ele_fp = fopen(ele_filename, "r");
+  FILE* node_fp = fopen(unstructured_mesh->node_filename, "r");
+  FILE* ele_fp = fopen(unstructured_mesh->ele_filename, "r");
   if(!node_fp) {
-    TERMINATE("Could not open the parameter file: %s.\n", node_filename);
+    TERMINATE("Could not open the parameter file: %s.\n", unstructured_mesh->node_filename);
   }
   if(!ele_fp) {
-    TERMINATE("Could not open the parameter file: %s.\n", ele_filename);
+    TERMINATE("Could not open the parameter file: %s.\n", unstructured_mesh->ele_filename);
   }
 
   // Fetch the first line of the nodes file
@@ -267,25 +256,33 @@ size_t read_unstructured_mesh(
     sscanf(temp, "%d", &index); 
 
     int discard;
-    int node0;
     int node1;
     int node2;
-    sscanf(temp, "%d%d%d%d", &discard, &node0, &node1, &node2);
+    int node3;
+    sscanf(temp, "%d%d%d%d", &discard, &node1, &node2, &node3);
 
-    unstructured_mesh->cells_to_nodes[(index*unstructured_mesh->nnodes_by_cell)+0] = node0;
-    unstructured_mesh->cells_to_nodes[(index*unstructured_mesh->nnodes_by_cell)+1] = node1;
-    unstructured_mesh->cells_to_nodes[(index*unstructured_mesh->nnodes_by_cell)+2] = node2;
+    unstructured_mesh->cells_to_nodes[(index*unstructured_mesh->nnodes_by_cell)+0] = node1;
+    unstructured_mesh->cells_to_nodes[(index*unstructured_mesh->nnodes_by_cell)+1] = node2;
+    unstructured_mesh->cells_to_nodes[(index*unstructured_mesh->nnodes_by_cell)+2] = node3;
     unstructured_mesh->cells_to_nodes_off[(index+1)] = 
       unstructured_mesh->cells_to_nodes_off[(index)] + unstructured_mesh->nnodes_by_cell;
 
-    if(unstructured_mesh->halo_index[(node0)] == IS_BOUNDARY ||
-        unstructured_mesh->halo_index[(node1)] == IS_BOUNDARY ||
-        unstructured_mesh->halo_index[(node2)] == IS_BOUNDARY) {
-
+    if(unstructured_mesh->halo_index[(node1)] == IS_BOUNDARY ||
+        unstructured_mesh->halo_index[(node2)] == IS_BOUNDARY ||
+        unstructured_mesh->halo_index[(node3)] == IS_BOUNDARY) {
 
       // TODO: need to find neighbour here...
       unstructured_mesh->halo_cell[(index)] = 1;
     }
+
+    const double A = 
+      (unstructured_mesh->nodes_x0[node1]*unstructured_mesh->nodes_y0[node2]-
+       unstructured_mesh->nodes_x0[node2]*unstructured_mesh->nodes_y0[node1]+
+       unstructured_mesh->nodes_x0[node2]*unstructured_mesh->nodes_y0[node3]-
+       unstructured_mesh->nodes_x0[node3]*unstructured_mesh->nodes_y0[node2]+
+       unstructured_mesh->nodes_x0[node3]*unstructured_mesh->nodes_y0[node1]-
+       unstructured_mesh->nodes_x0[node1]*unstructured_mesh->nodes_y0[node3]);
+    assert(A > 0.0 && "Nodes are not stored in counter-clockwise order.\n");
   }
 
   const int nboundary_cells = 0;
@@ -316,6 +313,14 @@ void handle_unstructured_reflect(
       velocity_y[(nn)] = 0.0;
     }
     else {
+      const double dot = (velocity_x[(nn)]*halo_normal_x[(index)]+
+          velocity_y[(nn)]*halo_normal_y[(index)]);
+
+      // Calculate the reflected velocity
+      velocity_x[(nn)] = velocity_x[(nn)] - halo_normal_x[(index)]*2.0*dot;
+      velocity_y[(nn)] = velocity_y[(nn)] - halo_normal_y[(index)]*2.0*dot;
+
+#if 0
       // Project the velocity onto the face direction
       const double halo_parallel_x = halo_normal_y[(index)];
       const double halo_parallel_y = -halo_normal_x[(index)];
@@ -337,6 +342,7 @@ void handle_unstructured_reflect(
         (reflect_x*halo_normal_x[(index)]+reflect_y*halo_normal_y[(index)]);
       velocity_y[(neighbour_index)] += halo_normal_y[(index)]*
         (reflect_x*halo_normal_x[(index)]+reflect_y*halo_normal_y[(index)]);
+#endif // if 0
     }
   }
 }
@@ -361,7 +367,7 @@ void handle_unstructured_node_boundary(
   for(int nn = 0; nn < nnodes; ++nn) {
     const int index = halo_index[(nn)];
 
-    if(index != IS_BOUNDARY && index != IS_NOT_HALO) {
+    if(index >= 0) {
       arr[(nn)] = arr[(halo_neighbour[(index)])];
     }
   }
@@ -400,7 +406,7 @@ void write_quad_data_to_visit(
 
 // Writes out unstructured triangles to visit
 void write_unstructured_tris_to_visit(
-    const int nnodes, const int ncells, const int step, double* nodes_x0, 
+    const int nnodes, int ncells, const int step, double* nodes_x0, 
     double* nodes_y0, const int* cells_to_nodes)
 {
   // Only triangles
@@ -408,8 +414,8 @@ void write_unstructured_tris_to_visit(
   int shapesize[] = { 3 };
   int shapecounts[] = { ncells };
   int shapetype[] = { DB_ZONETYPE_TRIANGLE };
-  int nshapetypes = 1;
   int ndims = 2;
+  int nshapes = 1;
 
   char filename[MAX_STR_LEN];
   sprintf(filename, "output%04d.silo", step);
@@ -418,7 +424,7 @@ void write_unstructured_tris_to_visit(
       filename, DB_CLOBBER, DB_LOCAL, "simulation time step", DB_HDF5);
 
   DBPutZonelist2(dbfile, "zonelist", ncells, ndims, cells_to_nodes, 
-      ncells*3, 0, 0, 0, shapetype, shapesize, shapecounts, ncells, NULL);
+      ncells*shapesize[0], 0, 0, 0, shapetype, shapesize, shapecounts, nshapes, NULL);
   DBPutUcdmesh(dbfile, "mesh", ndims, NULL, coords, nnodes, 
       ncells, "zonelist", NULL, DB_DOUBLE, NULL);
   DBClose(dbfile);

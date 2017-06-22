@@ -22,10 +22,6 @@ void solve_unstructured_hydro_2d(
     double* node_force_y, double* cell_mass, double* nodal_mass, 
     double* nodal_volumes, double* nodal_soundspeed, double* limiter)
 {
-  // Constants for the artificial viscosity
-  const double c1 = 0.5;
-  const double c2 = 0.5;
-
   /*
    *    PREDICTOR
    */
@@ -65,10 +61,6 @@ void solve_unstructured_hydro_2d(
   double total_mass = 0.0;
   // Calculate the nodal and cell mass
   for(int cc = 0; cc < ncells; ++cc) {
-    if(halo_cell[(cc)]) {
-      continue;
-    }
-
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
     const double cell_centroid_x = cell_centroids_x[(cc)];
@@ -119,6 +111,10 @@ void solve_unstructured_hydro_2d(
 
   printf("total mass %.12f\n", total_mass);
 
+  handle_unstructured_node_boundary(
+      nnodes, halo_index, halo_neighbour, nodal_volumes);
+  handle_unstructured_node_boundary(
+      nnodes, halo_index, halo_neighbour, nodal_soundspeed);
   handle_unstructured_node_boundary(
       nnodes, halo_index, halo_neighbour, nodal_mass);
 
@@ -310,10 +306,6 @@ void solve_unstructured_hydro_2d(
 
   // Calculate the new nodal soundspeed and volumes
   for(int cc = 0; cc < ncells; ++cc) {
-    if(halo_cell[(cc)]) {
-      continue;
-    }
-
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
@@ -353,6 +345,11 @@ void solve_unstructured_hydro_2d(
       nodal_volumes[(node_c_index)] += sub_cell_volume;
     }
   }
+
+  handle_unstructured_node_boundary(
+      nnodes, halo_index, halo_neighbour, nodal_volumes);
+  handle_unstructured_node_boundary(
+      nnodes, halo_index, halo_neighbour, nodal_soundspeed);
 
   for(int nn = 0; nn < nnodes; ++nn) {
     nodal_soundspeed[(nn)] /= nodal_volumes[(nn)];
@@ -504,10 +501,6 @@ void calculate_artificial_viscosity(
     double* node_force_x, double* node_force_y)
 {
   for(int cc = 0; cc < ncells; ++cc) {
-    if(halo_cell[(cc)]) {
-      continue;
-    }
-
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
@@ -566,7 +559,8 @@ void calculate_artificial_viscosity(
           (1.0 - limiter[(node_c_index)])*(grad_velocity_x*S_x)*grad_velocity_unit_x;
         const double edge_visc_force_y = 
           density_edge*(visc_coeff2*t*fabs(grad_velocity_y) +
-              sqrt(visc_coeff2*visc_coeff2*t*t*grad_velocity_y*grad_velocity_y + visc_coeff1*visc_coeff1*cs*cs))*
+              sqrt(visc_coeff2*visc_coeff2*t*t*grad_velocity_y*grad_velocity_y +
+                visc_coeff1*visc_coeff1*cs*cs))*
           (1.0 - limiter[(node_c_index)])*(grad_velocity_y*S_y)*grad_velocity_unit_y;
 
         // Add the contributions of the edge based artifical viscous terms

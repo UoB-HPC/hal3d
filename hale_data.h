@@ -67,8 +67,10 @@ typedef struct {
   double* cell_centroids_y;
   double* halo_normal_x;
   double* halo_normal_y;
-
   double* sub_cell_volume;
+
+  char* node_filename;
+  char* ele_filename;
 
 } UnstructuredMesh;
 
