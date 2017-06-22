@@ -398,3 +398,29 @@ void write_quad_data_to_visit(
   DBClose(dbfile);
 }
 
+// Writes out unstructured triangles to visit
+void write_unstructured_tris_to_visit(
+    const int nnodes, const int ncells, const int step, double* nodes_x0, 
+    double* nodes_y0, const int* cells_to_nodes)
+{
+  // Only triangles
+  double* coords[] = { (double*)nodes_x0, (double*)nodes_y0 };
+  int shapesize[] = { 3 };
+  int shapecounts[] = { ncells };
+  int shapetype[] = { DB_ZONETYPE_TRIANGLE };
+  int nshapetypes = 1;
+  int ndims = 2;
+
+  char filename[MAX_STR_LEN];
+  sprintf(filename, "output%04d.silo", step);
+
+  DBfile *dbfile = DBCreate(
+      filename, DB_CLOBBER, DB_LOCAL, "simulation time step", DB_HDF5);
+
+  DBPutZonelist2(dbfile, "zonelist", ncells, ndims, cells_to_nodes, 
+      ncells*3, 0, 0, 0, shapetype, shapesize, shapecounts, ncells, NULL);
+  DBPutUcdmesh(dbfile, "mesh", ndims, NULL, coords, nnodes, 
+      ncells, "zonelist", NULL, DB_DOUBLE, NULL);
+  DBClose(dbfile);
+}
+
