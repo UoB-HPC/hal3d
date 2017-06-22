@@ -5,6 +5,7 @@
 #include "hale_data.h"
 #include "../shared.h"
 #include "../mesh.h"
+#include "../params.h"
 
 // Initialises the shared_data variables for two dimensional applications
 size_t initialise_hale_data_2d(
@@ -57,23 +58,25 @@ size_t initialise_unstructured_mesh(
   const double height = mesh->height;
   unstructured_mesh->nnodes_by_cell = 4;
   unstructured_mesh->ncells_by_node = 4;
-  unstructured_mesh->ncells = mesh->local_nx*mesh->local_ny;
+  unstructured_mesh->ncells = nx*ny;
   unstructured_mesh->nnodes = (nx+1)*(nx+1);
+
+  const int nboundary_cells = 2*(nx+ny);
 
   size_t allocated = allocate_data(&unstructured_mesh->nodes_x0, unstructured_mesh->nnodes);
   allocated += allocate_data(&unstructured_mesh->nodes_y0, unstructured_mesh->nnodes);
   allocated = allocate_data(&unstructured_mesh->nodes_x1, unstructured_mesh->nnodes);
   allocated += allocate_data(&unstructured_mesh->nodes_y1, unstructured_mesh->nnodes);
   allocated += allocate_int_data(&unstructured_mesh->cells_to_nodes, 
-      nx*ny*unstructured_mesh->nnodes_by_cell);
-  allocated += allocate_int_data(&unstructured_mesh->cells_to_nodes_off, nx*ny+1);
-  allocated += allocate_data(&unstructured_mesh->cell_centroids_x, nx*ny);
-  allocated += allocate_data(&unstructured_mesh->cell_centroids_y, nx*ny);
-  allocated += allocate_int_data(&unstructured_mesh->halo_cell, nx*ny);
-  allocated += allocate_int_data(&unstructured_mesh->halo_index, (nx+1)*(ny+1));
-  allocated += allocate_data(&unstructured_mesh->halo_normal_x, 2*(nx+ny));
-  allocated += allocate_data(&unstructured_mesh->halo_normal_y, 2*(nx+ny));
-  allocated += allocate_int_data(&unstructured_mesh->halo_neighbour, 2*(nx+ny));
+      unstructured_mesh->ncells*unstructured_mesh->nnodes_by_cell);
+  allocated += allocate_int_data(&unstructured_mesh->cells_to_nodes_off, unstructured_mesh->ncells+1);
+  allocated += allocate_data(&unstructured_mesh->cell_centroids_x, unstructured_mesh->ncells);
+  allocated += allocate_data(&unstructured_mesh->cell_centroids_y, unstructured_mesh->ncells);
+  allocated += allocate_int_data(&unstructured_mesh->halo_cell, unstructured_mesh->ncells);
+  allocated += allocate_int_data(&unstructured_mesh->halo_index, unstructured_mesh->nnodes);
+  allocated += allocate_data(&unstructured_mesh->halo_normal_x, nboundary_cells);
+  allocated += allocate_data(&unstructured_mesh->halo_normal_y, nboundary_cells);
+  allocated += allocate_int_data(&unstructured_mesh->halo_neighbour, nboundary_cells);
 
   // Construct the list of nodes contiguously, currently Cartesian
   for(int ii = 0; ii < (ny+1); ++ii) {
