@@ -605,11 +605,7 @@ void handle_unstructured_reflect_2d(
     const int neighbour_index = halo_neighbour[(index)];
 
     if(index == IS_BOUNDARY) {
-      // This is a boundary node
-      velocity_x[(nn)] = 0.0;
-      velocity_y[(nn)] = 0.0;
-    }
-    else if(halo_normal_x[(index)] == 0.0 && halo_normal_y[(index)] == 0.0) {
+      // This is node is an artificial boundary node
       velocity_x[(nn)] = 0.0;
       velocity_y[(nn)] = 0.0;
     }
@@ -646,7 +642,8 @@ void handle_cell_boundary(
   // Perform the local halo update with reflective boundary condition
   for(int cc = 0; cc < ncells; ++cc) {
     if(halo_cell[(cc)]) {
-      arr[(cc)] = arr[(halo_cell[(cc)])];
+      const int neighbour_index = halo_cell[(cc)];
+      arr[(cc)] = arr[(neighbour_index)];
     }
   }
 }

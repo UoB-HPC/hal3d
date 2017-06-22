@@ -132,61 +132,53 @@ size_t initialise_unstructured_mesh(
         unstructured_mesh->halo_index[(ii)*(nx+1)+(jj)] = IS_BOUNDARY;
         continue;
       }
+      else if(ii > mesh->pad && ii < (ny+1)-1-mesh->pad && 
+          jj > mesh->pad && jj < (nx+1)-1-mesh->pad) {
+        unstructured_mesh->halo_index[(ii)*(nx+1)+(jj)] = IS_NOT_HALO;
+        continue;
+      }
 
-      int neighbour_index = (ii)*(nx+1)+(jj);
-      double normal_x = 0.0;
-      double normal_y = 0.0;
       if(ii == mesh->pad) {
         // Handle corner cases
         if(jj == mesh->pad) {
-          neighbour_index = (ii+1)*(nx+1)+(jj+1);
+          unstructured_mesh->halo_neighbour[(halo_index)] = (ii+1)*(nx+1)+(jj+1);
         }
         else if(jj == (nx+1)-1-mesh->pad) {
-          neighbour_index = (ii+1)*(nx+1)+(jj-1);
+          unstructured_mesh->halo_neighbour[(halo_index)] = (ii+1)*(nx+1)+(jj-1);
         }
         else {
-          normal_x = 0.0;
-          normal_y = 1.0;
-          neighbour_index = (ii+1)*(nx+1)+(jj);
+          unstructured_mesh->halo_normal_x[(halo_index)] = 0.0;
+          unstructured_mesh->halo_normal_y[(halo_index)] = 1.0;
+          unstructured_mesh->halo_neighbour[(halo_index)] = (ii+1)*(nx+1)+(jj);
         }
       }
       else if(jj == mesh->pad) {
         if(ii == (ny+1)-1-mesh->pad) {
-          neighbour_index = (ii-1)*(nx+1)+(jj+1);
+          unstructured_mesh->halo_neighbour[(halo_index)] = (ii-1)*(nx+1)+(jj+1);
         }
         else { 
-          normal_x = 1.0;
-          normal_y = 0.0;
-          neighbour_index = (ii)*(nx+1)+(jj+1);
+          unstructured_mesh->halo_normal_x[(halo_index)] = 1.0;
+          unstructured_mesh->halo_normal_y[(halo_index)] = 0.0;
+          unstructured_mesh->halo_neighbour[(halo_index)] = (ii)*(nx+1)+(jj+1);
         }
       }
       else if(jj == (nx+1)-1-mesh->pad) {
         if(ii == (ny+1)-1-mesh->pad) {
-          neighbour_index = (ii-1)*(nx+1)+(jj-1);
+          unstructured_mesh->halo_neighbour[(halo_index)] = (ii-1)*(nx+1)+(jj-1);
         }
         else { 
-          normal_x = -1.0;
-          normal_y = 0.0;
-          neighbour_index = (ii)*(nx+1)+(jj-1);
+          unstructured_mesh->halo_normal_x[(halo_index)] = -1.0;
+          unstructured_mesh->halo_normal_y[(halo_index)] = 0.0;
+          unstructured_mesh->halo_neighbour[(halo_index)] = (ii)*(nx+1)+(jj-1);
         }
       }
       else if(ii == (ny+1)-1-mesh->pad) {
-        normal_x = 0.0;
-        normal_y = -1.0;
-        neighbour_index = (ii-1)*(nx+1)+(jj);
+        unstructured_mesh->halo_normal_x[(halo_index)] = 0.0;
+        unstructured_mesh->halo_normal_y[(halo_index)] = -1.0;
+        unstructured_mesh->halo_neighbour[(halo_index)] = (ii-1)*(nx+1)+(jj);
       }
 
-      if(neighbour_index == (ii)*(nx+1)+(jj)) {
-        // The node isn't on the halo boundary
-        unstructured_mesh->halo_index[(ii)*(nx+1)+(jj)] = IS_NOT_HALO;
-      }
-      else {
-        // Store the normal and neighbour
-        unstructured_mesh->halo_neighbour[(halo_index)] = neighbour_index;
-        unstructured_mesh->halo_normal_x[(halo_index)] = normal_x;
-        unstructured_mesh->halo_normal_y[(halo_index)] = normal_y;
-        unstructured_mesh->halo_index[(ii)*(nx+1)+(jj)] = halo_index++;
-      }
+      unstructured_mesh->halo_index[(ii)*(nx+1)+(jj)] = halo_index++;
     }
   }
 
