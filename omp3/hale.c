@@ -33,7 +33,7 @@ void solve_unstructured_hydro_2d(
     double* node_force_y, double* cell_mass, double* nodal_mass, 
     double* nodal_volumes, double* nodal_soundspeed, double* limiter)
 {
-  // Random constants
+  // Constants for the artificial viscosity
   const double c1 = 1.0;
   const double c2 = 1.0;
 
@@ -172,8 +172,7 @@ void solve_unstructured_hydro_2d(
       ncells, c1, c2, halo_cell, cells_to_nodes_off, cells_to_nodes, 
       nodes_x0, nodes_y0, cell_centroids_x, cell_centroids_y,
       velocity_x0, velocity_y0, nodal_soundspeed, nodal_mass,
-      nodal_volumes, limiter, node_force_x, node_force_y,
-      cell_force_x, cell_force_y);
+      nodal_volumes, limiter, node_force_x, node_force_y);
 
   // Calculate the time centered evolved velocities, by first calculating the
   // predicted values at the new timestep and then averaging with current velocity
@@ -190,6 +189,12 @@ void solve_unstructured_hydro_2d(
   handle_unstructured_reflect_2d(
       nnodes, halo_index, halo_neighbour, halo_normal_x, halo_normal_y,
       velocity_x1, velocity_y1);
+
+  // Move the nodes by the predicted velocity
+  for(int nn = 0; nn < nnodes; ++nn) {
+    nodes_x1[(nn)] = nodes_x0[(nn)] + mesh->dt*velocity_x1[(nn)];
+    nodes_y1[(nn)] = nodes_y0[(nn)] + mesh->dt*velocity_y1[(nn)];
+  }
 
   // Calculate the predicted energy
   for(int cc = 0; cc < ncells; ++cc) {
@@ -212,14 +217,6 @@ void solve_unstructured_hydro_2d(
     energy1[(cc)] = energy0[(cc)] - mesh->dt*force/cell_mass[(cc)];
   }
 
-  // Move the nodes by the predicted velocity
-  for(int nn = 0; nn < nnodes; ++nn) {
-    nodes_x1[(nn)] = nodes_x0[(nn)];
-    nodes_y1[(nn)] = nodes_y0[(nn)];
-    nodes_x1[(nn)] += mesh->dt*velocity_x1[(nn)];
-    nodes_y1[(nn)] += mesh->dt*velocity_y1[(nn)];
-  }
-
   // Calculate the timestep based on the computational mesh and CFL condition
   double dt = 1.0e10;
   for(int cc = 0; cc < ncells; ++cc) {
@@ -236,8 +233,8 @@ void solve_unstructured_hydro_2d(
       const int node_c_index = cells_to_nodes[(nodes_off)+(nn)]; 
       const int node_r_index = (nn == nnodes_around_cell-1) 
         ? cells_to_nodes[(nodes_off)] : cells_to_nodes[(nodes_off)+(nn+1)];
-      const double x_component = nodes_x0[(node_c_index)]-nodes_x0[(node_r_index)];
-      const double y_component = nodes_y0[(node_c_index)]-nodes_y0[(node_r_index)];
+      const double x_component = nodes_x1[(node_c_index)]-nodes_x1[(node_r_index)];
+      const double y_component = nodes_y1[(node_c_index)]-nodes_y1[(node_r_index)];
       shortest_edge = min(shortest_edge, 
           sqrt(x_component*x_component+y_component*y_component));
     }
@@ -267,8 +264,8 @@ void solve_unstructured_hydro_2d(
         ? cells_to_nodes[(nodes_off)] : cells_to_nodes[(nodes_off)+(nn+1)];
 
       // Reduce the total cell volume for later calculation
-      cell_volume += 0.5*(nodes_x0[node_c_index]+nodes_x0[node_r_index])*
-        (nodes_y0[node_r_index]-nodes_y0[node_c_index]);
+      cell_volume += 0.5*(nodes_x1[node_c_index]+nodes_x1[node_r_index])*
+        (nodes_y1[node_r_index]-nodes_y1[node_c_index]);
     }
 
     density1[(cc)] = cell_mass[(cc)]/cell_volume;
@@ -406,8 +403,7 @@ void solve_unstructured_hydro_2d(
       ncells, c1, c2, halo_cell, cells_to_nodes_off, cells_to_nodes, 
       nodes_x1, nodes_y1, cell_centroids_x, cell_centroids_y,
       velocity_x1, velocity_y1, nodal_soundspeed, nodal_mass,
-      nodal_volumes, limiter, node_force_x, node_force_y,
-      cell_force_x, cell_force_y);
+      nodal_volumes, limiter, node_force_x, node_force_y);
 
   // Calculate the corrected time centered velocities
   for(int nn = 0; nn < nnodes; ++nn) {
@@ -514,8 +510,7 @@ void calculate_artificial_viscosity(
     const double* velocity_x, const double* velocity_y,
     const double* nodal_soundspeed, const double* nodal_mass,
     const double* nodal_volumes, const double* limiter,
-    double* node_force_x, double* node_force_y,
-    double* cell_force_x, double* cell_force_y)
+    double* node_force_x, double* node_force_y)
 {
   for(int cc = 0; cc < ncells; ++cc) {
     if(halo_cell[(cc)]) {
@@ -526,10 +521,11 @@ void calculate_artificial_viscosity(
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
     for(int nn = 0; nn < nnodes_around_cell; ++nn) {
-      const int node_c_index = cells_to_nodes[(nodes_off)+(nn)]; 
-      const int node_r_index = (nn == nnodes_around_cell-1) 
-        ? cells_to_nodes[(nodes_off)] 
-        : cells_to_nodes[(nodes_off)+(nn+1)];
+      const int node_c_off = (nodes_off)+(nn);
+      const int node_r_off = (nn == nnodes_around_cell-1) 
+        ? (nodes_off) : (nodes_off)+(nn+1);
+      const int node_c_index = cells_to_nodes[(node_c_off)]; 
+      const int node_r_index = cells_to_nodes[(node_r_off)];
 
       // Get cell center point and edge center point
       const double cell_x = cell_centroids_x[(cc)];
@@ -575,11 +571,11 @@ void calculate_artificial_viscosity(
         const double edge_visc_force_x = 
           density_edge*(c2*t*fabs(grad_velocity_x) + 
               sqrt(c2*c2*t*t*grad_velocity_x*grad_velocity_x + c1*c1*cs*cs))*
-          (1.0 - limiter[(node_c_index)])*expansion_term*grad_velocity_unit_x;
+          (1.0 - limiter[(node_c_index)])*(grad_velocity_x*S_x)*grad_velocity_unit_x;
         const double edge_visc_force_y = 
           density_edge*(c2*t*fabs(grad_velocity_y) +
               sqrt(c2*c2*t*t*grad_velocity_y*grad_velocity_y + c1*c1*cs*cs))*
-          (1.0 - limiter[(node_c_index)])*expansion_term*grad_velocity_unit_y;
+          (1.0 - limiter[(node_c_index)])*(grad_velocity_y*S_y)*grad_velocity_unit_y;
 
         // Add the contributions of the edge based artifical viscous terms
         // to the main force terms
@@ -587,8 +583,6 @@ void calculate_artificial_viscosity(
         node_force_x[(node_r_index)] += edge_visc_force_x;
         node_force_y[(node_c_index)] -= edge_visc_force_y;
         node_force_y[(node_r_index)] += edge_visc_force_y;
-        cell_force_x[(nodes_off)+(nn)] += edge_visc_force_x;
-        cell_force_y[(nodes_off)+(nn)] += edge_visc_force_y;
       }
     }
   }

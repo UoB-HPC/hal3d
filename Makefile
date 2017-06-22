@@ -3,7 +3,7 @@ KERNELS          	 = omp3
 COMPILER         	 = INTEL
 MPI              	 = no
 DECOMP					 	 = TILES
-OPTIONS          	 = -DENABLE_PROFILING 
+OPTIONS          	 = #-DENABLE_PROFILING 
 ARCH_COMPILER_CC   = icc
 ARCH_COMPILER_CPP  = icpc
 
