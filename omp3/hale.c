@@ -30,9 +30,8 @@ void solve_unstructured_hydro_2d(
     double* density1, double* pressure0, double* pressure1, double* velocity_x0, 
     double* velocity_y0, double* velocity_x1, double* velocity_y1, 
     double* cell_force_x, double* cell_force_y, double* node_force_x, 
-    double* node_force_y, double* node_visc_x, double* node_visc_y, 
-    double* cell_mass, double* nodal_mass, double* nodal_volumes, 
-    double* nodal_soundspeed, double* limiter)
+    double* node_force_y, double* cell_mass, double* nodal_mass, 
+    double* nodal_volumes, double* nodal_soundspeed, double* limiter)
 {
   // Constants for the artificial viscosity
   const double c1 = 0.5;
@@ -605,29 +604,12 @@ void handle_unstructured_reflect_2d(
 
     const int neighbour_index = halo_neighbour[(index)];
 
-#if 0
-    if(index == IS_BOUNDARY) {
-      // This is a boundary node
-      velocity_x[(nn)] = 0.0;
-      velocity_y[(nn)] = 0.0;
-    }
-    else {
-      const double vel_dot_norm = (velocity_x[(nn)]*halo_normal_x[(index)]+
-          velocity_y[(nn)]*halo_normal_y[(index)]);
-      velocity_x[(nn)] = velocity_x[(nn)] - halo_normal_x[(index)]*2.0*vel_dot_norm;
-      velocity_y[(nn)] = velocity_y[(nn)] - halo_normal_y[(index)]*2.0*vel_dot_norm;
-    }
-#endif // if 0
-
     if(index == IS_BOUNDARY) {
       // This is a boundary node
       velocity_x[(nn)] = 0.0;
       velocity_y[(nn)] = 0.0;
     }
     else if(halo_normal_x[(index)] == 0.0 && halo_normal_y[(index)] == 0.0) {
-      // This is a fixed halo node
-      velocity_x[(neighbour_index)] = -velocity_x[(nn)];
-      velocity_y[(neighbour_index)] = -velocity_y[(nn)];
       velocity_x[(nn)] = 0.0;
       velocity_y[(nn)] = 0.0;
     }
