@@ -53,8 +53,6 @@ int main(int argc, char** argv)
   write_unstructured_tris_to_visit( 
       unstructured_mesh.nnodes, unstructured_mesh.ncells, 0, unstructured_mesh.nodes_x0, 
       unstructured_mesh.nodes_y0, unstructured_mesh.cells_to_nodes);
-
-  exit(1);
 #endif // if 0
 
   int nthreads = 0;
@@ -85,6 +83,11 @@ int main(int argc, char** argv)
   // Prepare for solve
   double wallclock = 0.0;
   double elapsed_sim_time = 0.0;
+
+  set_timestep(
+      unstructured_mesh.ncells, unstructured_mesh.cells_to_nodes, 
+      unstructured_mesh.cells_to_nodes_off, unstructured_mesh.nodes_x0, 
+      unstructured_mesh.nodes_y0, shared_data.e, &mesh.dt);
 
   // Main timestep loop
   int tt;

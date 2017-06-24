@@ -17,29 +17,24 @@
 extern "C" {
 #endif
 
-// Solve a single timestep on the given mesh
-void solve_unstructured_hydro_2d(
-    Mesh* mesh, const int ncells, const int nnodes, const double visc_coeff1, 
-    const double visc_coeff2, double* cell_centroids_x, 
-    double* cell_centroids_y, int* cells_to_nodes, int* cells_to_nodes_off, 
-    double* nodes_x0, double* nodes_y0, double* nodes_x1, double* nodes_y1, 
-    int* boundary_index, int* boundary_type, double* boundary_normal_x, 
-    double* boundary_normal_y, double* energy0, double* energy1, double* density0, 
-    double* density1, double* pressure0, double* pressure1, double* velocity_x0, 
-    double* velocity_y0, double* velocity_x1, double* velocity_y1, 
-    double* cell_force_x, double* cell_force_y, double* node_force_x, 
-    double* node_force_y, double* cell_mass, double* nodal_mass, 
-    double* nodal_volumes, double* nodal_soundspeed, double* limiter);
+  // Solve a single timestep on the given mesh
+  void solve_unstructured_hydro_2d(
+      Mesh* mesh, const int ncells, const int nnodes, const double visc_coeff1, 
+      const double visc_coeff2, double* cell_centroids_x, 
+      double* cell_centroids_y, int* cells_to_nodes, int* cells_to_nodes_off, 
+      double* nodes_x0, double* nodes_y0, double* nodes_x1, double* nodes_y1, 
+      int* boundary_index, int* boundary_type, double* boundary_normal_x, 
+      double* boundary_normal_y, double* energy0, double* energy1, double* density0, 
+      double* density1, double* pressure0, double* pressure1, double* velocity_x0, 
+      double* velocity_y0, double* velocity_x1, double* velocity_y1, 
+      double* cell_force_x, double* cell_force_y, double* node_force_x, 
+      double* node_force_y, double* cell_mass, double* nodal_mass, 
+      double* nodal_volumes, double* nodal_soundspeed, double* limiter);
 
-  // Calculates the timestep from the current state
+  // Controls the timestep for the simulation
   void set_timestep(
-      const int nx, const int ny, double* Qxx, double* Qyy, const double* rho, 
-      const double* e, Mesh* mesh, double* reduce_array, const int first_step,
-      const double* celldx, const double* celldy);
-
-  // Prints some conservation values
-  void print_conservation(
-      const int nx, const int ny, double* rho, double* e, double* reduce_array, Mesh* mesh);
+      const int ncells, const int* cells_to_nodes, const int* cells_to_nodes_off,
+      const double* nodes_x, const double* nodes_y, const double* energy0, double* dt);
 
 #ifdef __cplusplus
 }

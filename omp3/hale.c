@@ -1,6 +1,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <float.h>
 #include "hale.h"
 #include "../hale_data.h"
 #include "../hale_interface.h"
@@ -57,7 +58,7 @@ void solve_unstructured_hydro_2d(
 
   double total_mass = 0.0;
   // Calculate the nodal and cell mass
-#pragma omp parallel for
+#pragma omp parallel for reduction(+: total_mass)
   for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
@@ -179,49 +180,27 @@ void solve_unstructured_hydro_2d(
     nodes_y1[(nn)] = nodes_y0[(nn)] + mesh->dt*velocity_y1[(nn)];
   }
 
-  // Calculate the predicted energy
+  set_timestep(
+      ncells, cells_to_nodes, cells_to_nodes_off, 
+      nodes_x1, nodes_y1, energy0, &mesh->dt);
+
+    // Calculate the predicted energy
 #pragma omp parallel for
-  for(int cc = 0; cc < ncells; ++cc) {
-    const int nodes_off = cells_to_nodes_off[(cc)];
-    const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
+    for(int cc = 0; cc < ncells; ++cc) {
+      const int nodes_off = cells_to_nodes_off[(cc)];
+      const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
-    // Sum the time centered velocity by the sub-cell forces
-    double force = 0.0;
-    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
-      const int node_index = cells_to_nodes[(nodes_off)+(nn)];
-      force += 
-        (velocity_x1[(node_index)]*cell_force_x[(nodes_off)+(nn)] +
-         velocity_y1[(node_index)]*cell_force_y[(nodes_off)+(nn)]);
+      // Sum the time centered velocity by the sub-cell forces
+      double force = 0.0;
+      for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+        const int node_index = cells_to_nodes[(nodes_off)+(nn)];
+        force += 
+          (velocity_x1[(node_index)]*cell_force_x[(nodes_off)+(nn)] +
+           velocity_y1[(node_index)]*cell_force_y[(nodes_off)+(nn)]);
+      }
+
+      energy1[(cc)] = energy0[(cc)] - mesh->dt*force/cell_mass[(cc)];
     }
-
-    energy1[(cc)] = energy0[(cc)] - mesh->dt*force/cell_mass[(cc)];
-  }
-
-  // Calculate the timestep based on the computational mesh and CFL condition
-  double dt = 1.0e10;
-#pragma omp parallel for
-  for(int cc = 0; cc < ncells; ++cc) {
-    const int nodes_off = cells_to_nodes_off[(cc)];
-    const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
-
-    double shortest_edge = 1.0e10;
-    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
-      // Calculate the new volume of the cell
-      const int node_c_index = cells_to_nodes[(nodes_off)+(nn)]; 
-      const int node_r_index = (nn == nnodes_around_cell-1) 
-        ? cells_to_nodes[(nodes_off)] : cells_to_nodes[(nodes_off)+(nn+1)];
-      const double x_component = nodes_x1[(node_c_index)]-nodes_x1[(node_r_index)];
-      const double y_component = nodes_y1[(node_c_index)]-nodes_y1[(node_r_index)];
-      shortest_edge = min(shortest_edge, 
-          sqrt(x_component*x_component+y_component*y_component));
-    }
-
-    const double soundspeed = sqrt(GAM*(GAM-1.0)*energy0[(cc)]);
-    dt = min(dt, CFL*shortest_edge/soundspeed);
-  }
-
-  mesh->dt = dt;
-  printf("Timestep %.8fs\n", mesh->dt);
 
   // Using the new volume, calculate the predicted density
 #pragma omp parallel for
@@ -397,49 +376,27 @@ void solve_unstructured_hydro_2d(
     nodes_y0[(nn)] += mesh->dt*velocity_y0[(nn)];
   }
 
-  // Calculate the timestep based on the computational mesh and CFL condition
-  dt = 1.0e10;
+  set_timestep(
+      ncells, cells_to_nodes, cells_to_nodes_off,
+      nodes_x0, nodes_y0, energy1, &mesh->dt);
+
+    // Calculate the final energy
 #pragma omp parallel for
-  for(int cc = 0; cc < ncells; ++cc) {
-    const int nodes_off = cells_to_nodes_off[(cc)];
-    const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
+    for(int cc = 0; cc < ncells; ++cc) {
+      const int nodes_off = cells_to_nodes_off[(cc)];
+      const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
-    double shortest_edge = 1.0e10;
-    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
-      // Calculate the new volume of the cell
-      const int node_c_index = cells_to_nodes[(nodes_off)+(nn)]; 
-      const int node_r_index = (nn == nnodes_around_cell-1) 
-        ? cells_to_nodes[(nodes_off)] : cells_to_nodes[(nodes_off)+(nn+1)];
-      const double x_component = nodes_x0[(node_c_index)]-nodes_x0[(node_r_index)];
-      const double y_component = nodes_y0[(node_c_index)]-nodes_y0[(node_r_index)];
-      shortest_edge = min(shortest_edge, 
-          sqrt(x_component*x_component+y_component*y_component));
+      // Sum the time centered velocity by the sub-cell forces
+      double force = 0.0;
+      for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+        const int node_index = cells_to_nodes[(nodes_off)+(nn)];
+        force += 
+          (velocity_x0[(node_index)]*cell_force_x[(nodes_off)+(nn)] +
+           velocity_y0[(node_index)]*cell_force_y[(nodes_off)+(nn)]);
+      }
+
+      energy0[(cc)] -= mesh->dt*force/cell_mass[(cc)];
     }
-
-    const double soundspeed = sqrt(GAM*(GAM-1.0)*energy0[(cc)]);
-    dt = min(dt, CFL*shortest_edge/soundspeed);
-  }
-
-  mesh->dt = dt;
-  printf("Timestep %.8fs\n", mesh->dt);
-
-  // Calculate the final energy
-#pragma omp parallel for
-  for(int cc = 0; cc < ncells; ++cc) {
-    const int nodes_off = cells_to_nodes_off[(cc)];
-    const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
-
-    // Sum the time centered velocity by the sub-cell forces
-    double force = 0.0;
-    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
-      const int node_index = cells_to_nodes[(nodes_off)+(nn)];
-      force += 
-        (velocity_x0[(node_index)]*cell_force_x[(nodes_off)+(nn)] +
-         velocity_y0[(node_index)]*cell_force_y[(nodes_off)+(nn)]);
-    }
-
-    energy0[(cc)] -= mesh->dt*force/cell_mass[(cc)];
-  }
 
   // Using the new corrected volume, calculate the density
 #pragma omp parallel for
@@ -546,6 +503,38 @@ void calculate_artificial_viscosity(
       }
     }
   }
+}
+
+// Controls the timestep for the simulation
+void set_timestep(
+    const int ncells, const int* cells_to_nodes, const int* cells_to_nodes_off,
+    const double* nodes_x, const double* nodes_y, const double* energy, double* dt)
+{
+  // Calculate the timestep based on the computational mesh and CFL condition
+  double local_dt = DBL_MAX;
+#pragma omp parallel for reduction(min: local_dt)
+  for(int cc = 0; cc < ncells; ++cc) {
+    const int nodes_off = cells_to_nodes_off[(cc)];
+    const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
+
+    double shortest_edge = DBL_MAX;
+    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+      // Calculate the new volume of the cell
+      const int node_c_index = cells_to_nodes[(nodes_off)+(nn)]; 
+      const int node_r_index = (nn == nnodes_around_cell-1) 
+        ? cells_to_nodes[(nodes_off)] : cells_to_nodes[(nodes_off)+(nn+1)];
+      const double x_component = nodes_x[(node_c_index)]-nodes_x[(node_r_index)];
+      const double y_component = nodes_y[(node_c_index)]-nodes_y[(node_r_index)];
+      shortest_edge = min(shortest_edge, 
+          sqrt(x_component*x_component+y_component*y_component));
+    }
+
+    const double soundspeed = sqrt(GAM*(GAM-1.0)*energy[(cc)]);
+    local_dt = min(local_dt, shortest_edge/soundspeed);
+  }
+
+  *dt = CFL*local_dt;
+  printf("Timestep %.8fs\n", *dt);
 }
 
 #if 0
