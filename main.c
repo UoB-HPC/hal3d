@@ -20,7 +20,7 @@ int main(int argc, char** argv)
   const char* hale_params = argv[1];
   mesh.global_nx = get_int_parameter("nx", hale_params);
   mesh.global_ny = get_int_parameter("ny", hale_params);
-  mesh.pad = 1;
+  mesh.pad = 0;
   mesh.local_nx = mesh.global_nx+2*mesh.pad;
   mesh.local_ny = mesh.global_ny+2*mesh.pad;
   mesh.niters = get_int_parameter("iterations", hale_params);
@@ -102,9 +102,9 @@ int main(int argc, char** argv)
         unstructured_mesh.cell_centroids_y, unstructured_mesh.cells_to_nodes, 
         unstructured_mesh.cells_to_nodes_off, unstructured_mesh.nodes_x0, 
         unstructured_mesh.nodes_y0, unstructured_mesh.nodes_x1, 
-        unstructured_mesh.nodes_y1, unstructured_mesh.halo_cell, 
-        unstructured_mesh.halo_index, unstructured_mesh.halo_neighbour, 
-        unstructured_mesh.halo_normal_x, unstructured_mesh.halo_normal_y, 
+        unstructured_mesh.nodes_y1, unstructured_mesh.boundary_index, 
+        unstructured_mesh.boundary_type,
+        unstructured_mesh.boundary_normal_x, unstructured_mesh.boundary_normal_y, 
         shared_data.e, hale_data.energy1, shared_data.rho, shared_data.rho_old, 
         shared_data.P, hale_data.pressure1, shared_data.u, shared_data.v, 
         hale_data.velocity_x1, hale_data.velocity_y1, hale_data.cell_force_x, 
@@ -129,7 +129,7 @@ int main(int argc, char** argv)
     if(visit_dump) {
       write_quad_data_to_visit(
           mesh.local_nx, mesh.local_ny, tt, unstructured_mesh.nodes_x0, 
-          unstructured_mesh.nodes_y0, shared_data.rho, 0);
+          unstructured_mesh.nodes_y0, hale_data.node_force_x, 1);
     }
   }
 

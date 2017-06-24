@@ -14,8 +14,8 @@ void solve_unstructured_hydro_2d(
     const double visc_coeff2, double* cell_centroids_x, 
     double* cell_centroids_y, int* cells_to_nodes, int* cells_to_nodes_off, 
     double* nodes_x0, double* nodes_y0, double* nodes_x1, double* nodes_y1, 
-    int* halo_cell, int* halo_index, int* halo_neighbour, double* halo_normal_x, 
-    double* halo_normal_y, double* energy0, double* energy1, double* density0, 
+    int* boundary_index, int* boundary_type, double* boundary_normal_x, 
+    double* boundary_normal_y, double* energy0, double* energy1, double* density0, 
     double* density1, double* pressure0, double* pressure1, double* velocity_x0, 
     double* velocity_y0, double* velocity_x1, double* velocity_y1, 
     double* cell_force_x, double* cell_force_y, double* node_force_x, 
@@ -27,17 +27,13 @@ void solve_unstructured_hydro_2d(
    */
 
   // Calculate the pressure using the ideal gas equation of state
+#pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
-    if(halo_cell[(cc)]) {
-      continue;
-    }
-
     pressure0[(cc)] = (GAM-1.0)*energy0[(cc)]*density0[(cc)];
   }
 
-  handle_unstructured_cell_boundary(ncells, halo_cell, pressure0);
-
   // Calculate the cell centroids
+#pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
@@ -52,6 +48,7 @@ void solve_unstructured_hydro_2d(
     }
   }
 
+#pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
     nodal_mass[(nn)] = 0.0;
     nodal_volumes[(nn)] = 0.0;
@@ -60,6 +57,7 @@ void solve_unstructured_hydro_2d(
 
   double total_mass = 0.0;
   // Calculate the nodal and cell mass
+#pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
@@ -111,13 +109,7 @@ void solve_unstructured_hydro_2d(
 
   printf("total mass %.12f\n", total_mass);
 
-  handle_unstructured_node_boundary(
-      nnodes, halo_index, halo_neighbour, nodal_volumes);
-  handle_unstructured_node_boundary(
-      nnodes, halo_index, halo_neighbour, nodal_soundspeed);
-  handle_unstructured_node_boundary(
-      nnodes, halo_index, halo_neighbour, nodal_mass);
-
+#pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
     node_force_x[(nn)] = 0.0;
     node_force_y[(nn)] = 0.0;
@@ -125,6 +117,7 @@ void solve_unstructured_hydro_2d(
   }
 
   // Calculate the force contributions for pressure gradients
+#pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
@@ -157,13 +150,14 @@ void solve_unstructured_hydro_2d(
   }
 
   calculate_artificial_viscosity(
-      ncells, visc_coeff1, visc_coeff2, halo_cell, cells_to_nodes_off, cells_to_nodes, 
+      ncells, visc_coeff1, visc_coeff2, cells_to_nodes_off, cells_to_nodes, 
       nodes_x0, nodes_y0, cell_centroids_x, cell_centroids_y,
       velocity_x0, velocity_y0, nodal_soundspeed, nodal_mass,
       nodal_volumes, limiter, node_force_x, node_force_y);
 
   // Calculate the time centered evolved velocities, by first calculating the
   // predicted values at the new timestep and then averaging with current velocity
+#pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
     // Determine the predicted velocity
     velocity_x1[(nn)] = velocity_x0[(nn)] + mesh->dt*node_force_x[(nn)]/nodal_mass[(nn)];
@@ -175,21 +169,19 @@ void solve_unstructured_hydro_2d(
   }
 
   handle_unstructured_reflect(
-      nnodes, halo_index, halo_neighbour, halo_normal_x, halo_normal_y,
-      velocity_x1, velocity_y1);
+      nnodes, boundary_index, boundary_type, boundary_normal_x, 
+      boundary_normal_y, velocity_x1, velocity_y1);
 
   // Move the nodes by the predicted velocity
+#pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
     nodes_x1[(nn)] = nodes_x0[(nn)] + mesh->dt*velocity_x1[(nn)];
     nodes_y1[(nn)] = nodes_y0[(nn)] + mesh->dt*velocity_y1[(nn)];
   }
 
   // Calculate the predicted energy
+#pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
-    if(halo_cell[(cc)]) {
-      continue;
-    }
-
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
@@ -207,11 +199,8 @@ void solve_unstructured_hydro_2d(
 
   // Calculate the timestep based on the computational mesh and CFL condition
   double dt = 1.0e10;
+#pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
-    if(halo_cell[(cc)]) {
-      continue;
-    }
-
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
@@ -235,11 +224,8 @@ void solve_unstructured_hydro_2d(
   printf("Timestep %.8fs\n", mesh->dt);
 
   // Using the new volume, calculate the predicted density
+#pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
-    if(halo_cell[(cc)]) {
-      continue;
-    }
-
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
@@ -261,11 +247,8 @@ void solve_unstructured_hydro_2d(
 
   // Calculate the time centered pressure from mid point between original and 
   // predicted pressures
+#pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
-    if(halo_cell[(cc)]) {
-      continue;
-    }
-
     // Calculate the predicted pressure from the equation of state
     pressure1[(cc)] = (GAM-1.0)*energy1[(cc)]*density1[(cc)];
 
@@ -273,9 +256,8 @@ void solve_unstructured_hydro_2d(
     pressure1[(cc)] = 0.5*(pressure0[(cc)] + pressure1[(cc)]);
   }
 
-  handle_unstructured_cell_boundary(ncells, halo_cell, pressure1);
-
   // Prepare time centered variables for the corrector step
+#pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
     nodes_x1[(nn)] = 0.5*(nodes_x1[(nn)] + nodes_x0[(nn)]);
     nodes_y1[(nn)] = 0.5*(nodes_y1[(nn)] + nodes_y0[(nn)]);
@@ -290,6 +272,7 @@ void solve_unstructured_hydro_2d(
    */
 
   // Calculate the new cell centroids
+#pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
@@ -305,6 +288,7 @@ void solve_unstructured_hydro_2d(
   }
 
   // Calculate the new nodal soundspeed and volumes
+#pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
@@ -346,16 +330,13 @@ void solve_unstructured_hydro_2d(
     }
   }
 
-  handle_unstructured_node_boundary(
-      nnodes, halo_index, halo_neighbour, nodal_volumes);
-  handle_unstructured_node_boundary(
-      nnodes, halo_index, halo_neighbour, nodal_soundspeed);
-
+#pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
     nodal_soundspeed[(nn)] /= nodal_volumes[(nn)];
   }
 
   // Calculate the force contributions for pressure gradients
+#pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
@@ -388,12 +369,13 @@ void solve_unstructured_hydro_2d(
   }
 
   calculate_artificial_viscosity(
-      ncells, visc_coeff1, visc_coeff2, halo_cell, cells_to_nodes_off, cells_to_nodes, 
+      ncells, visc_coeff1, visc_coeff2, cells_to_nodes_off, cells_to_nodes, 
       nodes_x1, nodes_y1, cell_centroids_x, cell_centroids_y,
       velocity_x1, velocity_y1, nodal_soundspeed, nodal_mass,
       nodal_volumes, limiter, node_force_x, node_force_y);
 
   // Calculate the corrected time centered velocities
+#pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
     // Calculate the new velocities
     velocity_x1[(nn)] += mesh->dt*node_force_x[(nn)]/nodal_mass[(nn)];
@@ -405,10 +387,11 @@ void solve_unstructured_hydro_2d(
   }
 
   handle_unstructured_reflect(
-      nnodes, halo_index, halo_neighbour, halo_normal_x, halo_normal_y,
-      velocity_x0, velocity_y0);
+      nnodes, boundary_index, boundary_type, boundary_normal_x, 
+      boundary_normal_y, velocity_x0, velocity_y0);
 
   // Calculate the corrected node movements
+#pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
     nodes_x0[(nn)] += mesh->dt*velocity_x0[(nn)];
     nodes_y0[(nn)] += mesh->dt*velocity_y0[(nn)];
@@ -416,11 +399,8 @@ void solve_unstructured_hydro_2d(
 
   // Calculate the timestep based on the computational mesh and CFL condition
   dt = 1.0e10;
+#pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
-    if(halo_cell[(cc)]) {
-      continue;
-    }
-
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
@@ -444,11 +424,8 @@ void solve_unstructured_hydro_2d(
   printf("Timestep %.8fs\n", mesh->dt);
 
   // Calculate the final energy
+#pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
-    if(halo_cell[(cc)]) {
-      continue;
-    }
-
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
@@ -465,11 +442,8 @@ void solve_unstructured_hydro_2d(
   }
 
   // Using the new corrected volume, calculate the density
+#pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
-    if(halo_cell[(cc)]) {
-      continue;
-    }
-
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
@@ -491,7 +465,7 @@ void solve_unstructured_hydro_2d(
 
 // Calculates the artificial viscous forces for momentum acceleration
 void calculate_artificial_viscosity(
-    const int ncells, const double visc_coeff1, const double visc_coeff2, const int* halo_cell, 
+    const int ncells, const double visc_coeff1, const double visc_coeff2, 
     const int* cells_to_nodes_off, const int* cells_to_nodes, 
     const double* nodes_x, const double* nodes_y, 
     const double* cell_centroids_x, const double* cell_centroids_y,
@@ -577,10 +551,6 @@ void calculate_artificial_viscosity(
 #if 0
 // Calculate the limiter
 for(int cc = 0; cc < ncells; ++cc) {
-
-  if(halo_cell[(cc)]) {
-    continue;
-  }
 
   const int nodes_off = cells_to_nodes_off[(cc)];
   const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;

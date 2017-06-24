@@ -72,11 +72,10 @@ size_t initialise_unstructured_mesh(
   allocated += allocate_int_data(&unstructured_mesh->cells_to_nodes_off, unstructured_mesh->ncells+1);
   allocated += allocate_data(&unstructured_mesh->cell_centroids_x, unstructured_mesh->ncells);
   allocated += allocate_data(&unstructured_mesh->cell_centroids_y, unstructured_mesh->ncells);
-  allocated += allocate_int_data(&unstructured_mesh->halo_cell, unstructured_mesh->ncells);
-  allocated += allocate_int_data(&unstructured_mesh->halo_index, unstructured_mesh->nnodes);
-  allocated += allocate_data(&unstructured_mesh->halo_normal_x, nboundary_cells);
-  allocated += allocate_data(&unstructured_mesh->halo_normal_y, nboundary_cells);
-  allocated += allocate_int_data(&unstructured_mesh->halo_neighbour, nboundary_cells);
+  allocated += allocate_int_data(&unstructured_mesh->boundary_index, unstructured_mesh->nnodes);
+  allocated += allocate_data(&unstructured_mesh->boundary_normal_x, nboundary_cells);
+  allocated += allocate_data(&unstructured_mesh->boundary_normal_y, nboundary_cells);
+  allocated += allocate_int_data(&unstructured_mesh->boundary_type, nboundary_cells);
 
   // Construct the list of nodes contiguously, currently Cartesian
   for(int ii = 0; ii < (ny+1); ++ii) {
@@ -89,99 +88,67 @@ size_t initialise_unstructured_mesh(
     }
   }
 
-  // Define the list of nodes surrounding each cell, counter-clockwise
   for(int ii = 0; ii < ny; ++ii) {
     for(int jj = 0; jj < nx; ++jj) {
-      const int cells_nodes_index = ((ii)*nx+(jj))*unstructured_mesh->nnodes_by_cell;
-      unstructured_mesh->cells_to_nodes[(cells_nodes_index)+0] = (ii)*(nx+1)+(jj);
-      unstructured_mesh->cells_to_nodes[(cells_nodes_index)+1] = (ii)*(nx+1)+(jj+1);
-      unstructured_mesh->cells_to_nodes[(cells_nodes_index)+2] = (ii+1)*(nx+1)+(jj+1);
-      unstructured_mesh->cells_to_nodes[(cells_nodes_index)+3] = (ii+1)*(nx+1)+(jj);
+      const int offset = unstructured_mesh->cells_to_nodes_off[(ii)*nx+(jj)];
+      unstructured_mesh->cells_to_nodes[(offset)+0] = (ii)*(nx+1)+(jj);
+      unstructured_mesh->cells_to_nodes[(offset)+1] = (ii)*(nx+1)+(jj+1);
+      unstructured_mesh->cells_to_nodes[(offset)+2] = (ii+1)*(nx+1)+(jj+1);
+      unstructured_mesh->cells_to_nodes[(offset)+3] = (ii+1)*(nx+1)+(jj);
       unstructured_mesh->cells_to_nodes_off[(ii)*nx+(jj)+1] = 
         unstructured_mesh->cells_to_nodes_off[(ii)*nx+(jj)] +
         unstructured_mesh->nnodes_by_cell;
     }
   }
 
-  // Store the immediate neighbour of a halo cell
-  for(int ii = 0; ii < ny; ++ii) {
-    for(int jj = 0; jj < nx; ++jj) {
-      int neighbour_index = (ii)*nx+(jj);
-      if(ii < mesh->pad) {
-        neighbour_index += nx;
-      }
-      if(ii >= ny-mesh->pad) { 
-        neighbour_index -= nx;
-      }
-      if(jj < mesh->pad) {
-        neighbour_index++;
-      }
-      if(jj >= nx-mesh->pad) {
-        neighbour_index--;
-      }
-      if(neighbour_index != (ii)*nx+(jj)) {
-        unstructured_mesh->halo_cell[(ii)*nx+(jj)] = neighbour_index;
-      }
-    }
-  }
-
   // TODO: Currently serial only, could do some work to parallelise this if
   // needed later on...
   // Store the halo node's neighbour, and normal
-  int halo_index = 0;
+  int index = 0;
   for(int ii = 0; ii < (ny+1); ++ii) {
     for(int jj = 0; jj < (nx+1); ++jj) {
-      if(ii == 0 || ii == (ny+1)-1 || jj == 0 || jj == (nx+1)-1) {
-        unstructured_mesh->halo_index[(ii)*(nx+1)+(jj)] = IS_BOUNDARY;
-        continue;
-      }
-      else if(ii > mesh->pad && ii < (ny+1)-1-mesh->pad && 
-          jj > mesh->pad && jj < (nx+1)-1-mesh->pad) {
-        unstructured_mesh->halo_index[(ii)*(nx+1)+(jj)] = IS_NOT_HALO;
-        continue;
-      }
+      unstructured_mesh->boundary_index[(ii)*(nx+1)+(jj)] = IS_INTERIOR_NODE;
 
-      if(ii == mesh->pad) {
-        // Handle corner cases
-        if(jj == mesh->pad) {
-          unstructured_mesh->halo_neighbour[(halo_index)] = (ii+1)*(nx+1)+(jj+1);
+      if(ii == 0) { 
+        if(jj == 0) { 
+          unstructured_mesh->boundary_type[(index)] = IS_FIXED;
         }
-        else if(jj == (nx+1)-1-mesh->pad) {
-          unstructured_mesh->halo_neighbour[(halo_index)] = (ii+1)*(nx+1)+(jj-1);
+        else if(jj == (nx+1)-1) {
+          unstructured_mesh->boundary_type[(index)] = IS_FIXED;
         }
         else {
-          unstructured_mesh->halo_normal_x[(halo_index)] = 0.0;
-          unstructured_mesh->halo_normal_y[(halo_index)] = 1.0;
-          unstructured_mesh->halo_neighbour[(halo_index)] = (ii+1)*(nx+1)+(jj);
+          unstructured_mesh->boundary_type[(index)] = IS_BOUNDARY;
+          unstructured_mesh->boundary_normal_x[(index)] = 0.0;
+          unstructured_mesh->boundary_normal_y[(index)] = 1.0;
         }
+        unstructured_mesh->boundary_index[(ii)*(nx+1)+(jj)] = index++;
       }
-      else if(jj == mesh->pad) {
-        if(ii == (ny+1)-1-mesh->pad) {
-          unstructured_mesh->halo_neighbour[(halo_index)] = (ii-1)*(nx+1)+(jj+1);
+      else if(ii == (ny+1)-1) {
+        if(jj == 0) { 
+          unstructured_mesh->boundary_type[(index)] = IS_FIXED;
         }
-        else { 
-          unstructured_mesh->halo_normal_x[(halo_index)] = 1.0;
-          unstructured_mesh->halo_normal_y[(halo_index)] = 0.0;
-          unstructured_mesh->halo_neighbour[(halo_index)] = (ii)*(nx+1)+(jj+1);
+        else if(jj == (nx+1)-1) {
+          unstructured_mesh->boundary_type[(index)] = IS_FIXED;
         }
+        else {
+          unstructured_mesh->boundary_type[(index)] = IS_BOUNDARY;
+          unstructured_mesh->boundary_normal_x[(index)] = 0.0;
+          unstructured_mesh->boundary_normal_y[(index)] = -1.0;
+        }
+        unstructured_mesh->boundary_index[(ii)*(nx+1)+(jj)] = index++;
+      } 
+      else if(jj == 0) { 
+        unstructured_mesh->boundary_type[(index)] = IS_BOUNDARY;
+        unstructured_mesh->boundary_normal_x[(index)] = 1.0;
+        unstructured_mesh->boundary_normal_y[(index)] = 0.0;
+        unstructured_mesh->boundary_index[(ii)*(nx+1)+(jj)] = index++;
       }
-      else if(jj == (nx+1)-1-mesh->pad) {
-        if(ii == (ny+1)-1-mesh->pad) {
-          unstructured_mesh->halo_neighbour[(halo_index)] = (ii-1)*(nx+1)+(jj-1);
-        }
-        else { 
-          unstructured_mesh->halo_normal_x[(halo_index)] = -1.0;
-          unstructured_mesh->halo_normal_y[(halo_index)] = 0.0;
-          unstructured_mesh->halo_neighbour[(halo_index)] = (ii)*(nx+1)+(jj-1);
-        }
+      else if(jj == (nx+1)-1) {
+        unstructured_mesh->boundary_type[(index)] = IS_BOUNDARY;
+        unstructured_mesh->boundary_normal_x[(index)] = -1.0;
+        unstructured_mesh->boundary_normal_y[(index)] = 0.0;
+        unstructured_mesh->boundary_index[(ii)*(nx+1)+(jj)] = index++;
       }
-      else if(ii == (ny+1)-1-mesh->pad) {
-        unstructured_mesh->halo_normal_x[(halo_index)] = 0.0;
-        unstructured_mesh->halo_normal_y[(halo_index)] = -1.0;
-        unstructured_mesh->halo_neighbour[(halo_index)] = (ii-1)*(nx+1)+(jj);
-      }
-
-      unstructured_mesh->halo_index[(ii)*(nx+1)+(jj)] = halo_index++;
     }
   }
 
@@ -230,8 +197,7 @@ size_t read_unstructured_mesh(
   allocated += allocate_int_data(&unstructured_mesh->cells_to_nodes_off, unstructured_mesh->ncells+1);
   allocated += allocate_data(&unstructured_mesh->cell_centroids_x, unstructured_mesh->ncells);
   allocated += allocate_data(&unstructured_mesh->cell_centroids_y, unstructured_mesh->ncells);
-  allocated += allocate_int_data(&unstructured_mesh->halo_cell, unstructured_mesh->ncells);
-  allocated += allocate_int_data(&unstructured_mesh->halo_index, unstructured_mesh->nnodes);
+  allocated += allocate_int_data(&unstructured_mesh->boundary_index, unstructured_mesh->nnodes);
 
   // Loop through the node file, storing all of the nodes in our data structure
   while(fgets(temp, MAX_STR_LEN, node_fp)) {
@@ -247,7 +213,7 @@ size_t read_unstructured_mesh(
         &unstructured_mesh->nodes_y0[(index)],
         &is_boundary);
 
-    unstructured_mesh->halo_index[(index)] = (is_boundary) ? 1 : 0;
+    unstructured_mesh->boundary_index[(index)] = (is_boundary) ? 1 : 0;
   }
 
   // Loop through the element file and flatten into data structure
@@ -267,12 +233,11 @@ size_t read_unstructured_mesh(
     unstructured_mesh->cells_to_nodes_off[(index+1)] = 
       unstructured_mesh->cells_to_nodes_off[(index)] + unstructured_mesh->nnodes_by_cell;
 
-    if(unstructured_mesh->halo_index[(node1)] == IS_BOUNDARY ||
-        unstructured_mesh->halo_index[(node2)] == IS_BOUNDARY ||
-        unstructured_mesh->halo_index[(node3)] == IS_BOUNDARY) {
+    if(unstructured_mesh->boundary_index[(node1)] == IS_BOUNDARY ||
+        unstructured_mesh->boundary_index[(node2)] == IS_BOUNDARY ||
+        unstructured_mesh->boundary_index[(node3)] == IS_BOUNDARY) {
 
       // TODO: need to find neighbour here...
-      unstructured_mesh->halo_cell[(index)] = 1;
     }
 
     const double A = 
@@ -286,89 +251,36 @@ size_t read_unstructured_mesh(
   }
 
   const int nboundary_cells = 0;
-  allocated += allocate_data(&unstructured_mesh->halo_normal_x, nboundary_cells);
-  allocated += allocate_data(&unstructured_mesh->halo_normal_y, nboundary_cells);
-  allocated += allocate_int_data(&unstructured_mesh->halo_neighbour, nboundary_cells);
+  allocated += allocate_data(&unstructured_mesh->boundary_normal_x, nboundary_cells);
+  allocated += allocate_data(&unstructured_mesh->boundary_normal_y, nboundary_cells);
 
   return allocated;
 }
 
 // Reflect the node centered velocities on the boundary
 void handle_unstructured_reflect(
-    const int nnodes, const int* halo_index, const int* halo_neighbour, 
-    const double* halo_normal_x, const double* halo_normal_y, 
+    const int nnodes, const int* boundary_index, const int* boundary_type,
+    const double* boundary_normal_x, const double* boundary_normal_y, 
     double* velocity_x, double* velocity_y)
 {
   for(int nn = 0; nn < nnodes; ++nn) {
-    const int index = halo_index[(nn)];
-    if(index == IS_NOT_HALO) {
+    const int index = boundary_index[(nn)];
+    if(index == IS_INTERIOR_NODE) {
       continue;
     }
 
-    const int neighbour_index = halo_neighbour[(index)];
+    if(boundary_type[(index)] == IS_BOUNDARY) {
+      const double dot = (velocity_x[(nn)]*boundary_normal_x[(index)]+
+          velocity_y[(nn)]*boundary_normal_y[(index)]);
 
-    if(index == IS_BOUNDARY) {
-      // This is node is an artificial boundary node
-      velocity_x[(nn)] = 0.0;
+      // Calculate the reflected velocity
+      velocity_x[(nn)] = velocity_x[(nn)] - boundary_normal_x[(index)]*2.0*dot;
+      velocity_y[(nn)] = velocity_y[(nn)] - boundary_normal_y[(index)]*2.0*dot;
+    }
+    else if(boundary_type[(index)] == IS_FIXED) {
+      printf("%.12f %.12f\n", velocity_x[(nn)], velocity_y[(nn)]);
+      velocity_x[(nn)] = 0.0; 
       velocity_y[(nn)] = 0.0;
-    }
-    else {
-      const double dot = (velocity_x[(nn)]*halo_normal_x[(index)]+
-          velocity_y[(nn)]*halo_normal_y[(index)]);
-
-      // Calculate the reflected velocity
-      velocity_x[(nn)] = velocity_x[(nn)] - halo_normal_x[(index)]*2.0*dot;
-      velocity_y[(nn)] = velocity_y[(nn)] - halo_normal_y[(index)]*2.0*dot;
-
-#if 0
-      // Project the velocity onto the face direction
-      const double halo_parallel_x = halo_normal_y[(index)];
-      const double halo_parallel_y = -halo_normal_x[(index)];
-      const double vel_dot_parallel = 
-        (velocity_x[(nn)]*halo_parallel_x+velocity_y[(nn)]*halo_parallel_y);
-      velocity_x[(nn)] = halo_parallel_x*vel_dot_parallel;
-      velocity_y[(nn)] = halo_parallel_y*vel_dot_parallel;
-
-      // Calculate the reflected velocity
-      const double reflect_x = velocity_x[(nn)] - 
-        halo_normal_x[(index)]*2.0*(velocity_x[(nn)]*halo_normal_x[(index)]+
-            velocity_y[(nn)]*halo_normal_y[(index)]);
-      const double reflect_y = velocity_y[(nn)] - 
-        halo_normal_y[(index)]*2.0*(velocity_x[(nn)]*halo_normal_x[(index)]+
-            velocity_y[(nn)]*halo_normal_y[(index)]);
-
-      // Project the reflected velocity back to the neighbour
-      velocity_x[(neighbour_index)] += halo_normal_x[(index)]*
-        (reflect_x*halo_normal_x[(index)]+reflect_y*halo_normal_y[(index)]);
-      velocity_y[(neighbour_index)] += halo_normal_y[(index)]*
-        (reflect_x*halo_normal_x[(index)]+reflect_y*halo_normal_y[(index)]);
-#endif // if 0
-    }
-  }
-}
-
-// Fill boundary cells with interior values
-void handle_unstructured_cell_boundary(
-    const int ncells, const int* halo_cell, double* arr)
-{
-  // Perform the local halo update with reflective boundary condition
-  for(int cc = 0; cc < ncells; ++cc) {
-    if(halo_cell[(cc)]) {
-      const int neighbour_index = halo_cell[(cc)];
-      arr[(cc)] = arr[(neighbour_index)];
-    }
-  }
-}
-
-// Fill halo nodes with interior values
-void handle_unstructured_node_boundary(
-    const int nnodes, const int* halo_index, const int* halo_neighbour, double* arr)
-{
-  for(int nn = 0; nn < nnodes; ++nn) {
-    const int index = halo_index[(nn)];
-
-    if(index >= 0) {
-      arr[(nn)] = arr[(halo_neighbour[(index)])];
     }
   }
 }
