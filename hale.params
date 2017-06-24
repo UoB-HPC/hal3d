@@ -5,5 +5,5 @@ nx            100
 ny            100
 visc_coeff1   0.5
 visc_coeff2   0.5
-iterations    300
+iterations    1000
 visit_dump    1

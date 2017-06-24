@@ -270,15 +270,15 @@ void handle_unstructured_reflect(
     }
 
     if(boundary_type[(index)] == IS_BOUNDARY) {
-      const double dot = (velocity_x[(nn)]*boundary_normal_x[(index)]+
-          velocity_y[(nn)]*boundary_normal_y[(index)]);
-
-      // Calculate the reflected velocity
-      velocity_x[(nn)] = velocity_x[(nn)] - boundary_normal_x[(index)]*2.0*dot;
-      velocity_y[(nn)] = velocity_y[(nn)] - boundary_normal_y[(index)]*2.0*dot;
+      // Project the velocity onto the face direction
+      const double boundary_parallel_x = boundary_normal_y[(index)];
+      const double boundary_parallel_y = -boundary_normal_x[(index)];
+      const double vel_dot_parallel = 
+        (velocity_x[(nn)]*boundary_parallel_x+velocity_y[(nn)]*boundary_parallel_y);
+      velocity_x[(nn)] = boundary_parallel_x*vel_dot_parallel;
+      velocity_y[(nn)] = boundary_parallel_y*vel_dot_parallel;
     }
     else if(boundary_type[(index)] == IS_FIXED) {
-      printf("%.12f %.12f\n", velocity_x[(nn)], velocity_y[(nn)]);
       velocity_x[(nn)] = 0.0; 
       velocity_y[(nn)] = 0.0;
     }
