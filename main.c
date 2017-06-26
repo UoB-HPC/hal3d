@@ -5,7 +5,9 @@
 #include "hale_interface.h"
 #include "hale_data.h"
 #include "../mesh.h"
+#if 0
 #include "../shared_data.h"
+#endif // if 0
 #include "../comms.h"
 #include "../params.h"
 
@@ -51,10 +53,6 @@ int main(int argc, char** argv)
   size_t allocated = read_unstructured_mesh(
       &mesh, &unstructured_mesh);
 
-  write_unstructured_tris_to_visit( 
-      unstructured_mesh.nnodes, unstructured_mesh.ncells, 0, unstructured_mesh.nodes_x0, 
-      unstructured_mesh.nodes_y0, unstructured_mesh.cells_to_nodes);
-
   int nthreads = 0;
 #pragma omp parallel 
   {
@@ -66,16 +64,25 @@ int main(int argc, char** argv)
     printf("Number of threads: %d\n", nthreads);
   }
 
+#if 0
   SharedData shared_data = {0};
   initialise_shared_data_2d(
       mesh.global_nx, mesh.global_ny, mesh.local_nx, mesh.local_ny, 
       mesh.pad, mesh.x_off, mesh.y_off, mesh.width, mesh.height,
       hale_params, mesh.edgex, mesh.edgey, &shared_data);
+#endif // if 0
 
   HaleData hale_data = {0};
   allocated += initialise_hale_data_2d(
       mesh.local_nx, mesh.local_ny, &hale_data, &unstructured_mesh);
   printf("Allocated %.3fGB bytes of data\n", allocated/(double)GB);
+
+  write_unstructured_tris_to_visit( 
+      unstructured_mesh.nnodes, unstructured_mesh.ncells, 0, unstructured_mesh.nodes_x0, 
+      unstructured_mesh.nodes_y0, unstructured_mesh.cells_to_nodes, hale_data.density0, 0);
+
+  exit(1);
+
 
   hale_data.visc_coeff1 = get_double_parameter("visc_coeff1", hale_params);
   hale_data.visc_coeff2 = get_double_parameter("visc_coeff2", hale_params);
@@ -87,7 +94,7 @@ int main(int argc, char** argv)
   set_timestep(
       unstructured_mesh.ncells, unstructured_mesh.cells_to_nodes, 
       unstructured_mesh.cells_to_nodes_off, unstructured_mesh.nodes_x0, 
-      unstructured_mesh.nodes_y0, shared_data.e, &mesh.dt);
+      unstructured_mesh.nodes_y0, hale_data.energy0, &mesh.dt);
 
   // Main timestep loop
   int tt;
@@ -106,14 +113,14 @@ int main(int argc, char** argv)
         unstructured_mesh.cells_to_nodes_off, unstructured_mesh.nodes_x0, 
         unstructured_mesh.nodes_y0, unstructured_mesh.nodes_x1, 
         unstructured_mesh.nodes_y1, unstructured_mesh.boundary_index, 
-        unstructured_mesh.boundary_type,
-        unstructured_mesh.boundary_normal_x, unstructured_mesh.boundary_normal_y, 
-        shared_data.e, hale_data.energy1, shared_data.rho, shared_data.rho_old, 
-        shared_data.P, hale_data.pressure1, shared_data.u, shared_data.v, 
-        hale_data.velocity_x1, hale_data.velocity_y1, hale_data.cell_force_x, 
-        hale_data.cell_force_y, hale_data.node_force_x, hale_data.node_force_y, 
-        hale_data.cell_mass, hale_data.nodal_mass, hale_data.nodal_volumes, 
-        hale_data.nodal_soundspeed, hale_data.limiter);
+        unstructured_mesh.boundary_type, unstructured_mesh.boundary_normal_x, 
+        unstructured_mesh.boundary_normal_y, hale_data.energy0, hale_data.energy1, 
+        hale_data.density0, hale_data.density1, hale_data.pressure0, hale_data.pressure1, 
+        hale_data.velocity_x0, hale_data.velocity_y0, hale_data.velocity_x1, 
+        hale_data.velocity_y1, hale_data.cell_force_x, hale_data.cell_force_y, 
+        hale_data.node_force_x, hale_data.node_force_y, hale_data.cell_mass, 
+        hale_data.nodal_mass, hale_data.nodal_volumes, hale_data.nodal_soundspeed, 
+        hale_data.limiter);
 
     wallclock += omp_get_wtime()-w0;
     elapsed_sim_time += mesh.dt;
@@ -130,9 +137,15 @@ int main(int argc, char** argv)
     }
 
     if(visit_dump) {
+      write_unstructured_tris_to_visit( 
+          unstructured_mesh.nnodes, unstructured_mesh.ncells, 0, unstructured_mesh.nodes_x0, 
+          unstructured_mesh.nodes_y0, unstructured_mesh.cells_to_nodes, hale_data.density0, 0);
+
+#if 0
       write_quad_data_to_visit(
           mesh.local_nx, mesh.local_ny, tt, unstructured_mesh.nodes_x0, 
           unstructured_mesh.nodes_y0, shared_data.rho, 0);
+#endif // if 0
     }
   }
 
@@ -145,7 +158,9 @@ int main(int argc, char** argv)
         wallclock, elapsed_sim_time);
   }
 
+#if 0
   finalise_shared_data(&shared_data);
+#endif // if 0
   finalise_mesh(&mesh);
 
   return 0;

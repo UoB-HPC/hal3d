@@ -12,28 +12,61 @@ size_t initialise_hale_data_2d(
     const int local_nx, const int local_ny, HaleData* hale_data, 
     UnstructuredMesh* unstructured_mesh)
 {
-  size_t allocated = allocate_data(&hale_data->energy1, (local_nx)*(local_ny));
-  allocated = allocate_data(&hale_data->density1, (local_nx)*(local_ny));
-  allocated = allocate_data(&hale_data->pressure1, (local_nx)*(local_ny));
-  allocated = allocate_data(&hale_data->velocity_x1, (local_nx+1)*(local_ny+1));
-  allocated = allocate_data(&hale_data->velocity_y1, (local_nx+1)*(local_ny+1));
-  allocated = allocate_data(&hale_data->cell_force_x, 
+  size_t allocated = allocate_data(&hale_data->energy0, (local_nx)*(local_ny));
+  allocated += allocate_data(&hale_data->density0, (local_nx)*(local_ny));
+  allocated += allocate_data(&hale_data->pressure0, (local_nx)*(local_ny));
+  allocated += allocate_data(&hale_data->velocity_x0, (local_nx+1)*(local_ny+1));
+  allocated += allocate_data(&hale_data->velocity_y0, (local_nx+1)*(local_ny+1));
+  allocated += allocate_data(&hale_data->energy1, (local_nx)*(local_ny));
+  allocated += allocate_data(&hale_data->density1, (local_nx)*(local_ny));
+  allocated += allocate_data(&hale_data->pressure1, (local_nx)*(local_ny));
+  allocated += allocate_data(&hale_data->velocity_x1, (local_nx+1)*(local_ny+1));
+  allocated += allocate_data(&hale_data->velocity_y1, (local_nx+1)*(local_ny+1));
+  allocated += allocate_data(&hale_data->cell_force_x, 
       (local_nx)*(local_ny)*unstructured_mesh->nnodes_by_cell);
-  allocated = allocate_data(&hale_data->cell_force_y, 
+  allocated += allocate_data(&hale_data->cell_force_y, 
       (local_nx)*(local_ny)*unstructured_mesh->nnodes_by_cell);
-  allocated = allocate_data(&hale_data->node_force_x, (local_nx+1)*(local_ny+1));
-  allocated = allocate_data(&hale_data->node_force_y, (local_nx+1)*(local_ny+1));
-  allocated = allocate_data(&hale_data->cell_mass, (local_nx)*(local_ny));
-  allocated = allocate_data(&hale_data->nodal_mass, (local_nx+1)*(local_ny+1));
-  allocated = allocate_data(&hale_data->nodal_volumes, (local_nx+1)*(local_ny+1));
-  allocated = allocate_data(&hale_data->nodal_soundspeed, (local_nx+1)*(local_ny+1));
-  allocated = allocate_data(&hale_data->limiter, (local_nx+1)*(local_ny+1));
+  allocated += allocate_data(&hale_data->node_force_x, (local_nx+1)*(local_ny+1));
+  allocated += allocate_data(&hale_data->node_force_y, (local_nx+1)*(local_ny+1));
+  allocated += allocate_data(&hale_data->cell_mass, (local_nx)*(local_ny));
+  allocated += allocate_data(&hale_data->nodal_mass, (local_nx+1)*(local_ny+1));
+  allocated += allocate_data(&hale_data->nodal_volumes, (local_nx+1)*(local_ny+1));
+  allocated += allocate_data(&hale_data->nodal_soundspeed, (local_nx+1)*(local_ny+1));
+  allocated += allocate_data(&hale_data->limiter, (local_nx+1)*(local_ny+1));
+
+#if 0
+  // Set the density and the energy for all of the relevant cells
+  for(int cc = 0; cc < unstructured_mesh->ncells; ++cc) {
+    const int nodes_off = cells_to_nodes_off[(cc)];
+    const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
+    const double inv_Np = 1.0/(double)nnodes_around_cell;
+
+    double cell_centroids_x = 0.0;
+    double cell_centroids_y = 0.0;
+    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+      const int node_index = cells_to_nodes[(nodes_off)+(nn)];
+      cell_centroids_x[(cc)] += nodes_x0[node_index]*inv_Np;
+      cell_centroids_y[(cc)] += nodes_y0[node_index]*inv_Np;
+    }
+
+    if(cc  < 100) {
+      hale_data->density0[(cc)] = 1.0;
+    }
+  }
+#endif // if 0
+
+
   return allocated;
 }
 
 void deallocate_hale_data(
     HaleData* hale_data)
 {
+  // TODO: Populate this correctly !
+  
+
+
+
   deallocate_data(hale_data->energy1);
   deallocate_data(hale_data->density1);
   deallocate_data(hale_data->pressure1);
@@ -65,7 +98,7 @@ size_t initialise_unstructured_mesh(
 
   size_t allocated = allocate_data(&unstructured_mesh->nodes_x0, unstructured_mesh->nnodes);
   allocated += allocate_data(&unstructured_mesh->nodes_y0, unstructured_mesh->nnodes);
-  allocated = allocate_data(&unstructured_mesh->nodes_x1, unstructured_mesh->nnodes);
+  allocated += allocate_data(&unstructured_mesh->nodes_x1, unstructured_mesh->nnodes);
   allocated += allocate_data(&unstructured_mesh->nodes_y1, unstructured_mesh->nnodes);
   allocated += allocate_int_data(&unstructured_mesh->cells_to_nodes, 
       unstructured_mesh->ncells*unstructured_mesh->nnodes_by_cell);
@@ -190,7 +223,7 @@ size_t read_unstructured_mesh(
   // Allocate the data structures that we now know the sizes of
   size_t allocated = allocate_data(&unstructured_mesh->nodes_x0, unstructured_mesh->nnodes);
   allocated += allocate_data(&unstructured_mesh->nodes_y0, unstructured_mesh->nnodes);
-  allocated = allocate_data(&unstructured_mesh->nodes_x1, unstructured_mesh->nnodes);
+  allocated += allocate_data(&unstructured_mesh->nodes_x1, unstructured_mesh->nnodes);
   allocated += allocate_data(&unstructured_mesh->nodes_y1, unstructured_mesh->nnodes);
   allocated += allocate_int_data(&unstructured_mesh->cells_to_nodes, 
       unstructured_mesh->ncells*unstructured_mesh->nnodes_by_cell);
@@ -360,7 +393,7 @@ void write_quad_data_to_visit(
 // Writes out unstructured triangles to visit
 void write_unstructured_tris_to_visit(
     const int nnodes, int ncells, const int step, double* nodes_x0, 
-    double* nodes_y0, const int* cells_to_nodes)
+    double* nodes_y0, const int* cells_to_nodes, const double* arr, const int nodal)
 {
   // Only triangles
   double* coords[] = { (double*)nodes_x0, (double*)nodes_y0 };
@@ -380,6 +413,8 @@ void write_unstructured_tris_to_visit(
       ncells*shapesize[0], 0, 0, 0, shapetype, shapesize, shapecounts, nshapes, NULL);
   DBPutUcdmesh(dbfile, "mesh", ndims, NULL, coords, nnodes, 
       ncells, "zonelist", NULL, DB_DOUBLE, NULL);
+  DBPutUcdvar1(dbfile, "arr", "mesh", arr, (nodal ? nnodes : ncells), NULL, 0,
+      DB_DOUBLE, (nodal ? DB_NODECENT : DB_ZONECENT), NULL);
   DBClose(dbfile);
 }
 

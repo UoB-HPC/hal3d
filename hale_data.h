@@ -113,8 +113,8 @@ size_t read_unstructured_mesh(
 
 // Writes out unstructured triangles to visit
 void write_unstructured_tris_to_visit(
-    const int nnodes, const int ncells, const int step, double* nodes_x0, 
-    double* nodes_y0, const int* cells_to_nodes);
+    const int nnodes, int ncells, const int step, double* nodes_x0, 
+    double* nodes_y0, const int* cells_to_nodes, const double* arr, const int nodal);
 
 #endif
 

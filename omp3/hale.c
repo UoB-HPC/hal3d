@@ -93,6 +93,8 @@ void solve_unstructured_hydro_2d(
              cell_centroid_x*node_r_y + node_l_x*cell_centroid_y));
 
 #if 0
+      // TODO: this should be update to fix the issues with hourglassing...
+      
       if(sub_cell_volume <= 0.0) {
         TERMINATE("Encountered cell with unphysical volume %d.", cc);
       }
