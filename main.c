@@ -41,11 +41,12 @@ int main(int argc, char** argv)
 
   UnstructuredMesh unstructured_mesh;
   unstructured_mesh.node_filename = "tri.1.node";
-  unstructured_mesh.node_filename = "tri.1.ele";
-
-  size_t allocated = initialise_unstructured_mesh(&mesh, &unstructured_mesh);
+  unstructured_mesh.ele_filename = "tri.1.ele";
 
 #if 0
+  size_t allocated = initialise_unstructured_mesh(&mesh, &unstructured_mesh);
+#endif // if 0
+
   // Reads an unstructured mesh from an input file
   size_t allocated = read_unstructured_mesh(
       &mesh, &unstructured_mesh);
@@ -53,7 +54,6 @@ int main(int argc, char** argv)
   write_unstructured_tris_to_visit( 
       unstructured_mesh.nnodes, unstructured_mesh.ncells, 0, unstructured_mesh.nodes_x0, 
       unstructured_mesh.nodes_y0, unstructured_mesh.cells_to_nodes);
-#endif // if 0
 
   int nthreads = 0;
 #pragma omp parallel 

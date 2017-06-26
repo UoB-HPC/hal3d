@@ -92,6 +92,12 @@ void solve_unstructured_hydro_2d(
             (node_c_x*node_l_y + node_r_x*node_c_y +
              cell_centroid_x*node_r_y + node_l_x*cell_centroid_y));
 
+#if 0
+      if(sub_cell_volume <= 0.0) {
+        TERMINATE("Encountered cell with unphysical volume %d.", cc);
+      }
+#endif // if 0
+
       // Reduce the total cell volume for later calculation
       cell_volume += sub_cell_volume;
 
@@ -184,23 +190,23 @@ void solve_unstructured_hydro_2d(
       ncells, cells_to_nodes, cells_to_nodes_off, 
       nodes_x1, nodes_y1, energy0, &mesh->dt);
 
-    // Calculate the predicted energy
+  // Calculate the predicted energy
 #pragma omp parallel for
-    for(int cc = 0; cc < ncells; ++cc) {
-      const int nodes_off = cells_to_nodes_off[(cc)];
-      const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
+  for(int cc = 0; cc < ncells; ++cc) {
+    const int nodes_off = cells_to_nodes_off[(cc)];
+    const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
-      // Sum the time centered velocity by the sub-cell forces
-      double force = 0.0;
-      for(int nn = 0; nn < nnodes_around_cell; ++nn) {
-        const int node_index = cells_to_nodes[(nodes_off)+(nn)];
-        force += 
-          (velocity_x1[(node_index)]*cell_force_x[(nodes_off)+(nn)] +
-           velocity_y1[(node_index)]*cell_force_y[(nodes_off)+(nn)]);
-      }
-
-      energy1[(cc)] = energy0[(cc)] - mesh->dt*force/cell_mass[(cc)];
+    // Sum the time centered velocity by the sub-cell forces
+    double force = 0.0;
+    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+      const int node_index = cells_to_nodes[(nodes_off)+(nn)];
+      force += 
+        (velocity_x1[(node_index)]*cell_force_x[(nodes_off)+(nn)] +
+         velocity_y1[(node_index)]*cell_force_y[(nodes_off)+(nn)]);
     }
+
+    energy1[(cc)] = energy0[(cc)] - mesh->dt*force/cell_mass[(cc)];
+  }
 
   // Using the new volume, calculate the predicted density
 #pragma omp parallel for
@@ -353,21 +359,13 @@ void solve_unstructured_hydro_2d(
       velocity_x1, velocity_y1, nodal_soundspeed, nodal_mass,
       nodal_volumes, limiter, node_force_x, node_force_y);
 
-  // Calculate the corrected time centered velocities
-#pragma omp parallel for
-  for(int nn = 0; nn < nnodes; ++nn) {
-    // Calculate the new velocities
-    velocity_x1[(nn)] += mesh->dt*node_force_x[(nn)]/nodal_mass[(nn)];
-    velocity_y1[(nn)] += mesh->dt*node_force_y[(nn)]/nodal_mass[(nn)];
-
-    // Calculate the corrected time centered velocities
-    velocity_x0[(nn)] = 0.5*(velocity_x1[(nn)] + velocity_x0[(nn)]);
-    velocity_y0[(nn)] = 0.5*(velocity_y1[(nn)] + velocity_y0[(nn)]);
-  }
-
   handle_unstructured_reflect(
       nnodes, boundary_index, boundary_type, boundary_normal_x, 
       boundary_normal_y, velocity_x0, velocity_y0);
+
+  update_velocity(
+      nnodes, mesh->dt, node_force_x, node_force_y, nodal_mass, velocity_x0, 
+      velocity_y0, velocity_x1, velocity_y1);
 
   // Calculate the corrected node movements
 #pragma omp parallel for
@@ -380,23 +378,23 @@ void solve_unstructured_hydro_2d(
       ncells, cells_to_nodes, cells_to_nodes_off,
       nodes_x0, nodes_y0, energy1, &mesh->dt);
 
-    // Calculate the final energy
+  // Calculate the final energy
 #pragma omp parallel for
-    for(int cc = 0; cc < ncells; ++cc) {
-      const int nodes_off = cells_to_nodes_off[(cc)];
-      const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
+  for(int cc = 0; cc < ncells; ++cc) {
+    const int nodes_off = cells_to_nodes_off[(cc)];
+    const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
 
-      // Sum the time centered velocity by the sub-cell forces
-      double force = 0.0;
-      for(int nn = 0; nn < nnodes_around_cell; ++nn) {
-        const int node_index = cells_to_nodes[(nodes_off)+(nn)];
-        force += 
-          (velocity_x0[(node_index)]*cell_force_x[(nodes_off)+(nn)] +
-           velocity_y0[(node_index)]*cell_force_y[(nodes_off)+(nn)]);
-      }
-
-      energy0[(cc)] -= mesh->dt*force/cell_mass[(cc)];
+    // Sum the time centered velocity by the sub-cell forces
+    double force = 0.0;
+    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+      const int node_index = cells_to_nodes[(nodes_off)+(nn)];
+      force += 
+        (velocity_x0[(node_index)]*cell_force_x[(nodes_off)+(nn)] +
+         velocity_y0[(node_index)]*cell_force_y[(nodes_off)+(nn)]);
     }
+
+    energy0[(cc)] -= mesh->dt*force/cell_mass[(cc)];
+  }
 
   // Using the new corrected volume, calculate the density
 #pragma omp parallel for
@@ -431,6 +429,7 @@ void calculate_artificial_viscosity(
     const double* nodal_volumes, const double* limiter,
     double* node_force_x, double* node_force_y)
 {
+#pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
@@ -535,6 +534,25 @@ void set_timestep(
 
   *dt = CFL*local_dt;
   printf("Timestep %.8fs\n", *dt);
+}
+
+// Uodates the velocity due to the pressure gradients
+void update_velocity(
+    const int nnodes, const double dt, const double* node_force_x, 
+    const double* node_force_y, const double* nodal_mass, double* velocity_x0, 
+    double* velocity_y0, double* velocity_x1, double* velocity_y1) 
+{
+  // Calculate the corrected time centered velocities
+#pragma omp parallel for
+  for(int nn = 0; nn < nnodes; ++nn) {
+    // Calculate the new velocities
+    velocity_x1[(nn)] += dt*node_force_x[(nn)]/nodal_mass[(nn)];
+    velocity_y1[(nn)] += dt*node_force_y[(nn)]/nodal_mass[(nn)];
+
+    // Calculate the corrected time centered velocities
+    velocity_x0[(nn)] = 0.5*(velocity_x1[(nn)] + velocity_x0[(nn)]);
+    velocity_y0[(nn)] = 0.5*(velocity_y1[(nn)] + velocity_y0[(nn)]);
+  }
 }
 
 #if 0

@@ -199,6 +199,8 @@ size_t read_unstructured_mesh(
   allocated += allocate_data(&unstructured_mesh->cell_centroids_y, unstructured_mesh->ncells);
   allocated += allocate_int_data(&unstructured_mesh->boundary_index, unstructured_mesh->nnodes);
 
+  int nboundary_cells = 0;
+
   // Loop through the node file, storing all of the nodes in our data structure
   while(fgets(temp, MAX_STR_LEN, node_fp)) {
     int index;
@@ -213,8 +215,15 @@ size_t read_unstructured_mesh(
         &unstructured_mesh->nodes_y0[(index)],
         &is_boundary);
 
-    unstructured_mesh->boundary_index[(index)] = (is_boundary) ? 1 : 0;
+    if(is_boundary) {
+      unstructured_mesh->boundary_index[(index)] = 1;
+      nboundary_cells++;
+    }
   }
+
+  int* boundary_edge_list;
+  int boundary_edge_index = 0;
+  allocate_int_data(&boundary_edge_list, nboundary_cells*2);
 
   // Loop through the element file and flatten into data structure
   while(fgets(temp, MAX_STR_LEN, ele_fp)) {
@@ -222,37 +231,68 @@ size_t read_unstructured_mesh(
     sscanf(temp, "%d", &index); 
 
     int discard;
+    int node0;
     int node1;
     int node2;
-    int node3;
-    sscanf(temp, "%d%d%d%d", &discard, &node1, &node2, &node3);
+    sscanf(temp, "%d%d%d%d", &discard, &node0, &node1, &node2);
 
-    unstructured_mesh->cells_to_nodes[(index*unstructured_mesh->nnodes_by_cell)+0] = node1;
-    unstructured_mesh->cells_to_nodes[(index*unstructured_mesh->nnodes_by_cell)+1] = node2;
-    unstructured_mesh->cells_to_nodes[(index*unstructured_mesh->nnodes_by_cell)+2] = node3;
+    unstructured_mesh->cells_to_nodes[(index*unstructured_mesh->nnodes_by_cell)+0] = node0;
+    unstructured_mesh->cells_to_nodes[(index*unstructured_mesh->nnodes_by_cell)+1] = node1;
+    unstructured_mesh->cells_to_nodes[(index*unstructured_mesh->nnodes_by_cell)+2] = node2;
     unstructured_mesh->cells_to_nodes_off[(index+1)] = 
       unstructured_mesh->cells_to_nodes_off[(index)] + unstructured_mesh->nnodes_by_cell;
 
-    if(unstructured_mesh->boundary_index[(node1)] == IS_BOUNDARY ||
-        unstructured_mesh->boundary_index[(node2)] == IS_BOUNDARY ||
-        unstructured_mesh->boundary_index[(node3)] == IS_BOUNDARY) {
-
-      // TODO: need to find neighbour here...
+    // Store edge information about the connected boundary nodes
+    if(unstructured_mesh->boundary_index[node0] == IS_BOUNDARY) {
+      boundary_edge_list[boundary_edge_index++] = node0;
+    }
+    if(unstructured_mesh->boundary_index[node1] == IS_BOUNDARY) {
+      boundary_edge_list[boundary_edge_index++] = node1;
+    }
+    if(unstructured_mesh->boundary_index[node2] == IS_BOUNDARY) {
+      boundary_edge_list[boundary_edge_index++] = node2;
     }
 
     const double A = 
-      (unstructured_mesh->nodes_x0[node1]*unstructured_mesh->nodes_y0[node2]-
+      (unstructured_mesh->nodes_x0[node0]*unstructured_mesh->nodes_y0[node1]-
+       unstructured_mesh->nodes_x0[node1]*unstructured_mesh->nodes_y0[node0]+
+       unstructured_mesh->nodes_x0[node1]*unstructured_mesh->nodes_y0[node2]-
        unstructured_mesh->nodes_x0[node2]*unstructured_mesh->nodes_y0[node1]+
-       unstructured_mesh->nodes_x0[node2]*unstructured_mesh->nodes_y0[node3]-
-       unstructured_mesh->nodes_x0[node3]*unstructured_mesh->nodes_y0[node2]+
-       unstructured_mesh->nodes_x0[node3]*unstructured_mesh->nodes_y0[node1]-
-       unstructured_mesh->nodes_x0[node1]*unstructured_mesh->nodes_y0[node3]);
+       unstructured_mesh->nodes_x0[node2]*unstructured_mesh->nodes_y0[node0]-
+       unstructured_mesh->nodes_x0[node0]*unstructured_mesh->nodes_y0[node2]);
     assert(A > 0.0 && "Nodes are not stored in counter-clockwise order.\n");
   }
 
-  const int nboundary_cells = 0;
   allocated += allocate_data(&unstructured_mesh->boundary_normal_x, nboundary_cells);
   allocated += allocate_data(&unstructured_mesh->boundary_normal_y, nboundary_cells);
+  allocated += allocate_int_data(&unstructured_mesh->boundary_type, nboundary_cells);
+  allocated += allocate_data(&unstructured_mesh->boundary_normal_x, nboundary_cells);
+  allocated += allocate_data(&unstructured_mesh->boundary_normal_y, nboundary_cells);
+
+  // Loop through all of the boundary cells and find their normals
+  for(int bb0 = 0; bb0 < nboundary_cells; ++bb0) {
+    double normal_x = 0.0;
+    double normal_y = 0.0;
+    for(int bb1 = 0; bb1 < nboundary_cells; ++bb1) {
+      const int node0 = boundary_edge_list[bb1*2];
+      const int node1 = boundary_edge_list[bb1*2+1];
+
+      if(node0 == bb0 || node1 == bb0) {
+        const double node0_x = unstructured_mesh->nodes_x0[(node0)];
+        const double node0_y = unstructured_mesh->nodes_y0[(node0)];
+        const double node1_x = unstructured_mesh->nodes_x0[(node1)];
+        const double node1_y = unstructured_mesh->nodes_y0[(node1)];
+
+        unstructured_mesh->boundary_normal_x[bb0] += node1_x-node0_x;
+        unstructured_mesh->boundary_normal_y[bb0] += node1_y-node0_y;
+      }
+    }
+
+    const double normal_mag = sqrt(normal_x*normal_x+normal_y*normal_y);
+    unstructured_mesh->boundary_normal_x[bb0] = normal_x/normal_mag;
+    unstructured_mesh->boundary_normal_y[bb0] = normal_y/normal_mag;
+    unstructured_mesh->boundary_type[bb0] = IS_BOUNDARY;
+  }
 
   return allocated;
 }
@@ -263,6 +303,7 @@ void handle_unstructured_reflect(
     const double* boundary_normal_x, const double* boundary_normal_y, 
     double* velocity_x, double* velocity_y)
 {
+#pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
     const int index = boundary_index[(nn)];
     if(index == IS_INTERIOR_NODE) {

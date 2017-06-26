@@ -11,3 +11,9 @@ void calculate_artificial_viscosity(
     const double* nodal_volumes, const double* limiter,
     double* node_force_x, double* node_force_y);
 
+// Uodates the velocity due to the pressure gradients
+void update_velocity(
+    const int nnodes, const double dt, const double* node_force_x, 
+    const double* node_force_y, const double* nodal_mass, double* velocity_x0, 
+    double* velocity_y0, double* velocity_x1, double* velocity_y1);
+
