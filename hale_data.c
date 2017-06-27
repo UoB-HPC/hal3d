@@ -279,11 +279,16 @@ size_t read_unstructured_mesh(
       nboundary_nodes += (umesh->boundary_index[(node[nn])] != IS_INTERIOR_NODE);
     }
 
-    // Only store edges that are on the boundary
+    // Only store edges that are on the boundary, maintaining the 
+    // counter-clockwise order
     if(nboundary_nodes == 2) {
       for(int nn = 0; nn < umesh->nnodes_by_cell; ++nn) {
-        if(umesh->boundary_index[(node[nn])] != IS_INTERIOR_NODE) {
+        const int next_node_index = (nn+1 == umesh->nnodes_by_cell ? 0 : nn+1);
+        if(umesh->boundary_index[(node[nn])] != IS_INTERIOR_NODE && 
+           umesh->boundary_index[(node[next_node_index])] != IS_INTERIOR_NODE) {
           boundary_edge_list[boundary_edge_index++] = node[nn];
+          boundary_edge_list[boundary_edge_index++] = node[next_node_index];
+          break;
         }
       }
     }
@@ -314,7 +319,6 @@ size_t read_unstructured_mesh(
     double normal_x = 0.0;
     double normal_y = 0.0;
 
-#if 0
     for(int bb1 = 0; bb1 < nboundary_cells; ++bb1) {
       const int node0 = boundary_edge_list[bb1*2];
       const int node1 = boundary_edge_list[bb1*2+1];
@@ -325,36 +329,21 @@ size_t read_unstructured_mesh(
         const double node1_x = umesh->nodes_x0[(node1)];
         const double node1_y = umesh->nodes_y0[(node1)];
 
-        printf("found %.12f %.12f %.12f %.12f\n", node0_x, node0_y, node1_x, node1_y);
-        normal_x += node1_y-node0_y;
-        normal_y += node1_x+node0_x;
+        normal_x += node0_y-node1_y;
+        normal_y += -(node0_x-node1_x);
       }
     }
-#endif // if 0
 
-    // TODO: REMOVE THIS HACK
-    if(umesh->nodes_x0[(nn)] == 0.0) {
-      normal_x = 1.0;
-    }
-    else if(umesh->nodes_x0[(nn)] == 1.0) {
-      normal_x = -1.0;
-    }
-
-    if(umesh->nodes_y0[(nn)] == 0.0) {
-      normal_y = 1.0;
-    }
-    else if(umesh->nodes_y0[(nn)] == 1.0) {
-      normal_y = -1.0;
-    }
-
-    const double normal_mag = sqrt(normal_x*normal_x+normal_y*normal_y);
-    if(normal_mag > 1.0) {
+    // We are fixed if we are one of the four corners
+    if((umesh->nodes_x0[(nn)] == 0.0 || umesh->nodes_x0[(nn)] == 1.0) &&
+        (umesh->nodes_y0[(nn)] == 0.0 || umesh->nodes_y0[(nn)] == 1.0)) {
       umesh->boundary_type[(boundary_index)] = IS_FIXED;
     }
     else {
       umesh->boundary_type[(boundary_index)] = IS_BOUNDARY;
     }
 
+    const double normal_mag = sqrt(normal_x*normal_x+normal_y*normal_y);
     umesh->boundary_normal_x[(boundary_index)] = normal_x/normal_mag;
     umesh->boundary_normal_y[(boundary_index)] = normal_y/normal_mag;
   }
