@@ -12,27 +12,25 @@ size_t initialise_hale_data_2d(
     const int local_nx, const int local_ny, HaleData* hale_data, 
     UnstructuredMesh* umesh)
 {
-  size_t allocated = allocate_data(&hale_data->energy0, (local_nx)*(local_ny));
-  allocated += allocate_data(&hale_data->density0, (local_nx)*(local_ny));
-  allocated += allocate_data(&hale_data->pressure0, (local_nx)*(local_ny));
-  allocated += allocate_data(&hale_data->velocity_x0, (local_nx+1)*(local_ny+1));
-  allocated += allocate_data(&hale_data->velocity_y0, (local_nx+1)*(local_ny+1));
-  allocated += allocate_data(&hale_data->energy1, (local_nx)*(local_ny));
-  allocated += allocate_data(&hale_data->density1, (local_nx)*(local_ny));
-  allocated += allocate_data(&hale_data->pressure1, (local_nx)*(local_ny));
-  allocated += allocate_data(&hale_data->velocity_x1, (local_nx+1)*(local_ny+1));
-  allocated += allocate_data(&hale_data->velocity_y1, (local_nx+1)*(local_ny+1));
-  allocated += allocate_data(&hale_data->cell_force_x, 
-      (local_nx)*(local_ny)*umesh->nnodes_by_cell);
-  allocated += allocate_data(&hale_data->cell_force_y, 
-      (local_nx)*(local_ny)*umesh->nnodes_by_cell);
-  allocated += allocate_data(&hale_data->node_force_x, (local_nx+1)*(local_ny+1));
-  allocated += allocate_data(&hale_data->node_force_y, (local_nx+1)*(local_ny+1));
-  allocated += allocate_data(&hale_data->cell_mass, (local_nx)*(local_ny));
-  allocated += allocate_data(&hale_data->nodal_mass, (local_nx+1)*(local_ny+1));
-  allocated += allocate_data(&hale_data->nodal_volumes, (local_nx+1)*(local_ny+1));
-  allocated += allocate_data(&hale_data->nodal_soundspeed, (local_nx+1)*(local_ny+1));
-  allocated += allocate_data(&hale_data->limiter, (local_nx+1)*(local_ny+1));
+  size_t allocated = allocate_data(&hale_data->energy0, umesh->ncells);
+  allocated += allocate_data(&hale_data->density0, umesh->ncells);
+  allocated += allocate_data(&hale_data->pressure0, umesh->ncells);
+  allocated += allocate_data(&hale_data->velocity_x0, umesh->nnodes);
+  allocated += allocate_data(&hale_data->velocity_y0, umesh->nnodes);
+  allocated += allocate_data(&hale_data->energy1, umesh->ncells);
+  allocated += allocate_data(&hale_data->density1, umesh->ncells);
+  allocated += allocate_data(&hale_data->pressure1, umesh->ncells);
+  allocated += allocate_data(&hale_data->velocity_x1, umesh->nnodes);
+  allocated += allocate_data(&hale_data->velocity_y1, umesh->nnodes);
+  allocated += allocate_data(&hale_data->cell_force_x, umesh->ncells*umesh->nnodes_by_cell);
+  allocated += allocate_data(&hale_data->cell_force_y, umesh->ncells*umesh->nnodes_by_cell);
+  allocated += allocate_data(&hale_data->node_force_x, umesh->nnodes);
+  allocated += allocate_data(&hale_data->node_force_y, umesh->nnodes);
+  allocated += allocate_data(&hale_data->cell_mass, umesh->ncells);
+  allocated += allocate_data(&hale_data->nodal_mass, umesh->nnodes);
+  allocated += allocate_data(&hale_data->nodal_volumes, umesh->nnodes);
+  allocated += allocate_data(&hale_data->nodal_soundspeed, umesh->nnodes);
+  allocated += allocate_data(&hale_data->limiter, umesh->nnodes);
 
   // Set the density and the energy for all of the relevant cells
   for(int cc = 0; cc < umesh->ncells; ++cc) {
@@ -194,7 +192,7 @@ size_t initialise_unstructured_mesh(
 size_t read_unstructured_mesh(
     Mesh* mesh, UnstructuredMesh* umesh)
 {
-  // Just setting all cells to have same number of nodes
+  // TODO: MAKE THIS GENERAL
   umesh->nnodes_by_cell = 3;
   umesh->ncells_by_node = 3;
 
@@ -256,7 +254,10 @@ size_t read_unstructured_mesh(
 
   int* boundary_edge_list;
   int boundary_edge_index = 0;
-  allocate_int_data(&boundary_edge_list, nboundary_cells*2);
+  allocated += allocate_int_data(&boundary_edge_list, nboundary_cells*2);
+  allocated += allocate_data(&umesh->boundary_normal_x, nboundary_cells);
+  allocated += allocate_data(&umesh->boundary_normal_y, nboundary_cells);
+  allocated += allocate_int_data(&umesh->boundary_type, nboundary_cells);
 
   // Loop through the element file and flatten into data structure
   while(fgets(temp, MAX_STR_LEN, ele_fp)) {
@@ -304,17 +305,12 @@ size_t read_unstructured_mesh(
     assert(A > 0.0 && "Nodes are not stored in counter-clockwise order.\n");
   }
 
-  allocated += allocate_data(&umesh->boundary_normal_x, nboundary_cells);
-  allocated += allocate_data(&umesh->boundary_normal_y, nboundary_cells);
-  allocated += allocate_int_data(&umesh->boundary_type, nboundary_cells);
-
   // Loop through all of the boundary cells and find their normals
   for(int nn = 0; nn < umesh->nnodes; ++nn) {
-    if(umesh->boundary_index[(nn)] == IS_INTERIOR_NODE) {
+    const int boundary_index = umesh->boundary_index[(nn)];
+    if(boundary_index == IS_INTERIOR_NODE) {
       continue;
     }
-
-    const int boundary_index = umesh->boundary_index[(nn)];
 
     double normal_x = 0.0;
     double normal_y = 0.0;
@@ -412,15 +408,16 @@ void write_quad_data_to_visit(
 }
 
 // Writes out unstructured triangles to visit
-void write_unstructured_tris_to_visit(
+void write_unstructured_to_visit(
     const int nnodes, int ncells, const int step, double* nodes_x0, 
-    double* nodes_y0, const int* cells_to_nodes, const double* arr, const int nodal)
+    double* nodes_y0, const int* cells_to_nodes, const double* arr, 
+    const int nodal, const int quads)
 {
   // Only triangles
   double* coords[] = { (double*)nodes_x0, (double*)nodes_y0 };
-  int shapesize[] = { 3 };
+  int shapesize[] = { (quads ? 4 : 3) };
   int shapecounts[] = { ncells };
-  int shapetype[] = { DB_ZONETYPE_TRIANGLE };
+  int shapetype[] = { (quads ? DB_ZONETYPE_QUAD : DB_ZONETYPE_TRIANGLE) };
   int ndims = 2;
   int nshapes = 1;
 

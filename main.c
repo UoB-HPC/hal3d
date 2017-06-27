@@ -46,12 +46,12 @@ int main(int argc, char** argv)
   umesh.ele_filename = "tri.1.ele";
 
 #if 0
+  // Initialises a quad mesh from the input file
   size_t allocated = initialise_unstructured_mesh(&mesh, &umesh);
 #endif // if 0
 
   // Reads an unstructured mesh from an input file
-  size_t allocated = read_unstructured_mesh(
-      &mesh, &umesh);
+  size_t allocated = read_unstructured_mesh(&mesh, &umesh);
 
   int nthreads = 0;
 #pragma omp parallel 
@@ -71,9 +71,12 @@ int main(int argc, char** argv)
       mesh.local_nx, mesh.local_ny, &hale_data, &umesh);
   printf("Allocated %.3fGB bytes of data\n", allocated/(double)GB);
 
-  write_unstructured_tris_to_visit( 
-      umesh.nnodes, umesh.ncells, 0, umesh.nodes_x0, 
-      umesh.nodes_y0, umesh.cells_to_nodes, hale_data.density0, 0);
+  if(visit_dump) {
+    write_unstructured_to_visit( 
+        umesh.nnodes, umesh.ncells, 0, umesh.nodes_x0, 
+        umesh.nodes_y0, umesh.cells_to_nodes, hale_data.density0, 0, 
+        umesh.nnodes_by_cell == 4);
+  }
 
   // Prepare for solve
   double wallclock = 0.0;
@@ -125,9 +128,10 @@ int main(int argc, char** argv)
     }
 
     if(visit_dump) {
-      write_unstructured_tris_to_visit( 
-          umesh.nnodes, umesh.ncells, tt, umesh.nodes_x0, 
-          umesh.nodes_y0, umesh.cells_to_nodes, hale_data.density0, 0);
+      write_unstructured_to_visit( 
+          umesh.nnodes, umesh.ncells, tt+1, umesh.nodes_x0, 
+          umesh.nodes_y0, umesh.cells_to_nodes, hale_data.density0, 0, 
+          umesh.nnodes_by_cell == 4);
     }
   }
 
