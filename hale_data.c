@@ -10,7 +10,7 @@
 // Initialises the shared_data variables for two dimensional applications
 size_t initialise_hale_data_2d(
     const int local_nx, const int local_ny, HaleData* hale_data, 
-    UnstructuredMesh* unstructured_mesh)
+    UnstructuredMesh* umesh)
 {
   size_t allocated = allocate_data(&hale_data->energy0, (local_nx)*(local_ny));
   allocated += allocate_data(&hale_data->density0, (local_nx)*(local_ny));
@@ -23,9 +23,9 @@ size_t initialise_hale_data_2d(
   allocated += allocate_data(&hale_data->velocity_x1, (local_nx+1)*(local_ny+1));
   allocated += allocate_data(&hale_data->velocity_y1, (local_nx+1)*(local_ny+1));
   allocated += allocate_data(&hale_data->cell_force_x, 
-      (local_nx)*(local_ny)*unstructured_mesh->nnodes_by_cell);
+      (local_nx)*(local_ny)*umesh->nnodes_by_cell);
   allocated += allocate_data(&hale_data->cell_force_y, 
-      (local_nx)*(local_ny)*unstructured_mesh->nnodes_by_cell);
+      (local_nx)*(local_ny)*umesh->nnodes_by_cell);
   allocated += allocate_data(&hale_data->node_force_x, (local_nx+1)*(local_ny+1));
   allocated += allocate_data(&hale_data->node_force_y, (local_nx+1)*(local_ny+1));
   allocated += allocate_data(&hale_data->cell_mass, (local_nx)*(local_ny));
@@ -35,17 +35,17 @@ size_t initialise_hale_data_2d(
   allocated += allocate_data(&hale_data->limiter, (local_nx+1)*(local_ny+1));
 
   // Set the density and the energy for all of the relevant cells
-  for(int cc = 0; cc < unstructured_mesh->ncells; ++cc) {
-    const int nodes_off = unstructured_mesh->cells_to_nodes_off[(cc)];
-    const int nnodes_around_cell = unstructured_mesh->cells_to_nodes_off[(cc+1)]-nodes_off;
+  for(int cc = 0; cc < umesh->ncells; ++cc) {
+    const int nodes_off = umesh->cells_to_nodes_off[(cc)];
+    const int nnodes_around_cell = umesh->cells_to_nodes_off[(cc+1)]-nodes_off;
     const double inv_Np = 1.0/(double)nnodes_around_cell;
 
     double cell_centroids_x = 0.0;
     double cell_centroids_y = 0.0;
     for(int nn = 0; nn < nnodes_around_cell; ++nn) {
-      const int node_index = unstructured_mesh->cells_to_nodes[(nodes_off)+(nn)];
-      cell_centroids_x += unstructured_mesh->nodes_x0[node_index]*inv_Np;
-      cell_centroids_y += unstructured_mesh->nodes_y0[node_index]*inv_Np;
+      const int node_index = umesh->cells_to_nodes[(nodes_off)+(nn)];
+      cell_centroids_x += umesh->nodes_x0[node_index]*inv_Np;
+      cell_centroids_y += umesh->nodes_y0[node_index]*inv_Np;
     }
 
     if(sqrt(cell_centroids_x*cell_centroids_x+cell_centroids_y*cell_centroids_y) > 0.5) {
@@ -82,7 +82,7 @@ void deallocate_hale_data(
 
 // Builds an unstructured mesh with an nx by ny rectilinear layout
 size_t initialise_unstructured_mesh(
-    Mesh* mesh, UnstructuredMesh* unstructured_mesh)
+    Mesh* mesh, UnstructuredMesh* umesh)
 {
   // Just setting all cells to have same number of nodes
   const int nx = mesh->local_nx;
@@ -91,26 +91,26 @@ size_t initialise_unstructured_mesh(
   const int global_ny = mesh->global_nx;
   const double width = mesh->width;
   const double height = mesh->height;
-  unstructured_mesh->nnodes_by_cell = 4;
-  unstructured_mesh->ncells_by_node = 4;
-  unstructured_mesh->ncells = nx*ny;
-  unstructured_mesh->nnodes = (nx+1)*(nx+1);
+  umesh->nnodes_by_cell = 4;
+  umesh->ncells_by_node = 4;
+  umesh->ncells = nx*ny;
+  umesh->nnodes = (nx+1)*(nx+1);
 
   const int nboundary_cells = 2*(nx+ny);
 
-  size_t allocated = allocate_data(&unstructured_mesh->nodes_x0, unstructured_mesh->nnodes);
-  allocated += allocate_data(&unstructured_mesh->nodes_y0, unstructured_mesh->nnodes);
-  allocated += allocate_data(&unstructured_mesh->nodes_x1, unstructured_mesh->nnodes);
-  allocated += allocate_data(&unstructured_mesh->nodes_y1, unstructured_mesh->nnodes);
-  allocated += allocate_int_data(&unstructured_mesh->cells_to_nodes, 
-      unstructured_mesh->ncells*unstructured_mesh->nnodes_by_cell);
-  allocated += allocate_int_data(&unstructured_mesh->cells_to_nodes_off, unstructured_mesh->ncells+1);
-  allocated += allocate_data(&unstructured_mesh->cell_centroids_x, unstructured_mesh->ncells);
-  allocated += allocate_data(&unstructured_mesh->cell_centroids_y, unstructured_mesh->ncells);
-  allocated += allocate_int_data(&unstructured_mesh->boundary_index, unstructured_mesh->nnodes);
-  allocated += allocate_data(&unstructured_mesh->boundary_normal_x, nboundary_cells);
-  allocated += allocate_data(&unstructured_mesh->boundary_normal_y, nboundary_cells);
-  allocated += allocate_int_data(&unstructured_mesh->boundary_type, nboundary_cells);
+  size_t allocated = allocate_data(&umesh->nodes_x0, umesh->nnodes);
+  allocated += allocate_data(&umesh->nodes_y0, umesh->nnodes);
+  allocated += allocate_data(&umesh->nodes_x1, umesh->nnodes);
+  allocated += allocate_data(&umesh->nodes_y1, umesh->nnodes);
+  allocated += allocate_int_data(&umesh->cells_to_nodes, 
+      umesh->ncells*umesh->nnodes_by_cell);
+  allocated += allocate_int_data(&umesh->cells_to_nodes_off, umesh->ncells+1);
+  allocated += allocate_data(&umesh->cell_centroids_x, umesh->ncells);
+  allocated += allocate_data(&umesh->cell_centroids_y, umesh->ncells);
+  allocated += allocate_int_data(&umesh->boundary_index, umesh->nnodes);
+  allocated += allocate_data(&umesh->boundary_normal_x, nboundary_cells);
+  allocated += allocate_data(&umesh->boundary_normal_y, nboundary_cells);
+  allocated += allocate_int_data(&umesh->boundary_type, nboundary_cells);
 
   // Construct the list of nodes contiguously, currently Cartesian
   for(int ii = 0; ii < (ny+1); ++ii) {
@@ -118,21 +118,21 @@ size_t initialise_unstructured_mesh(
       const int index = (ii)*(nx+1)+(jj);
       const double cell_width = (width/(double)global_nx);
       const double cell_height = (height/(double)global_ny);
-      unstructured_mesh->nodes_x0[index] = (double)((jj)-mesh->pad)*cell_width;
-      unstructured_mesh->nodes_y0[index] = (double)((ii)-mesh->pad)*cell_height;
+      umesh->nodes_x0[index] = (double)((jj)-mesh->pad)*cell_width;
+      umesh->nodes_y0[index] = (double)((ii)-mesh->pad)*cell_height;
     }
   }
 
   for(int ii = 0; ii < ny; ++ii) {
     for(int jj = 0; jj < nx; ++jj) {
-      const int offset = unstructured_mesh->cells_to_nodes_off[(ii)*nx+(jj)];
-      unstructured_mesh->cells_to_nodes[(offset)+0] = (ii)*(nx+1)+(jj);
-      unstructured_mesh->cells_to_nodes[(offset)+1] = (ii)*(nx+1)+(jj+1);
-      unstructured_mesh->cells_to_nodes[(offset)+2] = (ii+1)*(nx+1)+(jj+1);
-      unstructured_mesh->cells_to_nodes[(offset)+3] = (ii+1)*(nx+1)+(jj);
-      unstructured_mesh->cells_to_nodes_off[(ii)*nx+(jj)+1] = 
-        unstructured_mesh->cells_to_nodes_off[(ii)*nx+(jj)] +
-        unstructured_mesh->nnodes_by_cell;
+      const int offset = umesh->cells_to_nodes_off[(ii)*nx+(jj)];
+      umesh->cells_to_nodes[(offset)+0] = (ii)*(nx+1)+(jj);
+      umesh->cells_to_nodes[(offset)+1] = (ii)*(nx+1)+(jj+1);
+      umesh->cells_to_nodes[(offset)+2] = (ii+1)*(nx+1)+(jj+1);
+      umesh->cells_to_nodes[(offset)+3] = (ii+1)*(nx+1)+(jj);
+      umesh->cells_to_nodes_off[(ii)*nx+(jj)+1] = 
+        umesh->cells_to_nodes_off[(ii)*nx+(jj)] +
+        umesh->nnodes_by_cell;
     }
   }
 
@@ -142,47 +142,47 @@ size_t initialise_unstructured_mesh(
   int index = 0;
   for(int ii = 0; ii < (ny+1); ++ii) {
     for(int jj = 0; jj < (nx+1); ++jj) {
-      unstructured_mesh->boundary_index[(ii)*(nx+1)+(jj)] = IS_INTERIOR_NODE;
+      umesh->boundary_index[(ii)*(nx+1)+(jj)] = IS_INTERIOR_NODE;
 
       if(ii == 0) { 
         if(jj == 0) { 
-          unstructured_mesh->boundary_type[(index)] = IS_FIXED;
+          umesh->boundary_type[(index)] = IS_FIXED;
         }
         else if(jj == (nx+1)-1) {
-          unstructured_mesh->boundary_type[(index)] = IS_FIXED;
+          umesh->boundary_type[(index)] = IS_FIXED;
         }
         else {
-          unstructured_mesh->boundary_type[(index)] = IS_BOUNDARY;
-          unstructured_mesh->boundary_normal_x[(index)] = 0.0;
-          unstructured_mesh->boundary_normal_y[(index)] = 1.0;
+          umesh->boundary_type[(index)] = IS_BOUNDARY;
+          umesh->boundary_normal_x[(index)] = 0.0;
+          umesh->boundary_normal_y[(index)] = 1.0;
         }
-        unstructured_mesh->boundary_index[(ii)*(nx+1)+(jj)] = index++;
+        umesh->boundary_index[(ii)*(nx+1)+(jj)] = index++;
       }
       else if(ii == (ny+1)-1) {
         if(jj == 0) { 
-          unstructured_mesh->boundary_type[(index)] = IS_FIXED;
+          umesh->boundary_type[(index)] = IS_FIXED;
         }
         else if(jj == (nx+1)-1) {
-          unstructured_mesh->boundary_type[(index)] = IS_FIXED;
+          umesh->boundary_type[(index)] = IS_FIXED;
         }
         else {
-          unstructured_mesh->boundary_type[(index)] = IS_BOUNDARY;
-          unstructured_mesh->boundary_normal_x[(index)] = 0.0;
-          unstructured_mesh->boundary_normal_y[(index)] = -1.0;
+          umesh->boundary_type[(index)] = IS_BOUNDARY;
+          umesh->boundary_normal_x[(index)] = 0.0;
+          umesh->boundary_normal_y[(index)] = -1.0;
         }
-        unstructured_mesh->boundary_index[(ii)*(nx+1)+(jj)] = index++;
+        umesh->boundary_index[(ii)*(nx+1)+(jj)] = index++;
       } 
       else if(jj == 0) { 
-        unstructured_mesh->boundary_type[(index)] = IS_BOUNDARY;
-        unstructured_mesh->boundary_normal_x[(index)] = 1.0;
-        unstructured_mesh->boundary_normal_y[(index)] = 0.0;
-        unstructured_mesh->boundary_index[(ii)*(nx+1)+(jj)] = index++;
+        umesh->boundary_type[(index)] = IS_BOUNDARY;
+        umesh->boundary_normal_x[(index)] = 1.0;
+        umesh->boundary_normal_y[(index)] = 0.0;
+        umesh->boundary_index[(ii)*(nx+1)+(jj)] = index++;
       }
       else if(jj == (nx+1)-1) {
-        unstructured_mesh->boundary_type[(index)] = IS_BOUNDARY;
-        unstructured_mesh->boundary_normal_x[(index)] = -1.0;
-        unstructured_mesh->boundary_normal_y[(index)] = 0.0;
-        unstructured_mesh->boundary_index[(ii)*(nx+1)+(jj)] = index++;
+        umesh->boundary_type[(index)] = IS_BOUNDARY;
+        umesh->boundary_normal_x[(index)] = -1.0;
+        umesh->boundary_normal_y[(index)] = 0.0;
+        umesh->boundary_index[(ii)*(nx+1)+(jj)] = index++;
       }
     }
   }
@@ -192,20 +192,20 @@ size_t initialise_unstructured_mesh(
 
 // Reads an unstructured mesh from an input file
 size_t read_unstructured_mesh(
-    Mesh* mesh, UnstructuredMesh* unstructured_mesh)
+    Mesh* mesh, UnstructuredMesh* umesh)
 {
   // Just setting all cells to have same number of nodes
-  unstructured_mesh->nnodes_by_cell = 3;
-  unstructured_mesh->ncells_by_node = 3;
+  umesh->nnodes_by_cell = 3;
+  umesh->ncells_by_node = 3;
 
   // Open the files
-  FILE* node_fp = fopen(unstructured_mesh->node_filename, "r");
-  FILE* ele_fp = fopen(unstructured_mesh->ele_filename, "r");
+  FILE* node_fp = fopen(umesh->node_filename, "r");
+  FILE* ele_fp = fopen(umesh->ele_filename, "r");
   if(!node_fp) {
-    TERMINATE("Could not open the parameter file: %s.\n", unstructured_mesh->node_filename);
+    TERMINATE("Could not open the parameter file: %s.\n", umesh->node_filename);
   }
   if(!ele_fp) {
-    TERMINATE("Could not open the parameter file: %s.\n", unstructured_mesh->ele_filename);
+    TERMINATE("Could not open the parameter file: %s.\n", umesh->ele_filename);
   }
 
   // Fetch the first line of the nodes file
@@ -215,24 +215,24 @@ size_t read_unstructured_mesh(
   // Read the number of nodes, for allocation
   fgets(temp, MAX_STR_LEN, node_fp);
   skip_whitespace(&temp);
-  sscanf(temp, "%d", &unstructured_mesh->nnodes);
+  sscanf(temp, "%d", &umesh->nnodes);
 
   // Read the number of cells
   fgets(temp, MAX_STR_LEN, ele_fp);
   skip_whitespace(&temp);
-  sscanf(temp, "%d", &unstructured_mesh->ncells);
+  sscanf(temp, "%d", &umesh->ncells);
 
   // Allocate the data structures that we now know the sizes of
-  size_t allocated = allocate_data(&unstructured_mesh->nodes_x0, unstructured_mesh->nnodes);
-  allocated += allocate_data(&unstructured_mesh->nodes_y0, unstructured_mesh->nnodes);
-  allocated += allocate_data(&unstructured_mesh->nodes_x1, unstructured_mesh->nnodes);
-  allocated += allocate_data(&unstructured_mesh->nodes_y1, unstructured_mesh->nnodes);
-  allocated += allocate_int_data(&unstructured_mesh->cells_to_nodes, 
-      unstructured_mesh->ncells*unstructured_mesh->nnodes_by_cell);
-  allocated += allocate_int_data(&unstructured_mesh->cells_to_nodes_off, unstructured_mesh->ncells+1);
-  allocated += allocate_data(&unstructured_mesh->cell_centroids_x, unstructured_mesh->ncells);
-  allocated += allocate_data(&unstructured_mesh->cell_centroids_y, unstructured_mesh->ncells);
-  allocated += allocate_int_data(&unstructured_mesh->boundary_index, unstructured_mesh->nnodes);
+  size_t allocated = allocate_data(&umesh->nodes_x0, umesh->nnodes);
+  allocated += allocate_data(&umesh->nodes_y0, umesh->nnodes);
+  allocated += allocate_data(&umesh->nodes_x1, umesh->nnodes);
+  allocated += allocate_data(&umesh->nodes_y1, umesh->nnodes);
+  allocated += allocate_int_data(&umesh->cells_to_nodes, 
+      umesh->ncells*umesh->nnodes_by_cell);
+  allocated += allocate_int_data(&umesh->cells_to_nodes_off, umesh->ncells+1);
+  allocated += allocate_data(&umesh->cell_centroids_x, umesh->ncells);
+  allocated += allocate_data(&umesh->cell_centroids_y, umesh->ncells);
+  allocated += allocate_int_data(&umesh->boundary_index, umesh->nnodes);
 
   int nboundary_cells = 0;
 
@@ -246,11 +246,11 @@ size_t read_unstructured_mesh(
     int discard;
     sscanf(temp, "%d%lf%lf%d", 
         &discard, 
-        &unstructured_mesh->nodes_x0[(index)], 
-        &unstructured_mesh->nodes_y0[(index)],
+        &umesh->nodes_x0[(index)], 
+        &umesh->nodes_y0[(index)],
         &is_boundary);
 
-    unstructured_mesh->boundary_index[(index)] = 
+    umesh->boundary_index[(index)] = 
       (is_boundary) ? nboundary_cells++ : IS_INTERIOR_NODE;
   }
 
@@ -264,25 +264,25 @@ size_t read_unstructured_mesh(
     sscanf(temp, "%d", &index); 
 
     int discard;
-    int node[unstructured_mesh->nnodes_by_cell];
+    int node[umesh->nnodes_by_cell];
     sscanf(temp, "%d%d%d%d", &discard, &node[0], &node[1], &node[2]);
 
-    unstructured_mesh->cells_to_nodes[(index*unstructured_mesh->nnodes_by_cell)+0] = node[0];
-    unstructured_mesh->cells_to_nodes[(index*unstructured_mesh->nnodes_by_cell)+1] = node[1];
-    unstructured_mesh->cells_to_nodes[(index*unstructured_mesh->nnodes_by_cell)+2] = node[2];
-    unstructured_mesh->cells_to_nodes_off[(index+1)] = 
-      unstructured_mesh->cells_to_nodes_off[(index)] + unstructured_mesh->nnodes_by_cell;
+    umesh->cells_to_nodes[(index*umesh->nnodes_by_cell)+0] = node[0];
+    umesh->cells_to_nodes[(index*umesh->nnodes_by_cell)+1] = node[1];
+    umesh->cells_to_nodes[(index*umesh->nnodes_by_cell)+2] = node[2];
+    umesh->cells_to_nodes_off[(index+1)] = 
+      umesh->cells_to_nodes_off[(index)] + umesh->nnodes_by_cell;
 
     // Determine whether this cell touches a boundary edge
     int nboundary_nodes = 0;
-    for(int nn = 0; nn < unstructured_mesh->nnodes_by_cell; ++nn) {
-      nboundary_nodes += (unstructured_mesh->boundary_index[(node[nn])] != IS_INTERIOR_NODE);
+    for(int nn = 0; nn < umesh->nnodes_by_cell; ++nn) {
+      nboundary_nodes += (umesh->boundary_index[(node[nn])] != IS_INTERIOR_NODE);
     }
 
     // Only store edges that are on the boundary
     if(nboundary_nodes == 2) {
-      for(int nn = 0; nn < unstructured_mesh->nnodes_by_cell; ++nn) {
-        if(unstructured_mesh->boundary_index[(node[nn])] != IS_INTERIOR_NODE) {
+      for(int nn = 0; nn < umesh->nnodes_by_cell; ++nn) {
+        if(umesh->boundary_index[(node[nn])] != IS_INTERIOR_NODE) {
           boundary_edge_list[boundary_edge_index++] = node[nn];
         }
       }
@@ -290,26 +290,26 @@ size_t read_unstructured_mesh(
 
     // TODO: change to loop
     const double A = 
-      (unstructured_mesh->nodes_x0[node[0]]*unstructured_mesh->nodes_y0[node[1]]-
-       unstructured_mesh->nodes_x0[node[1]]*unstructured_mesh->nodes_y0[node[0]]+
-       unstructured_mesh->nodes_x0[node[1]]*unstructured_mesh->nodes_y0[node[2]]-
-       unstructured_mesh->nodes_x0[node[2]]*unstructured_mesh->nodes_y0[node[1]]+
-       unstructured_mesh->nodes_x0[node[2]]*unstructured_mesh->nodes_y0[node[0]]-
-       unstructured_mesh->nodes_x0[node[0]]*unstructured_mesh->nodes_y0[node[2]]);
+      (umesh->nodes_x0[node[0]]*umesh->nodes_y0[node[1]]-
+       umesh->nodes_x0[node[1]]*umesh->nodes_y0[node[0]]+
+       umesh->nodes_x0[node[1]]*umesh->nodes_y0[node[2]]-
+       umesh->nodes_x0[node[2]]*umesh->nodes_y0[node[1]]+
+       umesh->nodes_x0[node[2]]*umesh->nodes_y0[node[0]]-
+       umesh->nodes_x0[node[0]]*umesh->nodes_y0[node[2]]);
     assert(A > 0.0 && "Nodes are not stored in counter-clockwise order.\n");
   }
 
-  allocated += allocate_data(&unstructured_mesh->boundary_normal_x, nboundary_cells);
-  allocated += allocate_data(&unstructured_mesh->boundary_normal_y, nboundary_cells);
-  allocated += allocate_int_data(&unstructured_mesh->boundary_type, nboundary_cells);
+  allocated += allocate_data(&umesh->boundary_normal_x, nboundary_cells);
+  allocated += allocate_data(&umesh->boundary_normal_y, nboundary_cells);
+  allocated += allocate_int_data(&umesh->boundary_type, nboundary_cells);
 
   // Loop through all of the boundary cells and find their normals
-  for(int nn = 0; nn < unstructured_mesh->nnodes; ++nn) {
-    if(unstructured_mesh->boundary_index[(nn)] == IS_INTERIOR_NODE) {
+  for(int nn = 0; nn < umesh->nnodes; ++nn) {
+    if(umesh->boundary_index[(nn)] == IS_INTERIOR_NODE) {
       continue;
     }
 
-    const int boundary_index = unstructured_mesh->boundary_index[(nn)];
+    const int boundary_index = umesh->boundary_index[(nn)];
 
     double normal_x = 0.0;
     double normal_y = 0.0;
@@ -320,10 +320,10 @@ size_t read_unstructured_mesh(
       const int node1 = boundary_edge_list[bb1*2+1];
 
       if(node0 == nn || node1 == nn) {
-        const double node0_x = unstructured_mesh->nodes_x0[(node0)];
-        const double node0_y = unstructured_mesh->nodes_y0[(node0)];
-        const double node1_x = unstructured_mesh->nodes_x0[(node1)];
-        const double node1_y = unstructured_mesh->nodes_y0[(node1)];
+        const double node0_x = umesh->nodes_x0[(node0)];
+        const double node0_y = umesh->nodes_y0[(node0)];
+        const double node1_x = umesh->nodes_x0[(node1)];
+        const double node1_y = umesh->nodes_y0[(node1)];
 
         printf("found %.12f %.12f %.12f %.12f\n", node0_x, node0_y, node1_x, node1_y);
         normal_x += node1_y-node0_y;
@@ -333,30 +333,30 @@ size_t read_unstructured_mesh(
 #endif // if 0
 
     // TODO: REMOVE THIS HACK
-    if(unstructured_mesh->nodes_x0[(nn)] == 0.0) {
+    if(umesh->nodes_x0[(nn)] == 0.0) {
       normal_x = 1.0;
     }
-    else if(unstructured_mesh->nodes_x0[(nn)] == 1.0) {
+    else if(umesh->nodes_x0[(nn)] == 1.0) {
       normal_x = -1.0;
     }
 
-    if(unstructured_mesh->nodes_y0[(nn)] == 0.0) {
+    if(umesh->nodes_y0[(nn)] == 0.0) {
       normal_y = 1.0;
     }
-    else if(unstructured_mesh->nodes_y0[(nn)] == 1.0) {
+    else if(umesh->nodes_y0[(nn)] == 1.0) {
       normal_y = -1.0;
     }
 
     const double normal_mag = sqrt(normal_x*normal_x+normal_y*normal_y);
     if(normal_mag > 1.0) {
-      unstructured_mesh->boundary_type[(boundary_index)] = IS_FIXED;
+      umesh->boundary_type[(boundary_index)] = IS_FIXED;
     }
     else {
-      unstructured_mesh->boundary_type[(boundary_index)] = IS_BOUNDARY;
+      umesh->boundary_type[(boundary_index)] = IS_BOUNDARY;
     }
 
-    unstructured_mesh->boundary_normal_x[(boundary_index)] = normal_x/normal_mag;
-    unstructured_mesh->boundary_normal_y[(boundary_index)] = normal_y/normal_mag;
+    umesh->boundary_normal_x[(boundary_index)] = normal_x/normal_mag;
+    umesh->boundary_normal_y[(boundary_index)] = normal_y/normal_mag;
   }
 
   return allocated;

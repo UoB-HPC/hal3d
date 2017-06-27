@@ -41,17 +41,17 @@ int main(int argc, char** argv)
   initialise_devices(mesh.rank);
   initialise_mesh_2d(&mesh);
 
-  UnstructuredMesh unstructured_mesh;
-  unstructured_mesh.node_filename = "tri.1.node";
-  unstructured_mesh.ele_filename = "tri.1.ele";
+  UnstructuredMesh umesh;
+  umesh.node_filename = "tri.1.node";
+  umesh.ele_filename = "tri.1.ele";
 
 #if 0
-  size_t allocated = initialise_unstructured_mesh(&mesh, &unstructured_mesh);
+  size_t allocated = initialise_unstructured_mesh(&mesh, &umesh);
 #endif // if 0
 
   // Reads an unstructured mesh from an input file
   size_t allocated = read_unstructured_mesh(
-      &mesh, &unstructured_mesh);
+      &mesh, &umesh);
 
   int nthreads = 0;
 #pragma omp parallel 
@@ -74,12 +74,12 @@ int main(int argc, char** argv)
 
   HaleData hale_data = {0};
   allocated += initialise_hale_data_2d(
-      mesh.local_nx, mesh.local_ny, &hale_data, &unstructured_mesh);
+      mesh.local_nx, mesh.local_ny, &hale_data, &umesh);
   printf("Allocated %.3fGB bytes of data\n", allocated/(double)GB);
 
   write_unstructured_tris_to_visit( 
-      unstructured_mesh.nnodes, unstructured_mesh.ncells, 0, unstructured_mesh.nodes_x0, 
-      unstructured_mesh.nodes_y0, unstructured_mesh.cells_to_nodes, hale_data.density0, 0);
+      umesh.nnodes, umesh.ncells, 0, umesh.nodes_x0, 
+      umesh.nodes_y0, umesh.cells_to_nodes, hale_data.density0, 0);
 
   hale_data.visc_coeff1 = get_double_parameter("visc_coeff1", hale_params);
   hale_data.visc_coeff2 = get_double_parameter("visc_coeff2", hale_params);
@@ -89,9 +89,9 @@ int main(int argc, char** argv)
   double elapsed_sim_time = 0.0;
 
   set_timestep(
-      unstructured_mesh.ncells, unstructured_mesh.cells_to_nodes, 
-      unstructured_mesh.cells_to_nodes_off, unstructured_mesh.nodes_x0, 
-      unstructured_mesh.nodes_y0, hale_data.energy0, &mesh.dt);
+      umesh.ncells, umesh.cells_to_nodes, 
+      umesh.cells_to_nodes_off, umesh.nodes_x0, 
+      umesh.nodes_y0, hale_data.energy0, &mesh.dt);
 
   // Main timestep loop
   int tt;
@@ -104,14 +104,14 @@ int main(int argc, char** argv)
     double w0 = omp_get_wtime();
 
     solve_unstructured_hydro_2d(
-        &mesh, unstructured_mesh.ncells, unstructured_mesh.nnodes, hale_data.visc_coeff1, 
-        hale_data.visc_coeff2, unstructured_mesh.cell_centroids_x, 
-        unstructured_mesh.cell_centroids_y, unstructured_mesh.cells_to_nodes, 
-        unstructured_mesh.cells_to_nodes_off, unstructured_mesh.nodes_x0, 
-        unstructured_mesh.nodes_y0, unstructured_mesh.nodes_x1, 
-        unstructured_mesh.nodes_y1, unstructured_mesh.boundary_index, 
-        unstructured_mesh.boundary_type, unstructured_mesh.boundary_normal_x, 
-        unstructured_mesh.boundary_normal_y, hale_data.energy0, hale_data.energy1, 
+        &mesh, umesh.ncells, umesh.nnodes, hale_data.visc_coeff1, 
+        hale_data.visc_coeff2, umesh.cell_centroids_x, 
+        umesh.cell_centroids_y, umesh.cells_to_nodes, 
+        umesh.cells_to_nodes_off, umesh.nodes_x0, 
+        umesh.nodes_y0, umesh.nodes_x1, 
+        umesh.nodes_y1, umesh.boundary_index, 
+        umesh.boundary_type, umesh.boundary_normal_x, 
+        umesh.boundary_normal_y, hale_data.energy0, hale_data.energy1, 
         hale_data.density0, hale_data.density1, hale_data.pressure0, hale_data.pressure1, 
         hale_data.velocity_x0, hale_data.velocity_y0, hale_data.velocity_x1, 
         hale_data.velocity_y1, hale_data.cell_force_x, hale_data.cell_force_y, 
@@ -135,8 +135,8 @@ int main(int argc, char** argv)
 
     if(visit_dump) {
       write_unstructured_tris_to_visit( 
-          unstructured_mesh.nnodes, unstructured_mesh.ncells, tt, unstructured_mesh.nodes_x0, 
-          unstructured_mesh.nodes_y0, unstructured_mesh.cells_to_nodes, hale_data.density0, 0);
+          umesh.nnodes, umesh.ncells, tt, umesh.nodes_x0, 
+          umesh.nodes_y0, umesh.cells_to_nodes, hale_data.density0, 0);
     }
   }
 
