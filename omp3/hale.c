@@ -361,13 +361,13 @@ void solve_unstructured_hydro_2d(
       velocity_x1, velocity_y1, nodal_soundspeed, nodal_mass,
       nodal_volumes, limiter, node_force_x, node_force_y);
 
-  handle_unstructured_reflect(
-      nnodes, boundary_index, boundary_type, boundary_normal_x, 
-      boundary_normal_y, velocity_x0, velocity_y0);
-
   update_velocity(
       nnodes, mesh->dt, node_force_x, node_force_y, nodal_mass, velocity_x0, 
       velocity_y0, velocity_x1, velocity_y1);
+
+  handle_unstructured_reflect(
+      nnodes, boundary_index, boundary_type, boundary_normal_x, 
+      boundary_normal_y, velocity_x0, velocity_y0);
 
   // Calculate the corrected node movements
 #pragma omp parallel for

@@ -81,9 +81,6 @@ int main(int argc, char** argv)
       unstructured_mesh.nnodes, unstructured_mesh.ncells, 0, unstructured_mesh.nodes_x0, 
       unstructured_mesh.nodes_y0, unstructured_mesh.cells_to_nodes, hale_data.density0, 0);
 
-  exit(1);
-
-
   hale_data.visc_coeff1 = get_double_parameter("visc_coeff1", hale_params);
   hale_data.visc_coeff2 = get_double_parameter("visc_coeff2", hale_params);
 
@@ -138,14 +135,8 @@ int main(int argc, char** argv)
 
     if(visit_dump) {
       write_unstructured_tris_to_visit( 
-          unstructured_mesh.nnodes, unstructured_mesh.ncells, 0, unstructured_mesh.nodes_x0, 
+          unstructured_mesh.nnodes, unstructured_mesh.ncells, tt, unstructured_mesh.nodes_x0, 
           unstructured_mesh.nodes_y0, unstructured_mesh.cells_to_nodes, hale_data.density0, 0);
-
-#if 0
-      write_quad_data_to_visit(
-          mesh.local_nx, mesh.local_ny, tt, unstructured_mesh.nodes_x0, 
-          unstructured_mesh.nodes_y0, shared_data.rho, 0);
-#endif // if 0
     }
   }
 

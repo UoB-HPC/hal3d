@@ -34,27 +34,29 @@ size_t initialise_hale_data_2d(
   allocated += allocate_data(&hale_data->nodal_soundspeed, (local_nx+1)*(local_ny+1));
   allocated += allocate_data(&hale_data->limiter, (local_nx+1)*(local_ny+1));
 
-#if 0
   // Set the density and the energy for all of the relevant cells
   for(int cc = 0; cc < unstructured_mesh->ncells; ++cc) {
-    const int nodes_off = cells_to_nodes_off[(cc)];
-    const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
+    const int nodes_off = unstructured_mesh->cells_to_nodes_off[(cc)];
+    const int nnodes_around_cell = unstructured_mesh->cells_to_nodes_off[(cc+1)]-nodes_off;
     const double inv_Np = 1.0/(double)nnodes_around_cell;
 
     double cell_centroids_x = 0.0;
     double cell_centroids_y = 0.0;
     for(int nn = 0; nn < nnodes_around_cell; ++nn) {
-      const int node_index = cells_to_nodes[(nodes_off)+(nn)];
-      cell_centroids_x[(cc)] += nodes_x0[node_index]*inv_Np;
-      cell_centroids_y[(cc)] += nodes_y0[node_index]*inv_Np;
+      const int node_index = unstructured_mesh->cells_to_nodes[(nodes_off)+(nn)];
+      cell_centroids_x += unstructured_mesh->nodes_x0[node_index]*inv_Np;
+      cell_centroids_y += unstructured_mesh->nodes_y0[node_index]*inv_Np;
     }
 
-    if(cc  < 100) {
+    if(sqrt(cell_centroids_x*cell_centroids_x+cell_centroids_y*cell_centroids_y) > 0.5) {
+      hale_data->density0[(cc)] = 0.125;
+      hale_data->energy0[(cc)] = 2.0;
+    }
+    else {
       hale_data->density0[(cc)] = 1.0;
+      hale_data->energy0[(cc)] = 2.5;
     }
   }
-#endif // if 0
-
 
   return allocated;
 }
@@ -63,7 +65,7 @@ void deallocate_hale_data(
     HaleData* hale_data)
 {
   // TODO: Populate this correctly !
-  
+
 
 
 
@@ -248,10 +250,8 @@ size_t read_unstructured_mesh(
         &unstructured_mesh->nodes_y0[(index)],
         &is_boundary);
 
-    if(is_boundary) {
-      unstructured_mesh->boundary_index[(index)] = 1;
-      nboundary_cells++;
-    }
+    unstructured_mesh->boundary_index[(index)] = 
+      (is_boundary) ? nboundary_cells++ : IS_INTERIOR_NODE;
   }
 
   int* boundary_edge_list;
@@ -264,67 +264,99 @@ size_t read_unstructured_mesh(
     sscanf(temp, "%d", &index); 
 
     int discard;
-    int node0;
-    int node1;
-    int node2;
-    sscanf(temp, "%d%d%d%d", &discard, &node0, &node1, &node2);
+    int node[unstructured_mesh->nnodes_by_cell];
+    sscanf(temp, "%d%d%d%d", &discard, &node[0], &node[1], &node[2]);
 
-    unstructured_mesh->cells_to_nodes[(index*unstructured_mesh->nnodes_by_cell)+0] = node0;
-    unstructured_mesh->cells_to_nodes[(index*unstructured_mesh->nnodes_by_cell)+1] = node1;
-    unstructured_mesh->cells_to_nodes[(index*unstructured_mesh->nnodes_by_cell)+2] = node2;
+    unstructured_mesh->cells_to_nodes[(index*unstructured_mesh->nnodes_by_cell)+0] = node[0];
+    unstructured_mesh->cells_to_nodes[(index*unstructured_mesh->nnodes_by_cell)+1] = node[1];
+    unstructured_mesh->cells_to_nodes[(index*unstructured_mesh->nnodes_by_cell)+2] = node[2];
     unstructured_mesh->cells_to_nodes_off[(index+1)] = 
       unstructured_mesh->cells_to_nodes_off[(index)] + unstructured_mesh->nnodes_by_cell;
 
-    // Store edge information about the connected boundary nodes
-    if(unstructured_mesh->boundary_index[node0] == IS_BOUNDARY) {
-      boundary_edge_list[boundary_edge_index++] = node0;
-    }
-    if(unstructured_mesh->boundary_index[node1] == IS_BOUNDARY) {
-      boundary_edge_list[boundary_edge_index++] = node1;
-    }
-    if(unstructured_mesh->boundary_index[node2] == IS_BOUNDARY) {
-      boundary_edge_list[boundary_edge_index++] = node2;
+    // Determine whether this cell touches a boundary edge
+    int nboundary_nodes = 0;
+    for(int nn = 0; nn < unstructured_mesh->nnodes_by_cell; ++nn) {
+      nboundary_nodes += (unstructured_mesh->boundary_index[(node[nn])] != IS_INTERIOR_NODE);
     }
 
+    // Only store edges that are on the boundary
+    if(nboundary_nodes == 2) {
+      for(int nn = 0; nn < unstructured_mesh->nnodes_by_cell; ++nn) {
+        if(unstructured_mesh->boundary_index[(node[nn])] != IS_INTERIOR_NODE) {
+          boundary_edge_list[boundary_edge_index++] = node[nn];
+        }
+      }
+    }
+
+    // TODO: change to loop
     const double A = 
-      (unstructured_mesh->nodes_x0[node0]*unstructured_mesh->nodes_y0[node1]-
-       unstructured_mesh->nodes_x0[node1]*unstructured_mesh->nodes_y0[node0]+
-       unstructured_mesh->nodes_x0[node1]*unstructured_mesh->nodes_y0[node2]-
-       unstructured_mesh->nodes_x0[node2]*unstructured_mesh->nodes_y0[node1]+
-       unstructured_mesh->nodes_x0[node2]*unstructured_mesh->nodes_y0[node0]-
-       unstructured_mesh->nodes_x0[node0]*unstructured_mesh->nodes_y0[node2]);
+      (unstructured_mesh->nodes_x0[node[0]]*unstructured_mesh->nodes_y0[node[1]]-
+       unstructured_mesh->nodes_x0[node[1]]*unstructured_mesh->nodes_y0[node[0]]+
+       unstructured_mesh->nodes_x0[node[1]]*unstructured_mesh->nodes_y0[node[2]]-
+       unstructured_mesh->nodes_x0[node[2]]*unstructured_mesh->nodes_y0[node[1]]+
+       unstructured_mesh->nodes_x0[node[2]]*unstructured_mesh->nodes_y0[node[0]]-
+       unstructured_mesh->nodes_x0[node[0]]*unstructured_mesh->nodes_y0[node[2]]);
     assert(A > 0.0 && "Nodes are not stored in counter-clockwise order.\n");
   }
 
   allocated += allocate_data(&unstructured_mesh->boundary_normal_x, nboundary_cells);
   allocated += allocate_data(&unstructured_mesh->boundary_normal_y, nboundary_cells);
   allocated += allocate_int_data(&unstructured_mesh->boundary_type, nboundary_cells);
-  allocated += allocate_data(&unstructured_mesh->boundary_normal_x, nboundary_cells);
-  allocated += allocate_data(&unstructured_mesh->boundary_normal_y, nboundary_cells);
 
   // Loop through all of the boundary cells and find their normals
-  for(int bb0 = 0; bb0 < nboundary_cells; ++bb0) {
+  for(int nn = 0; nn < unstructured_mesh->nnodes; ++nn) {
+    if(unstructured_mesh->boundary_index[(nn)] == IS_INTERIOR_NODE) {
+      continue;
+    }
+
+    const int boundary_index = unstructured_mesh->boundary_index[(nn)];
+
     double normal_x = 0.0;
     double normal_y = 0.0;
+
+#if 0
     for(int bb1 = 0; bb1 < nboundary_cells; ++bb1) {
       const int node0 = boundary_edge_list[bb1*2];
       const int node1 = boundary_edge_list[bb1*2+1];
 
-      if(node0 == bb0 || node1 == bb0) {
+      if(node0 == nn || node1 == nn) {
         const double node0_x = unstructured_mesh->nodes_x0[(node0)];
         const double node0_y = unstructured_mesh->nodes_y0[(node0)];
         const double node1_x = unstructured_mesh->nodes_x0[(node1)];
         const double node1_y = unstructured_mesh->nodes_y0[(node1)];
 
-        unstructured_mesh->boundary_normal_x[bb0] += node1_x-node0_x;
-        unstructured_mesh->boundary_normal_y[bb0] += node1_y-node0_y;
+        printf("found %.12f %.12f %.12f %.12f\n", node0_x, node0_y, node1_x, node1_y);
+        normal_x += node1_y-node0_y;
+        normal_y += node1_x+node0_x;
       }
+    }
+#endif // if 0
+
+    // TODO: REMOVE THIS HACK
+    if(unstructured_mesh->nodes_x0[(nn)] == 0.0) {
+      normal_x = 1.0;
+    }
+    else if(unstructured_mesh->nodes_x0[(nn)] == 1.0) {
+      normal_x = -1.0;
+    }
+
+    if(unstructured_mesh->nodes_y0[(nn)] == 0.0) {
+      normal_y = 1.0;
+    }
+    else if(unstructured_mesh->nodes_y0[(nn)] == 1.0) {
+      normal_y = -1.0;
     }
 
     const double normal_mag = sqrt(normal_x*normal_x+normal_y*normal_y);
-    unstructured_mesh->boundary_normal_x[bb0] = normal_x/normal_mag;
-    unstructured_mesh->boundary_normal_y[bb0] = normal_y/normal_mag;
-    unstructured_mesh->boundary_type[bb0] = IS_BOUNDARY;
+    if(normal_mag > 1.0) {
+      unstructured_mesh->boundary_type[(boundary_index)] = IS_FIXED;
+    }
+    else {
+      unstructured_mesh->boundary_type[(boundary_index)] = IS_BOUNDARY;
+    }
+
+    unstructured_mesh->boundary_normal_x[(boundary_index)] = normal_x/normal_mag;
+    unstructured_mesh->boundary_normal_y[(boundary_index)] = normal_y/normal_mag;
   }
 
   return allocated;
@@ -347,7 +379,7 @@ void handle_unstructured_reflect(
       // Project the velocity onto the face direction
       const double boundary_parallel_x = boundary_normal_y[(index)];
       const double boundary_parallel_y = -boundary_normal_x[(index)];
-      const double vel_dot_parallel = 
+      const double vel_dot_parallel =
         (velocity_x[(nn)]*boundary_parallel_x+velocity_y[(nn)]*boundary_parallel_y);
       velocity_x[(nn)] = boundary_parallel_x*vel_dot_parallel;
       velocity_y[(nn)] = boundary_parallel_y*vel_dot_parallel;
