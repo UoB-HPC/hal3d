@@ -64,15 +64,9 @@ int main(int argc, char** argv)
     printf("Number of threads: %d\n", nthreads);
   }
 
-#if 0
-  SharedData shared_data = {0};
-  initialise_shared_data_2d(
-      mesh.global_nx, mesh.global_ny, mesh.local_nx, mesh.local_ny, 
-      mesh.pad, mesh.x_off, mesh.y_off, mesh.width, mesh.height,
-      hale_params, mesh.edgex, mesh.edgey, &shared_data);
-#endif // if 0
-
   HaleData hale_data = {0};
+  hale_data.visc_coeff1 = get_double_parameter("visc_coeff1", hale_params);
+  hale_data.visc_coeff2 = get_double_parameter("visc_coeff2", hale_params);
   allocated += initialise_hale_data_2d(
       mesh.local_nx, mesh.local_ny, &hale_data, &umesh);
   printf("Allocated %.3fGB bytes of data\n", allocated/(double)GB);
@@ -80,9 +74,6 @@ int main(int argc, char** argv)
   write_unstructured_tris_to_visit( 
       umesh.nnodes, umesh.ncells, 0, umesh.nodes_x0, 
       umesh.nodes_y0, umesh.cells_to_nodes, hale_data.density0, 0);
-
-  hale_data.visc_coeff1 = get_double_parameter("visc_coeff1", hale_params);
-  hale_data.visc_coeff2 = get_double_parameter("visc_coeff2", hale_params);
 
   // Prepare for solve
   double wallclock = 0.0;
@@ -149,9 +140,6 @@ int main(int argc, char** argv)
         wallclock, elapsed_sim_time);
   }
 
-#if 0
-  finalise_shared_data(&shared_data);
-#endif // if 0
   finalise_mesh(&mesh);
 
   return 0;

@@ -336,7 +336,7 @@ size_t read_unstructured_mesh(
 
     // We are fixed if we are one of the four corners
     if((umesh->nodes_x0[(nn)] == 0.0 || umesh->nodes_x0[(nn)] == 1.0) &&
-        (umesh->nodes_y0[(nn)] == 0.0 || umesh->nodes_y0[(nn)] == 1.0)) {
+       (umesh->nodes_y0[(nn)] == 0.0 || umesh->nodes_y0[(nn)] == 1.0)) {
       umesh->boundary_type[(boundary_index)] = IS_FIXED;
     }
     else {
