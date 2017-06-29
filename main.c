@@ -10,7 +10,7 @@
 
 // Validates the results of the simulation
 void validate(
-    const int nx, const int ny, const char* params_filename, 
+    const int ncells, const char* params_filename, 
     const int rank, double* density, double* energy);
 
 int main(int argc, char** argv)
@@ -19,17 +19,10 @@ int main(int argc, char** argv)
     TERMINATE("usage: ./hale <parameter_filename>\n");
   }
 
-  // Store the dimensions of the mesh
+  // Store some of the generic mesh meta data
   Mesh mesh = {0};
   const char* hale_params = argv[1];
-  mesh.global_nx = get_int_parameter("nx", hale_params);
-  mesh.global_ny = get_int_parameter("ny", hale_params);
-  mesh.pad = 0;
-  mesh.local_nx = mesh.global_nx+2*mesh.pad;
-  mesh.local_ny = mesh.global_ny+2*mesh.pad;
   mesh.niters = get_int_parameter("iterations", hale_params);
-  mesh.width = get_double_parameter("width", ARCH_ROOT_PARAMS);
-  mesh.height = get_double_parameter("height", ARCH_ROOT_PARAMS);
   mesh.max_dt = get_double_parameter("max_dt", ARCH_ROOT_PARAMS);
   mesh.sim_end = get_double_parameter("sim_end", ARCH_ROOT_PARAMS);
   mesh.dt = get_double_parameter("dt", hale_params);
@@ -38,17 +31,29 @@ int main(int argc, char** argv)
   mesh.nranks = 1;
   const int visit_dump = get_int_parameter("visit_dump", hale_params);
 
+  // Perform initialisation routines
   initialise_mpi(argc, argv, &mesh.rank, &mesh.nranks);
   initialise_comms(&mesh);
   initialise_devices(mesh.rank);
   initialise_mesh_2d(&mesh);
 
+  // Fetch the size of the unstructured mesh
   UnstructuredMesh umesh;
   umesh.node_filename = get_parameter("node_file", hale_params);
   umesh.ele_filename = get_parameter("ele_file", hale_params);
+  read_unstructured_mesh_sizes(&umesh);
 
-  // Reads an unstructured mesh from an input file
-  size_t allocated = read_unstructured_mesh(&umesh);
+  // Initialise the hale-specific data arrays
+  HaleData hale_data = {0};
+  hale_data.visc_coeff1 = get_double_parameter("visc_coeff1", hale_params);
+  hale_data.visc_coeff2 = get_double_parameter("visc_coeff2", hale_params);
+
+  // Initialise data arrays and then fill in unstructured mesh data
+  size_t allocated = initialise_hale_data_2d(&hale_data, &umesh);
+  double* variables[2] = { hale_data.density0, hale_data.energy0 };
+  allocated += read_unstructured_mesh(&umesh, variables);
+
+  printf("Allocated %.3fGB bytes of data\n", allocated/(double)GB);
 
   int nthreads = 0;
 #pragma omp parallel 
@@ -60,13 +65,6 @@ int main(int argc, char** argv)
     printf("Number of ranks: %d\n", mesh.nranks);
     printf("Number of threads: %d\n", nthreads);
   }
-
-  HaleData hale_data = {0};
-  hale_data.visc_coeff1 = get_double_parameter("visc_coeff1", hale_params);
-  hale_data.visc_coeff2 = get_double_parameter("visc_coeff2", hale_params);
-  allocated += initialise_hale_data_2d(
-      mesh.local_nx, mesh.local_ny, &hale_data, &umesh);
-  printf("Allocated %.3fGB bytes of data\n", allocated/(double)GB);
 
   if(visit_dump) {
     write_unstructured_to_visit( 
@@ -134,9 +132,7 @@ int main(int argc, char** argv)
 
   barrier();
 
-  validate(
-      mesh.local_nx, mesh.local_ny, hale_params, mesh.rank, 
-      hale_data.density0, hale_data.energy0);
+  validate(umesh.ncells, hale_params, mesh.rank, hale_data.density0, hale_data.energy0);
 
   if(mesh.rank == MASTER) {
     PRINT_PROFILING_RESULTS(&compute_profile);
@@ -152,21 +148,21 @@ int main(int argc, char** argv)
 
 // Validates the results of the simulation
 void validate(
-    const int nx, const int ny, const char* params_filename, 
+    const int ncells, const char* params_filename, 
     const int rank, double* density, double* energy)
 {
   double* h_energy;
   double* h_density;
-  allocate_host_data(&h_energy, nx*ny);
-  allocate_host_data(&h_density, nx*ny);
-  copy_buffer(nx*ny, &energy, &h_energy, RECV);
-  copy_buffer(nx*ny, &density, &h_density, RECV);
+  allocate_host_data(&h_energy, ncells);
+  allocate_host_data(&h_density, ncells);
+  copy_buffer(ncells, &energy, &h_energy, RECV);
+  copy_buffer(ncells, &density, &h_density, RECV);
 
   double local_density_total = 0.0;
   double local_energy_total = 0.0;
 
 #pragma omp parallel for reduction(+: local_density_total, local_energy_total)
-  for(int ii = 0; ii < nx*ny; ++ii) {
+  for(int ii = 0; ii < ncells; ++ii) {
     local_density_total += h_density[ii];
     local_energy_total += h_energy[ii];
   }

@@ -9,8 +9,7 @@
 
 // Initialises the shared_data variables for two dimensional applications
 size_t initialise_hale_data_2d(
-    const int local_nx, const int local_ny, HaleData* hale_data, 
-    UnstructuredMesh* umesh)
+    HaleData* hale_data, UnstructuredMesh* umesh)
 {
   size_t allocated = allocate_data(&hale_data->energy0, umesh->ncells);
   allocated += allocate_data(&hale_data->density0, umesh->ncells);
@@ -31,58 +30,40 @@ size_t initialise_hale_data_2d(
   allocated += allocate_data(&hale_data->nodal_volumes, umesh->nnodes);
   allocated += allocate_data(&hale_data->nodal_soundspeed, umesh->nnodes);
   allocated += allocate_data(&hale_data->limiter, umesh->nnodes);
-
-#if 0
-  // Set the density and the energy for all of the relevant cells
-  for(int cc = 0; cc < umesh->ncells; ++cc) {
-    const int nodes_off = umesh->cells_to_nodes_off[(cc)];
-    const int nnodes_around_cell = umesh->cells_to_nodes_off[(cc+1)]-nodes_off;
-    const double inv_Np = 1.0/(double)nnodes_around_cell;
-
-    double cell_centroids_x = 0.0;
-    double cell_centroids_y = 0.0;
-    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
-      const int node_index = umesh->cells_to_nodes[(nodes_off)+(nn)];
-      cell_centroids_x += umesh->nodes_x0[node_index]*inv_Np;
-      cell_centroids_y += umesh->nodes_y0[node_index]*inv_Np;
-    }
-
-    if(sqrt(cell_centroids_x*cell_centroids_x+cell_centroids_y*cell_centroids_y) > 0.5) {
-      hale_data->density0[(cc)] = 0.125;
-      hale_data->energy0[(cc)] = 2.0;
-    }
-    else {
-      hale_data->density0[(cc)] = 1.0;
-      hale_data->energy0[(cc)] = 2.5;
-    }
-  }
-#endif // if 0
-
-  // Set the density and the energy for all of the relevant cells
-  for(int cc = 0; cc < umesh->ncells; ++cc) {
-    const int nodes_off = umesh->cells_to_nodes_off[(cc)];
-    const int nnodes_around_cell = umesh->cells_to_nodes_off[(cc+1)]-nodes_off;
-    const double inv_Np = 1.0/(double)nnodes_around_cell;
-
-    double cell_centroids_x = 0.0;
-    double cell_centroids_y = 0.0;
-    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
-      const int node_index = umesh->cells_to_nodes[(nodes_off)+(nn)];
-      cell_centroids_x += umesh->nodes_x0[node_index]*inv_Np;
-      cell_centroids_y += umesh->nodes_y0[node_index]*inv_Np;
-    }
-
-    if(sqrt((cell_centroids_x-0.5)*(cell_centroids_x-0.5)+cell_centroids_y*cell_centroids_y) > 0.2) {
-      hale_data->density0[(cc)] = 0.125;
-      hale_data->energy0[(cc)] = 2.0;
-    }
-    else {
-      hale_data->density0[(cc)] = 1.0;
-      hale_data->energy0[(cc)] = 2.5;
-    }
-  }
-
   return allocated;
+}
+
+// We need this data to be able to initialise any data arrays etc
+void read_unstructured_mesh_sizes(
+    UnstructuredMesh* umesh)
+{
+  // Open the files
+  FILE* node_fp = fopen(umesh->node_filename, "r");
+  FILE* ele_fp = fopen(umesh->ele_filename, "r");
+  if(!node_fp) {
+    TERMINATE("Could not open the parameter file: %s.\n", umesh->node_filename);
+  }
+  if(!ele_fp) {
+    TERMINATE("Could not open the parameter file: %s.\n", umesh->ele_filename);
+  }
+
+  // Fetch the first line of the nodes file
+  char buf[MAX_STR_LEN];
+  char* line = buf;
+
+  // Read the number of nodes, for allocation
+  fgets(line, MAX_STR_LEN, node_fp);
+  skip_whitespace(&line);
+  sscanf(line, "%d", &umesh->nnodes);
+
+  // Read meta data from the element file
+  fgets(line, MAX_STR_LEN, ele_fp);
+  skip_whitespace(&line);
+  sscanf(line, "%d%d%d", &umesh->ncells, &umesh->nnodes_by_cell, &umesh->nregional_variables);
+  umesh->ncells_by_node = umesh->nnodes_by_cell;
+
+  fclose(ele_fp);
+  fclose(node_fp);
 }
 
 void deallocate_hale_data(
@@ -102,33 +83,8 @@ void deallocate_hale_data(
 
 // Reads an unstructured mesh from an input file
 size_t read_unstructured_mesh(
-    UnstructuredMesh* umesh)
+    UnstructuredMesh* umesh, double** variables)
 {
-  // Open the files
-  FILE* node_fp = fopen(umesh->node_filename, "r");
-  FILE* ele_fp = fopen(umesh->ele_filename, "r");
-  if(!node_fp) {
-    TERMINATE("Could not open the parameter file: %s.\n", umesh->node_filename);
-  }
-  if(!ele_fp) {
-    TERMINATE("Could not open the parameter file: %s.\n", umesh->ele_filename);
-  }
-
-  // Fetch the first line of the nodes file
-  char buf[MAX_STR_LEN];
-  char* temp = buf;
-
-  // Read the number of nodes, for allocation
-  fgets(temp, MAX_STR_LEN, node_fp);
-  skip_whitespace(&temp);
-  sscanf(temp, "%d", &umesh->nnodes);
-
-  // Read the number of cells
-  fgets(temp, MAX_STR_LEN, ele_fp);
-  skip_whitespace(&temp);
-  sscanf(temp, "%d%d", &umesh->ncells, &umesh->nnodes_by_cell);
-  umesh->ncells_by_node = umesh->nnodes_by_cell;
-
   // Allocate the data structures that we now know the sizes of
   size_t allocated = allocate_data(&umesh->nodes_x0, umesh->nnodes);
   allocated += allocate_data(&umesh->nodes_y0, umesh->nnodes);
@@ -141,24 +97,35 @@ size_t read_unstructured_mesh(
   allocated += allocate_data(&umesh->cell_centroids_y, umesh->ncells);
   allocated += allocate_int_data(&umesh->boundary_index, umesh->nnodes);
 
-  int nboundary_cells = 0;
+  // Open the files
+  FILE* node_fp = fopen(umesh->node_filename, "r");
+  FILE* ele_fp = fopen(umesh->ele_filename, "r");
+  if(!node_fp) {
+    TERMINATE("Could not open the parameter file: %s.\n", umesh->node_filename);
+  }
+  if(!ele_fp) {
+    TERMINATE("Could not open the parameter file: %s.\n", umesh->ele_filename);
+  }
+
+  // Fetch the first line of the nodes file
+  char buf[MAX_STR_LEN];
+  char* line = buf;
+
+  // Skip first line of both files
+  fgets(line, MAX_STR_LEN, node_fp);
+  fgets(line, MAX_STR_LEN, ele_fp);
 
   // Loop through the node file, storing all of the nodes in our data structure
-  while(fgets(temp, MAX_STR_LEN, node_fp)) {
+  int nboundary_cells = 0;
+  while(fgets(line, MAX_STR_LEN, node_fp)) {
     int index;
     int is_boundary;
-
-    sscanf(temp, "%d", &index); 
-
     int discard;
-    sscanf(temp, "%d%lf%lf%d", 
-        &discard, 
-        &umesh->nodes_x0[(index)], 
-        &umesh->nodes_y0[(index)],
-        &is_boundary);
+    sscanf(line, "%d", &index); 
+    sscanf(line, "%d%lf%lf%d", &discard, &umesh->nodes_x0[(index)], 
+        &umesh->nodes_y0[(index)], &is_boundary);
 
-    umesh->boundary_index[(index)] = 
-      (is_boundary) ? nboundary_cells++ : IS_INTERIOR_NODE;
+    umesh->boundary_index[(index)] = (is_boundary) ? nboundary_cells++ : IS_INTERIOR_NODE;
   }
 
   int* boundary_edge_list;
@@ -169,23 +136,31 @@ size_t read_unstructured_mesh(
   allocated += allocate_int_data(&umesh->boundary_type, nboundary_cells);
 
   // Loop through the element file and flatten into data structure
-  while(fgets(temp, MAX_STR_LEN, ele_fp)) {
+  while(fgets(line, MAX_STR_LEN, ele_fp)) {
+    // Read in the index
     int index;
-    sscanf(temp, "%d", &index); 
+    char* line_temp = line;
+    read_token(&line_temp, "%d", &index);
 
-    int discard;
+    // Read in each of the node locations
     int node[umesh->nnodes_by_cell];
-    sscanf(temp, "%d%d%d%d", &discard, &node[0], &node[1], &node[2]);
+    for(int ii = 0; ii < umesh->nnodes_by_cell; ++ii) {
+      read_token(&line_temp, "%d", &node[ii]);
+    }
 
-    umesh->cells_to_nodes[(index*umesh->nnodes_by_cell)+0] = node[0];
-    umesh->cells_to_nodes[(index*umesh->nnodes_by_cell)+1] = node[1];
-    umesh->cells_to_nodes[(index*umesh->nnodes_by_cell)+2] = node[2];
+    // Read in each of the regional variables
+    for(int ii = 0; ii < umesh->nregional_variables; ++ii) {
+      read_token(&line_temp, "%lf", &variables[ii][index]);
+    }
+
+    // Store the cell offsets in case of future mixed cell geometry
     umesh->cells_to_nodes_off[(index+1)] = 
       umesh->cells_to_nodes_off[(index)] + umesh->nnodes_by_cell;
 
-    // Determine whether this cell touches a boundary edge
+    // Store cells to nodes and check if we are at a boundary edge cell
     int nboundary_nodes = 0;
     for(int nn = 0; nn < umesh->nnodes_by_cell; ++nn) {
+      umesh->cells_to_nodes[(index*umesh->nnodes_by_cell)+nn] = node[nn];
       nboundary_nodes += (umesh->boundary_index[(node[nn])] != IS_INTERIOR_NODE);
     }
 
@@ -195,7 +170,7 @@ size_t read_unstructured_mesh(
       for(int nn = 0; nn < umesh->nnodes_by_cell; ++nn) {
         const int next_node_index = (nn+1 == umesh->nnodes_by_cell ? 0 : nn+1);
         if(umesh->boundary_index[(node[nn])] != IS_INTERIOR_NODE && 
-           umesh->boundary_index[(node[next_node_index])] != IS_INTERIOR_NODE) {
+            umesh->boundary_index[(node[next_node_index])] != IS_INTERIOR_NODE) {
           boundary_edge_list[boundary_edge_index++] = node[nn];
           boundary_edge_list[boundary_edge_index++] = node[next_node_index];
           break;
@@ -240,7 +215,7 @@ size_t read_unstructured_mesh(
 
     // We are fixed if we are one of the four corners
     if((umesh->nodes_x0[(nn)] == 0.0 || umesh->nodes_x0[(nn)] == 1.0) &&
-       (umesh->nodes_y0[(nn)] == 0.0 || umesh->nodes_y0[(nn)] == 1.0)) {
+        (umesh->nodes_y0[(nn)] == 0.0 || umesh->nodes_y0[(nn)] == 1.0)) {
       umesh->boundary_type[(boundary_index)] = IS_FIXED;
     }
     else {

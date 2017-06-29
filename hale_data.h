@@ -53,6 +53,7 @@ typedef struct {
   // setup phase from some input file.
   int nnodes_by_cell;
   int ncells_by_node;
+  int nregional_variables;
 
   int* cells_to_nodes; 
   int* cells_to_nodes_off; 
@@ -74,24 +75,15 @@ typedef struct {
 
 } UnstructuredMesh;
 
-// Initialises the state variables for two dimensional applications
+// Initialises the shared_data variables for two dimensional applications
 size_t initialise_hale_data_2d(
-    const int local_nx, const int local_ny, HaleData* hale_data, 
-    UnstructuredMesh* unstructured_mesh);
+    HaleData* hale_data, UnstructuredMesh* umesh);
+
 void deallocate_hale_data_2d(
     HaleData* hale_data);
+
 size_t initialise_unstructured_mesh(
     Mesh* mesh, UnstructuredMesh* unstructured_mesh);
-
-// Writes out mesh and data
-void write_quad_data_to_visit(
-    const int nx, const int ny, const int step, double* nodes_x, 
-    double* nodes_y, const double* data, const int nodal);
-
-// Validates the results of the simulation
-void validate(
-    const int nx, const int ny, const char* params_filename, 
-    const int rank, double* density, double* energy);
 
 // Reflect the node centered velocities on the boundary
 void handle_unstructured_reflect(
@@ -109,6 +101,10 @@ void handle_unstructured_node_boundary(
 
 // Reads an unstructured mesh from an input file
 size_t read_unstructured_mesh(
+    UnstructuredMesh* umesh, double** variables);
+
+// We need this data to be able to initialise any data arrays etc
+void read_unstructured_mesh_sizes(
     UnstructuredMesh* umesh);
 
 // Writes out unstructured triangles to visit
