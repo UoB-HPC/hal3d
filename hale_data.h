@@ -11,9 +11,6 @@
 #define ARCH_ROOT_PARAMS "../arch.params"
 #define HALE_PARAMS "hale.params"
 #define HALE_TESTS  "hale.tests"
-#define IS_FIXED -1
-#define IS_BOUNDARY -2
-#define IS_INTERIOR_NODE -1
 
 typedef struct {
   double* energy0;
@@ -43,38 +40,6 @@ typedef struct {
   double visc_coeff2;
 } HaleData;
 
-// Stores unstructured mesh
-typedef struct {
-
-  int ncells;
-  int nnodes;
-
-  // TODO: These two shouldn't be used, need to make more general
-  // setup phase from some input file.
-  int nnodes_by_cell;
-  int ncells_by_node;
-  int nregional_variables;
-
-  int* cells_to_nodes; 
-  int* cells_to_nodes_off; 
-  int* boundary_index;
-  int* boundary_type;
-
-  double* nodes_x0; 
-  double* nodes_y0; 
-  double* nodes_x1; 
-  double* nodes_y1;
-  double* cell_centroids_x;
-  double* cell_centroids_y;
-  double* boundary_normal_x;
-  double* boundary_normal_y;
-  double* sub_cell_volume;
-
-  char* node_filename;
-  char* ele_filename;
-
-} UnstructuredMesh;
-
 // Initialises the shared_data variables for two dimensional applications
 size_t initialise_hale_data_2d(
     HaleData* hale_data, UnstructuredMesh* umesh);
@@ -102,10 +67,6 @@ void handle_unstructured_node_boundary(
 // Reads an unstructured mesh from an input file
 size_t read_unstructured_mesh(
     UnstructuredMesh* umesh, double** variables);
-
-// We need this data to be able to initialise any data arrays etc
-void read_unstructured_mesh_sizes(
-    UnstructuredMesh* umesh);
 
 // Writes out unstructured triangles to visit
 void write_unstructured_to_visit(
