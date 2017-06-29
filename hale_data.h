@@ -109,7 +109,7 @@ void handle_unstructured_node_boundary(
 
 // Reads an unstructured mesh from an input file
 size_t read_unstructured_mesh(
-    Mesh* mesh, UnstructuredMesh* unstructured_mesh);
+    UnstructuredMesh* umesh);
 
 // Writes out unstructured triangles to visit
 void write_unstructured_to_visit(

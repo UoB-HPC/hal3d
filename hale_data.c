@@ -32,6 +32,7 @@ size_t initialise_hale_data_2d(
   allocated += allocate_data(&hale_data->nodal_soundspeed, umesh->nnodes);
   allocated += allocate_data(&hale_data->limiter, umesh->nnodes);
 
+#if 0
   // Set the density and the energy for all of the relevant cells
   for(int cc = 0; cc < umesh->ncells; ++cc) {
     const int nodes_off = umesh->cells_to_nodes_off[(cc)];
@@ -55,6 +56,31 @@ size_t initialise_hale_data_2d(
       hale_data->energy0[(cc)] = 2.5;
     }
   }
+#endif // if 0
+
+  // Set the density and the energy for all of the relevant cells
+  for(int cc = 0; cc < umesh->ncells; ++cc) {
+    const int nodes_off = umesh->cells_to_nodes_off[(cc)];
+    const int nnodes_around_cell = umesh->cells_to_nodes_off[(cc+1)]-nodes_off;
+    const double inv_Np = 1.0/(double)nnodes_around_cell;
+
+    double cell_centroids_x = 0.0;
+    double cell_centroids_y = 0.0;
+    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+      const int node_index = umesh->cells_to_nodes[(nodes_off)+(nn)];
+      cell_centroids_x += umesh->nodes_x0[node_index]*inv_Np;
+      cell_centroids_y += umesh->nodes_y0[node_index]*inv_Np;
+    }
+
+    if(sqrt((cell_centroids_x-0.5)*(cell_centroids_x-0.5)+cell_centroids_y*cell_centroids_y) > 0.2) {
+      hale_data->density0[(cc)] = 0.125;
+      hale_data->energy0[(cc)] = 2.0;
+    }
+    else {
+      hale_data->density0[(cc)] = 1.0;
+      hale_data->energy0[(cc)] = 2.5;
+    }
+  }
 
   return allocated;
 }
@@ -63,10 +89,6 @@ void deallocate_hale_data(
     HaleData* hale_data)
 {
   // TODO: Populate this correctly !
-
-
-
-
   deallocate_data(hale_data->energy1);
   deallocate_data(hale_data->density1);
   deallocate_data(hale_data->pressure1);
@@ -78,124 +100,10 @@ void deallocate_hale_data(
   deallocate_data(hale_data->node_force_y);
 }
 
-// Builds an unstructured mesh with an nx by ny rectilinear layout
-size_t initialise_unstructured_mesh(
-    Mesh* mesh, UnstructuredMesh* umesh)
-{
-  // Just setting all cells to have same number of nodes
-  const int nx = mesh->local_nx;
-  const int ny = mesh->local_nx;
-  const int global_nx = mesh->global_nx;
-  const int global_ny = mesh->global_nx;
-  const double width = mesh->width;
-  const double height = mesh->height;
-  umesh->nnodes_by_cell = 4;
-  umesh->ncells_by_node = 4;
-  umesh->ncells = nx*ny;
-  umesh->nnodes = (nx+1)*(nx+1);
-
-  const int nboundary_cells = 2*(nx+ny);
-
-  size_t allocated = allocate_data(&umesh->nodes_x0, umesh->nnodes);
-  allocated += allocate_data(&umesh->nodes_y0, umesh->nnodes);
-  allocated += allocate_data(&umesh->nodes_x1, umesh->nnodes);
-  allocated += allocate_data(&umesh->nodes_y1, umesh->nnodes);
-  allocated += allocate_int_data(&umesh->cells_to_nodes, 
-      umesh->ncells*umesh->nnodes_by_cell);
-  allocated += allocate_int_data(&umesh->cells_to_nodes_off, umesh->ncells+1);
-  allocated += allocate_data(&umesh->cell_centroids_x, umesh->ncells);
-  allocated += allocate_data(&umesh->cell_centroids_y, umesh->ncells);
-  allocated += allocate_int_data(&umesh->boundary_index, umesh->nnodes);
-  allocated += allocate_data(&umesh->boundary_normal_x, nboundary_cells);
-  allocated += allocate_data(&umesh->boundary_normal_y, nboundary_cells);
-  allocated += allocate_int_data(&umesh->boundary_type, nboundary_cells);
-
-  // Construct the list of nodes contiguously, currently Cartesian
-  for(int ii = 0; ii < (ny+1); ++ii) {
-    for(int jj = 0; jj < (nx+1); ++jj) {
-      const int index = (ii)*(nx+1)+(jj);
-      const double cell_width = (width/(double)global_nx);
-      const double cell_height = (height/(double)global_ny);
-      umesh->nodes_x0[index] = (double)((jj)-mesh->pad)*cell_width;
-      umesh->nodes_y0[index] = (double)((ii)-mesh->pad)*cell_height;
-    }
-  }
-
-  for(int ii = 0; ii < ny; ++ii) {
-    for(int jj = 0; jj < nx; ++jj) {
-      const int offset = umesh->cells_to_nodes_off[(ii)*nx+(jj)];
-      umesh->cells_to_nodes[(offset)+0] = (ii)*(nx+1)+(jj);
-      umesh->cells_to_nodes[(offset)+1] = (ii)*(nx+1)+(jj+1);
-      umesh->cells_to_nodes[(offset)+2] = (ii+1)*(nx+1)+(jj+1);
-      umesh->cells_to_nodes[(offset)+3] = (ii+1)*(nx+1)+(jj);
-      umesh->cells_to_nodes_off[(ii)*nx+(jj)+1] = 
-        umesh->cells_to_nodes_off[(ii)*nx+(jj)] +
-        umesh->nnodes_by_cell;
-    }
-  }
-
-  // TODO: Currently serial only, could do some work to parallelise this if
-  // needed later on...
-  // Store the halo node's neighbour, and normal
-  int index = 0;
-  for(int ii = 0; ii < (ny+1); ++ii) {
-    for(int jj = 0; jj < (nx+1); ++jj) {
-      umesh->boundary_index[(ii)*(nx+1)+(jj)] = IS_INTERIOR_NODE;
-
-      if(ii == 0) { 
-        if(jj == 0) { 
-          umesh->boundary_type[(index)] = IS_FIXED;
-        }
-        else if(jj == (nx+1)-1) {
-          umesh->boundary_type[(index)] = IS_FIXED;
-        }
-        else {
-          umesh->boundary_type[(index)] = IS_BOUNDARY;
-          umesh->boundary_normal_x[(index)] = 0.0;
-          umesh->boundary_normal_y[(index)] = 1.0;
-        }
-        umesh->boundary_index[(ii)*(nx+1)+(jj)] = index++;
-      }
-      else if(ii == (ny+1)-1) {
-        if(jj == 0) { 
-          umesh->boundary_type[(index)] = IS_FIXED;
-        }
-        else if(jj == (nx+1)-1) {
-          umesh->boundary_type[(index)] = IS_FIXED;
-        }
-        else {
-          umesh->boundary_type[(index)] = IS_BOUNDARY;
-          umesh->boundary_normal_x[(index)] = 0.0;
-          umesh->boundary_normal_y[(index)] = -1.0;
-        }
-        umesh->boundary_index[(ii)*(nx+1)+(jj)] = index++;
-      } 
-      else if(jj == 0) { 
-        umesh->boundary_type[(index)] = IS_BOUNDARY;
-        umesh->boundary_normal_x[(index)] = 1.0;
-        umesh->boundary_normal_y[(index)] = 0.0;
-        umesh->boundary_index[(ii)*(nx+1)+(jj)] = index++;
-      }
-      else if(jj == (nx+1)-1) {
-        umesh->boundary_type[(index)] = IS_BOUNDARY;
-        umesh->boundary_normal_x[(index)] = -1.0;
-        umesh->boundary_normal_y[(index)] = 0.0;
-        umesh->boundary_index[(ii)*(nx+1)+(jj)] = index++;
-      }
-    }
-  }
-
-  return allocated;
-}
-
 // Reads an unstructured mesh from an input file
 size_t read_unstructured_mesh(
-    Mesh* mesh, UnstructuredMesh* umesh)
+    UnstructuredMesh* umesh)
 {
-  // TODO: MAKE THIS GENERAL
-  umesh->nnodes_by_cell = 3;
-  umesh->ncells_by_node = 3;
-
   // Open the files
   FILE* node_fp = fopen(umesh->node_filename, "r");
   FILE* ele_fp = fopen(umesh->ele_filename, "r");
@@ -218,7 +126,8 @@ size_t read_unstructured_mesh(
   // Read the number of cells
   fgets(temp, MAX_STR_LEN, ele_fp);
   skip_whitespace(&temp);
-  sscanf(temp, "%d", &umesh->ncells);
+  sscanf(temp, "%d%d", &umesh->ncells, &umesh->nnodes_by_cell);
+  umesh->ncells_by_node = umesh->nnodes_by_cell;
 
   // Allocate the data structures that we now know the sizes of
   size_t allocated = allocate_data(&umesh->nodes_x0, umesh->nnodes);
@@ -294,14 +203,13 @@ size_t read_unstructured_mesh(
       }
     }
 
-    // TODO: change to loop
-    const double A = 
-      (umesh->nodes_x0[node[0]]*umesh->nodes_y0[node[1]]-
-       umesh->nodes_x0[node[1]]*umesh->nodes_y0[node[0]]+
-       umesh->nodes_x0[node[1]]*umesh->nodes_y0[node[2]]-
-       umesh->nodes_x0[node[2]]*umesh->nodes_y0[node[1]]+
-       umesh->nodes_x0[node[2]]*umesh->nodes_y0[node[0]]-
-       umesh->nodes_x0[node[0]]*umesh->nodes_y0[node[2]]);
+    // Check that we are storing the nodes in the correct order
+    double A = 0.0;
+    for(int ii = 0; ii < umesh->nnodes_by_cell; ++ii) {
+      const int ii2 = (ii+1) % umesh->nnodes_by_cell; 
+      A += (umesh->nodes_x0[node[ii]]+umesh->nodes_x0[node[ii2]])*
+        (umesh->nodes_y0[node[ii2]]-umesh->nodes_y0[node[ii]]);
+    }
     assert(A > 0.0 && "Nodes are not stored in counter-clockwise order.\n");
   }
 
@@ -374,37 +282,6 @@ void handle_unstructured_reflect(
       velocity_y[(nn)] = 0.0;
     }
   }
-}
-
-// Writes out mesh and data
-void write_quad_data_to_visit(
-    const int nx, const int ny, const int step, double* nodes_x, 
-    double* nodes_y, const double* data, const int nodal)
-{
-  char filename[MAX_STR_LEN];
-  sprintf(filename, "output%04d.silo", step);
-
-  DBfile *dbfile = DBCreate(filename, DB_CLOBBER, DB_LOCAL,
-      "simulation time step", DB_HDF5);
-
-  int dims[] = {nx+1, ny+1};
-  int ndims = 2;
-  double *coords[] = {(double*)nodes_x, (double*)nodes_y};
-  DBPutQuadmesh(dbfile, "quadmesh", NULL, coords, dims, ndims,
-      DB_DOUBLE, DB_NONCOLLINEAR, NULL);
-
-  int local_dims[2];
-  if(nodal) {
-    local_dims[0] = nx+1;
-    local_dims[1] = ny+1;
-  }
-  else {
-    local_dims[0] = nx;
-    local_dims[1] = ny;
-  }
-  DBPutQuadvar1(dbfile, "nodal", "quadmesh", data, local_dims,
-      ndims, NULL, 0, DB_DOUBLE, nodal ? DB_NODECENT : DB_ZONECENT, NULL);
-  DBClose(dbfile);
 }
 
 // Writes out unstructured triangles to visit

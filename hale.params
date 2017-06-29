@@ -1,9 +1,9 @@
-problem_0 density=0.125 energy=2.0 xpos=0.0 ypos=0.0 width=1.0 height=1.0
-problem_1 density=1.0 energy=2.5 xpos=0.3 ypos=0.3 width=0.4 height=0.4
 dt            1.0e-4
 nx            100
 ny            100
 visc_coeff1   0.5
 visc_coeff2   0.5
-iterations    10000
+iterations    1000
 visit_dump    1
+node_file     problems/tri.1.node
+ele_file      problems/tri.1.ele

@@ -5,11 +5,13 @@
 #include "hale_interface.h"
 #include "hale_data.h"
 #include "../mesh.h"
-#if 0
-#include "../shared_data.h"
-#endif // if 0
 #include "../comms.h"
 #include "../params.h"
+
+// Validates the results of the simulation
+void validate(
+    const int nx, const int ny, const char* params_filename, 
+    const int rank, double* density, double* energy);
 
 int main(int argc, char** argv)
 {
@@ -42,16 +44,11 @@ int main(int argc, char** argv)
   initialise_mesh_2d(&mesh);
 
   UnstructuredMesh umesh;
-  umesh.node_filename = "tri.1.node";
-  umesh.ele_filename = "tri.1.ele";
-
-#if 0
-  // Initialises a quad mesh from the input file
-  size_t allocated = initialise_unstructured_mesh(&mesh, &umesh);
-#endif // if 0
+  umesh.node_filename = get_parameter("node_file", hale_params);
+  umesh.ele_filename = get_parameter("ele_file", hale_params);
 
   // Reads an unstructured mesh from an input file
-  size_t allocated = read_unstructured_mesh(&mesh, &umesh);
+  size_t allocated = read_unstructured_mesh(&umesh);
 
   int nthreads = 0;
 #pragma omp parallel 
@@ -137,6 +134,10 @@ int main(int argc, char** argv)
 
   barrier();
 
+  validate(
+      mesh.local_nx, mesh.local_ny, hale_params, mesh.rank, 
+      hale_data.density0, hale_data.energy0);
+
   if(mesh.rank == MASTER) {
     PRINT_PROFILING_RESULTS(&compute_profile);
     PRINT_PROFILING_RESULTS(&comms_profile);
@@ -147,5 +148,73 @@ int main(int argc, char** argv)
   finalise_mesh(&mesh);
 
   return 0;
+}
+
+// Validates the results of the simulation
+void validate(
+    const int nx, const int ny, const char* params_filename, 
+    const int rank, double* density, double* energy)
+{
+  double* h_energy;
+  double* h_density;
+  allocate_host_data(&h_energy, nx*ny);
+  allocate_host_data(&h_density, nx*ny);
+  copy_buffer(nx*ny, &energy, &h_energy, RECV);
+  copy_buffer(nx*ny, &density, &h_density, RECV);
+
+  double local_density_total = 0.0;
+  double local_energy_total = 0.0;
+
+#pragma omp parallel for reduction(+: local_density_total, local_energy_total)
+  for(int ii = 0; ii < nx*ny; ++ii) {
+    local_density_total += h_density[ii];
+    local_energy_total += h_energy[ii];
+  }
+
+  double global_density_total = reduce_all_sum(local_density_total);
+  double global_energy_total = reduce_all_sum(local_energy_total);
+
+  if(rank != MASTER) {
+    return;
+  }
+
+  int nresults = 0;
+  char* keys = (char*)malloc(sizeof(char)*MAX_KEYS*(MAX_STR_LEN+1));
+  double* values = (double*)malloc(sizeof(double)*MAX_KEYS);
+  if(!get_key_value_parameter(
+        params_filename, HALE_TESTS, keys, values, &nresults)) {
+    printf("Warning. Test entry was not found, could NOT validate.\n");
+    return;
+  }
+
+  double expected_energy;
+  double expected_density;
+  if(strmatch(&(keys[0]), "energy")) {
+    expected_energy = values[0];
+    expected_density = values[1];
+  }
+  else {
+    expected_energy = values[1];
+    expected_density = values[0];
+  }
+
+  printf("\nExpected energy %.12e, result was %.12e.\n", expected_energy, global_energy_total);
+  printf("Expected density %.12e, result was %.12e.\n", expected_density, global_density_total);
+
+  const int pass = 
+    within_tolerance(expected_energy, global_energy_total, VALIDATE_TOLERANCE) &&
+    within_tolerance(expected_density, global_density_total, VALIDATE_TOLERANCE);
+
+  if(pass) {
+    printf("PASSED validation.\n");
+  }
+  else {
+    printf("FAILED validation.\n");
+  }
+
+  free(keys);
+  free(values);
+  deallocate_host_data(h_energy);
+  deallocate_host_data(h_density);
 }
 
