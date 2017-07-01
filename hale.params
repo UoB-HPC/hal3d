@@ -3,5 +3,5 @@ visc_coeff1   0.5
 visc_coeff2   0.5
 iterations    1000
 visit_dump    1
-node_file     problems/tri.1.node
-ele_file      problems/tri.1.ele
+node_file     problems/circ.1.node
+ele_file      problems/circ.1.ele
