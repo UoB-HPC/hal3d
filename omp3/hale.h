@@ -2,8 +2,9 @@
 
 // Calculates the artificial viscous forces for momentum acceleration
 void calculate_artificial_viscosity(
-    const int ncells, const double visc_coeff1, const double visc_coeff2, 
+    const int nnodes, const double visc_coeff1, const double visc_coeff2, 
     const int* cells_to_nodes_off, const int* cells_to_nodes, 
+    const int* nodes_to_cells_off, const int* nodes_to_cells,
     const double* nodes_x, const double* nodes_y, 
     const double* cell_centroids_x, const double* cell_centroids_y,
     const double* velocity_x, const double* velocity_y,

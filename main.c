@@ -94,14 +94,12 @@ int main(int argc, char** argv)
 
     solve_unstructured_hydro_2d(
         &mesh, umesh.ncells, umesh.nnodes, hale_data.visc_coeff1, 
-        hale_data.visc_coeff2, umesh.cell_centroids_x, 
-        umesh.cell_centroids_y, umesh.cells_to_nodes, 
-        umesh.cells_to_nodes_off, umesh.nodes_x0, 
-        umesh.nodes_y0, umesh.nodes_x1, 
-        umesh.nodes_y1, umesh.boundary_index, 
-        umesh.boundary_type, umesh.boundary_normal_x, 
-        umesh.boundary_normal_y, hale_data.energy0, hale_data.energy1, 
-        hale_data.density0, hale_data.density1, hale_data.pressure0, hale_data.pressure1, 
+        hale_data.visc_coeff2, umesh.cell_centroids_x, umesh.cell_centroids_y, 
+        umesh.cells_to_nodes, umesh.cells_to_nodes_off, umesh.nodes_to_cells, 
+        umesh.nodes_to_cells_off, umesh.nodes_x0, umesh.nodes_y0, umesh.nodes_x1, 
+        umesh.nodes_y1, umesh.boundary_index, umesh.boundary_type, umesh.boundary_normal_x, 
+        umesh.boundary_normal_y, hale_data.energy0, hale_data.energy1, hale_data.density0, 
+        hale_data.density1, hale_data.pressure0, hale_data.pressure1, 
         hale_data.velocity_x0, hale_data.velocity_y0, hale_data.velocity_x1, 
         hale_data.velocity_y1, hale_data.cell_force_x, hale_data.cell_force_y, 
         hale_data.node_force_x, hale_data.node_force_y, hale_data.cell_mass, 
@@ -179,8 +177,10 @@ void validate(
   double* values = (double*)malloc(sizeof(double)*MAX_KEYS);
   if(!get_key_value_parameter(
         params_filename, HALE_TESTS, keys, values, &nresults)) {
+#if 0
     printf("Warning. Test entry was not found, could NOT validate.\n");
     return;
+#endif // if 0
   }
 
   double expected_energy;

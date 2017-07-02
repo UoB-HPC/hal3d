@@ -22,6 +22,7 @@ extern "C" {
       Mesh* mesh, const int ncells, const int nnodes, const double visc_coeff1, 
       const double visc_coeff2, double* cell_centroids_x, 
       double* cell_centroids_y, int* cells_to_nodes, int* cells_to_nodes_off, 
+      int* nodes_to_cells, int* nodes_to_cells_off,
       double* nodes_x0, double* nodes_y0, double* nodes_x1, double* nodes_y1, 
       int* boundary_index, int* boundary_type, double* boundary_normal_x, 
       double* boundary_normal_y, double* energy0, double* energy1, double* density0, 
