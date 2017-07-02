@@ -12,17 +12,17 @@
 // Solve a single timestep on the given mesh
 void solve_unstructured_hydro_2d(
     Mesh* mesh, const int ncells, const int nnodes, const double visc_coeff1, 
-    const double visc_coeff2, double* cell_centroids_x, 
-    double* cell_centroids_y, int* cells_to_nodes, int* cells_to_nodes_off, 
-    int* nodes_to_cells, int* nodes_to_cells_off,
-    double* nodes_x0, double* nodes_y0, double* nodes_x1, double* nodes_y1, 
-    int* boundary_index, int* boundary_type, double* boundary_normal_x, 
+    const double visc_coeff2, double* cell_centroids_x, double* cell_centroids_y, 
+    int* cells_to_nodes, int* cells_to_nodes_off, int* nodes_to_cells, 
+    int* nodes_to_cells_off, double* nodes_x0, double* nodes_y0, double* nodes_x1, 
+    double* nodes_y1, int* boundary_index, int* boundary_type, double* boundary_normal_x, 
     double* boundary_normal_y, double* energy0, double* energy1, double* density0, 
     double* density1, double* pressure0, double* pressure1, double* velocity_x0, 
     double* velocity_y0, double* velocity_x1, double* velocity_y1, 
     double* cell_force_x, double* cell_force_y, double* node_force_x, 
-    double* node_force_y, double* cell_mass, double* nodal_mass, 
-    double* nodal_volumes, double* nodal_soundspeed, double* limiter)
+    double* node_force_y, double* node_force_x2, double* node_force_y2, 
+    double* cell_mass, double* nodal_mass, double* nodal_volumes, 
+    double* nodal_soundspeed, double* limiter)
 {
   /*
    *    PREDICTOR
@@ -180,6 +180,8 @@ void solve_unstructured_hydro_2d(
   for(int nn = 0; nn < nnodes; ++nn) {
     node_force_x[(nn)] = 0.0;
     node_force_y[(nn)] = 0.0;
+    node_force_x2[(nn)] = 0.0;
+    node_force_y2[(nn)] = 0.0;
     nodal_soundspeed[(nn)] /= nodal_volumes[(nn)];
   }
   STOP_PROFILING(&compute_profile, "calc_soundspeed");
@@ -260,7 +262,7 @@ void solve_unstructured_hydro_2d(
       nnodes, visc_coeff1, visc_coeff2, cells_to_nodes_off, cells_to_nodes, 
       nodes_to_cells_off, nodes_to_cells, nodes_x0, nodes_y0, cell_centroids_x, 
       cell_centroids_y, velocity_x0, velocity_y0, nodal_soundspeed, nodal_mass,
-      nodal_volumes, limiter, node_force_x, node_force_y);
+      nodal_volumes, limiter, node_force_x, node_force_y, node_force_x2, node_force_y2);
 
   // Calculate the time centered evolved velocities, by first calculating the
   // predicted values at the new timestep and then averaging with current velocity
@@ -359,6 +361,8 @@ void solve_unstructured_hydro_2d(
     nodes_y1[(nn)] = 0.5*(nodes_y1[(nn)] + nodes_y0[(nn)]);
     node_force_x[(nn)] = 0.0;
     node_force_y[(nn)] = 0.0;
+    node_force_x2[(nn)] = 0.0;
+    node_force_y2[(nn)] = 0.0;
     nodal_volumes[(nn)] = 0.0;
     nodal_soundspeed[(nn)] = 0.0;
   }
@@ -522,7 +526,7 @@ void solve_unstructured_hydro_2d(
       nnodes, visc_coeff1, visc_coeff2, cells_to_nodes_off, cells_to_nodes, 
       nodes_to_cells_off, nodes_to_cells, nodes_x1, nodes_y1, cell_centroids_x, 
       cell_centroids_y, velocity_x1, velocity_y1, nodal_soundspeed, nodal_mass,
-      nodal_volumes, limiter, node_force_x, node_force_y);
+      nodal_volumes, limiter, node_force_x, node_force_y, node_force_x2, node_force_y2);
 
   update_velocity(
       nnodes, mesh->dt, node_force_x, node_force_y, nodal_mass, velocity_x0, 
@@ -599,7 +603,8 @@ void calculate_artificial_viscosity(
     const double* velocity_x, const double* velocity_y,
     const double* nodal_soundspeed, const double* nodal_mass,
     const double* nodal_volumes, const double* limiter,
-    double* node_force_x, double* node_force_y)
+    double* node_force_x, double* node_force_y,
+    double* node_force_x2, double* node_force_y2)
 {
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
@@ -676,17 +681,20 @@ void calculate_artificial_viscosity(
 
         // Add the contributions of the edge based artifical viscous terms
         // to the main force terms
-        //
-        //
-        //
-        // TODO: THERE IS A RACE CONDITION HERE.....
         node_force_x[(nn)] -= edge_visc_force_x;
-        node_force_x[(node_r_index)] += edge_visc_force_x;
         node_force_y[(nn)] -= edge_visc_force_y;
-        node_force_y[(node_r_index)] += edge_visc_force_y;
+        node_force_x2[(node_r_index)] += edge_visc_force_x;
+        node_force_y2[(node_r_index)] += edge_visc_force_y;
       }
     }
   }
+
+#pragma omp parallel
+  for(int nn = 0; nn < nnodes; ++nn) {
+    node_force_x[(nn)] += node_force_x2[(nn)];
+    node_force_y[(nn)] += node_force_y2[(nn)];
+  }
+
   STOP_PROFILING(&compute_profile, "artificial_viscosity");
 }
 

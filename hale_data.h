@@ -27,6 +27,8 @@ typedef struct {
   double* cell_force_y; 
   double* node_force_x;
   double* node_force_y;
+  double* node_force_x2;
+  double* node_force_y2;
   double* node_visc_x;
   double* node_visc_y;
   double* cell_volumes; 

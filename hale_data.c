@@ -25,6 +25,8 @@ size_t initialise_hale_data_2d(
   allocated += allocate_data(&hale_data->cell_force_y, umesh->ncells*umesh->nnodes_by_cell);
   allocated += allocate_data(&hale_data->node_force_x, umesh->nnodes);
   allocated += allocate_data(&hale_data->node_force_y, umesh->nnodes);
+  allocated += allocate_data(&hale_data->node_force_x2, umesh->nnodes);
+  allocated += allocate_data(&hale_data->node_force_y2, umesh->nnodes);
   allocated += allocate_data(&hale_data->cell_mass, umesh->ncells);
   allocated += allocate_data(&hale_data->nodal_mass, umesh->nnodes);
   allocated += allocate_data(&hale_data->nodal_volumes, umesh->nnodes);

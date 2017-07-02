@@ -102,9 +102,9 @@ int main(int argc, char** argv)
         hale_data.density1, hale_data.pressure0, hale_data.pressure1, 
         hale_data.velocity_x0, hale_data.velocity_y0, hale_data.velocity_x1, 
         hale_data.velocity_y1, hale_data.cell_force_x, hale_data.cell_force_y, 
-        hale_data.node_force_x, hale_data.node_force_y, hale_data.cell_mass, 
-        hale_data.nodal_mass, hale_data.nodal_volumes, hale_data.nodal_soundspeed, 
-        hale_data.limiter);
+        hale_data.node_force_x, hale_data.node_force_y, hale_data.node_force_x2, 
+        hale_data.node_force_y2, hale_data.cell_mass, hale_data.nodal_mass, 
+        hale_data.nodal_volumes, hale_data.nodal_soundspeed, hale_data.limiter);
 
     wallclock += omp_get_wtime()-w0;
     elapsed_sim_time += mesh.dt;

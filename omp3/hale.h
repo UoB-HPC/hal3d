@@ -10,7 +10,8 @@ void calculate_artificial_viscosity(
     const double* velocity_x, const double* velocity_y,
     const double* nodal_soundspeed, const double* nodal_mass,
     const double* nodal_volumes, const double* limiter,
-    double* node_force_x, double* node_force_y);
+    double* node_force_x, double* node_force_y,
+    double* node_force_x2, double* node_force_y2);
 
 // Uodates the velocity due to the pressure gradients
 void update_velocity(
