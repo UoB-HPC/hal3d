@@ -44,18 +44,20 @@ void solve_unstructured_hydro_2d(
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
     const double inv_Np = 1.0/(double)nnodes_around_cell;
 
-    cell_centroids_x[(cc)] = 0.0;
-    cell_centroids_y[(cc)] = 0.0;
+    double cx = 0.0;
+    double cy = 0.0;
     for(int nn = 0; nn < nnodes_around_cell; ++nn) {
       const int node_index = cells_to_nodes[(nodes_off)+(nn)];
-      cell_centroids_x[(cc)] += nodes_x0[node_index]*inv_Np;
-      cell_centroids_y[(cc)] += nodes_y0[node_index]*inv_Np;
+      cx += nodes_x0[(node_index)]*inv_Np;
+      cy += nodes_y0[(node_index)]*inv_Np;
     }
+    cell_centroids_x[(cc)] = cx;
+    cell_centroids_y[(cc)] = cy;
   }
   STOP_PROFILING(&compute_profile, "calc_centroids");
 
   START_PROFILING(&compute_profile);
-#pragma omp parallel for
+#pragma omp parallel for simd
   for(int nn = 0; nn < nnodes; ++nn) {
     nodal_mass[(nn)] = 0.0;
     nodal_volumes[(nn)] = 0.0;
@@ -223,7 +225,7 @@ void solve_unstructured_hydro_2d(
       node_force_y[(nn)] += pressure0[(cell_index)]*S_y;
     }
   }
-  STOP_PROFILING(&compute_profile, "calc_node_forces");
+  STOP_PROFILING(&compute_profile, "calc_nodal_force");
 
   // Calculate the force contributions for pressure gradients
   START_PROFILING(&compute_profile);
@@ -366,7 +368,7 @@ void solve_unstructured_hydro_2d(
     nodal_volumes[(nn)] = 0.0;
     nodal_soundspeed[(nn)] = 0.0;
   }
-  STOP_PROFILING(&compute_profile, "move_nodes");
+  STOP_PROFILING(&compute_profile, "move_nodes2");
 
   /*
    *    CORRECTOR
@@ -380,13 +382,15 @@ void solve_unstructured_hydro_2d(
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
     const double inv_Np = 1.0/(double)nnodes_around_cell;
 
-    cell_centroids_x[(cc)] = 0.0;
-    cell_centroids_y[(cc)] = 0.0;
+    double cx = 0.0;
+    double cy = 0.0;
     for(int nn = 0; nn < nnodes_around_cell; ++nn) {
       const int node_index = cells_to_nodes[(nodes_off)+(nn)];
-      cell_centroids_x[(cc)] += nodes_x1[(node_index)]*inv_Np;
-      cell_centroids_y[(cc)] += nodes_y1[(node_index)]*inv_Np;
+      cx += nodes_x1[(node_index)]*inv_Np;
+      cy += nodes_y1[(node_index)]*inv_Np;
     }
+    cell_centroids_x[(cc)] = cx;
+    cell_centroids_y[(cc)] = cy;
   }
   STOP_PROFILING(&compute_profile, "calc_centroids");
 
@@ -396,6 +400,8 @@ void solve_unstructured_hydro_2d(
   for(int nn = 0; nn < nnodes; ++nn) {
     const int node_offset = nodes_to_cells_off[(nn)];
     const int ncells_by_node = nodes_to_cells_off[(nn+1)]-node_offset;
+    double nc = 0.0;
+    double nv = 0.0;
     for(int cc = 0; cc < ncells_by_node; ++cc) {
       const int cell_index = nodes_to_cells[(node_offset+cc)];
       const int cell_offset = cells_to_nodes_off[(cell_index)];
@@ -434,12 +440,14 @@ void solve_unstructured_hydro_2d(
              cell_centroid_x*node_r_y + node_l_x*cell_centroid_y));
 
       // Add contributions to the nodal mass from adjacent sub-cells
-      nodal_soundspeed[(nn)] += 
-        sqrt(GAM*(GAM-1.0)*energy1[(cell_index)])*sub_cell_volume;
+      nc += sqrt(GAM*(GAM-1.0)*energy1[(cell_index)])*sub_cell_volume;
 
       // Calculate the volume at the node
-      nodal_volumes[(nn)] += sub_cell_volume;
+      nv += sub_cell_volume;
     }
+
+    nodal_soundspeed[(nn)] = nc;
+    nodal_volumes[(nn)] = nv;
   }
   STOP_PROFILING(&compute_profile, "calc_nodal_volume");
 
@@ -520,7 +528,7 @@ void solve_unstructured_hydro_2d(
       cell_force_y[(nodes_off)+(nn)] = pressure1[(cc)]*S_y;
     }
   }
-  STOP_PROFILING(&compute_profile, "calc_cell_force");
+  STOP_PROFILING(&compute_profile, "calc_cell_forces");
 
   calculate_artificial_viscosity(
       nnodes, visc_coeff1, visc_coeff2, cells_to_nodes_off, cells_to_nodes, 
