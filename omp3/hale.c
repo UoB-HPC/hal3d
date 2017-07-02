@@ -683,16 +683,17 @@ void calculate_artificial_viscosity(
         // to the main force terms
         node_force_x[(nn)] -= edge_visc_force_x;
         node_force_y[(nn)] -= edge_visc_force_y;
-        node_force_x2[(node_r_index)] += edge_visc_force_x;
-        node_force_y2[(node_r_index)] += edge_visc_force_y;
+
+        //
+        //
+        //
+        //
+        //
+        // TODO : There is a race condition here...
+        node_force_x[(node_r_index)] += edge_visc_force_x;
+        node_force_y[(node_r_index)] += edge_visc_force_y;
       }
     }
-  }
-
-#pragma omp parallel
-  for(int nn = 0; nn < nnodes; ++nn) {
-    node_force_x[(nn)] += node_force_x2[(nn)];
-    node_force_y[(nn)] += node_force_y2[(nn)];
   }
 
   STOP_PROFILING(&compute_profile, "artificial_viscosity");
