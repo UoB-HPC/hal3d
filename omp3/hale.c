@@ -29,12 +29,15 @@ void solve_unstructured_hydro_2d(
    */
 
   // Calculate the pressure using the ideal gas equation of state
+  START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
     pressure0[(cc)] = (GAM-1.0)*energy0[(cc)]*density0[(cc)];
   }
+  STOP_PROFILING(&compute_profile, "equation_of_state");
 
   // Calculate the cell centroids
+  START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
@@ -49,16 +52,20 @@ void solve_unstructured_hydro_2d(
       cell_centroids_y[(cc)] += nodes_y0[node_index]*inv_Np;
     }
   }
+  STOP_PROFILING(&compute_profile, "calc_centroids");
 
+  START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
     nodal_mass[(nn)] = 0.0;
     nodal_volumes[(nn)] = 0.0;
     nodal_soundspeed[(nn)] = 0.0;
   }
+  STOP_PROFILING(&compute_profile, "zero_nodal_arrays");
 
-  double total_mass = 0.0;
   // Calculate the cell mass
+  START_PROFILING(&compute_profile);
+  double total_mass = 0.0;
 #pragma omp parallel for reduction(+: total_mass)
   for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
@@ -106,10 +113,12 @@ void solve_unstructured_hydro_2d(
     cell_mass[(cc)] = density0[(cc)]*cell_volume;
     total_mass += cell_mass[(cc)];
   }
+  STOP_PROFILING(&compute_profile, "calc_cell_mass");
 
   printf("total mass %.12f\n", total_mass);
 
   // Calculate the nodal mass
+  START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
     const int node_offset = nodes_to_cells_off[(nn)];
@@ -164,15 +173,19 @@ void solve_unstructured_hydro_2d(
       nodal_volumes[(nn)] += sub_cell_volume;
     }
   }
+  STOP_PROFILING(&compute_profile, "calc_nodal_mass_vol");
 
+  START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
     node_force_x[(nn)] = 0.0;
     node_force_y[(nn)] = 0.0;
     nodal_soundspeed[(nn)] /= nodal_volumes[(nn)];
   }
+  STOP_PROFILING(&compute_profile, "calc_soundspeed");
 
   // Calculate the force contributions for pressure gradients
+  START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
     const int node_offset = nodes_to_cells_off[(nn)];
@@ -208,8 +221,10 @@ void solve_unstructured_hydro_2d(
       node_force_y[(nn)] += pressure0[(cell_index)]*S_y;
     }
   }
+  STOP_PROFILING(&compute_profile, "calc_node_forces");
 
   // Calculate the force contributions for pressure gradients
+  START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
@@ -239,6 +254,7 @@ void solve_unstructured_hydro_2d(
       cell_force_y[(nodes_off)+(nn)] = pressure0[(cc)]*S_y;
     }
   }
+  STOP_PROFILING(&compute_profile, "calc_cell_forces");
 
   calculate_artificial_viscosity(
       nnodes, visc_coeff1, visc_coeff2, cells_to_nodes_off, cells_to_nodes, 
@@ -248,6 +264,7 @@ void solve_unstructured_hydro_2d(
 
   // Calculate the time centered evolved velocities, by first calculating the
   // predicted values at the new timestep and then averaging with current velocity
+  START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
     // Determine the predicted velocity
@@ -258,23 +275,27 @@ void solve_unstructured_hydro_2d(
     velocity_x1[(nn)] = 0.5*(velocity_x0[(nn)] + velocity_x1[(nn)]);
     velocity_y1[(nn)] = 0.5*(velocity_y0[(nn)] + velocity_y1[(nn)]);
   }
+  STOP_PROFILING(&compute_profile, "calc_new_velocity");
 
   handle_unstructured_reflect(
       nnodes, boundary_index, boundary_type, boundary_normal_x, 
       boundary_normal_y, velocity_x1, velocity_y1);
 
   // Move the nodes by the predicted velocity
+  START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
     nodes_x1[(nn)] = nodes_x0[(nn)] + mesh->dt*velocity_x1[(nn)];
     nodes_y1[(nn)] = nodes_y0[(nn)] + mesh->dt*velocity_y1[(nn)];
   }
+  STOP_PROFILING(&compute_profile, "move_nodes");
 
   set_timestep(
       ncells, cells_to_nodes, cells_to_nodes_off, 
       nodes_x1, nodes_y1, energy0, &mesh->dt);
 
   // Calculate the predicted energy
+  START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
@@ -291,8 +312,10 @@ void solve_unstructured_hydro_2d(
 
     energy1[(cc)] = energy0[(cc)] - mesh->dt*force/cell_mass[(cc)];
   }
+  STOP_PROFILING(&compute_profile, "calc_new_energy");
 
   // Using the new volume, calculate the predicted density
+  START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
@@ -313,9 +336,11 @@ void solve_unstructured_hydro_2d(
 
     density1[(cc)] = cell_mass[(cc)]/cell_volume;
   }
+  STOP_PROFILING(&compute_profile, "calc_new_density");
 
   // Calculate the time centered pressure from mid point between original and 
   // predicted pressures
+  START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
     // Calculate the predicted pressure from the equation of state
@@ -324,8 +349,10 @@ void solve_unstructured_hydro_2d(
     // Determine the time centered pressure
     pressure1[(cc)] = 0.5*(pressure0[(cc)] + pressure1[(cc)]);
   }
+  STOP_PROFILING(&compute_profile, "equation_of_state_time_center");
 
   // Prepare time centered variables for the corrector step
+  START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
     nodes_x1[(nn)] = 0.5*(nodes_x1[(nn)] + nodes_x0[(nn)]);
@@ -335,12 +362,14 @@ void solve_unstructured_hydro_2d(
     nodal_volumes[(nn)] = 0.0;
     nodal_soundspeed[(nn)] = 0.0;
   }
+  STOP_PROFILING(&compute_profile, "move_nodes");
 
   /*
    *    CORRECTOR
    */
 
   // Calculate the new cell centroids
+  START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
@@ -355,8 +384,10 @@ void solve_unstructured_hydro_2d(
       cell_centroids_y[(cc)] += nodes_y1[(node_index)]*inv_Np;
     }
   }
+  STOP_PROFILING(&compute_profile, "calc_centroids");
 
   // Calculate the new nodal soundspeed and volumes
+  START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
     const int node_offset = nodes_to_cells_off[(nn)];
@@ -406,13 +437,17 @@ void solve_unstructured_hydro_2d(
       nodal_volumes[(nn)] += sub_cell_volume;
     }
   }
+  STOP_PROFILING(&compute_profile, "calc_nodal_volume");
 
+  START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
     nodal_soundspeed[(nn)] /= nodal_volumes[(nn)];
   }
+  STOP_PROFILING(&compute_profile, "calc_nodal_soundspeed");
 
   // Calculate the force contributions for pressure gradients
+  START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
     const int node_offset = nodes_to_cells_off[(nn)];
@@ -448,8 +483,10 @@ void solve_unstructured_hydro_2d(
       node_force_y[(nn)] += pressure1[(cell_index)]*S_y;
     }
   }
+  STOP_PROFILING(&compute_profile, "calc_nodal_force");
 
   // Calculate the force contributions for pressure gradients
+  START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
@@ -479,6 +516,7 @@ void solve_unstructured_hydro_2d(
       cell_force_y[(nodes_off)+(nn)] = pressure1[(cc)]*S_y;
     }
   }
+  STOP_PROFILING(&compute_profile, "calc_cell_force");
 
   calculate_artificial_viscosity(
       nnodes, visc_coeff1, visc_coeff2, cells_to_nodes_off, cells_to_nodes, 
@@ -495,17 +533,20 @@ void solve_unstructured_hydro_2d(
       boundary_normal_y, velocity_x0, velocity_y0);
 
   // Calculate the corrected node movements
+  START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
     nodes_x0[(nn)] += mesh->dt*velocity_x0[(nn)];
     nodes_y0[(nn)] += mesh->dt*velocity_y0[(nn)];
   }
+  STOP_PROFILING(&compute_profile, "move_nodes");
 
   set_timestep(
       ncells, cells_to_nodes, cells_to_nodes_off,
       nodes_x0, nodes_y0, energy1, &mesh->dt);
 
   // Calculate the final energy
+  START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
@@ -522,8 +563,10 @@ void solve_unstructured_hydro_2d(
 
     energy0[(cc)] -= mesh->dt*force/cell_mass[(cc)];
   }
+  STOP_PROFILING(&compute_profile, "calc_new_energy");
 
   // Using the new corrected volume, calculate the density
+  START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
@@ -543,6 +586,7 @@ void solve_unstructured_hydro_2d(
     // Update the density using the new volume
     density0[(cc)] = cell_mass[(cc)]/cell_volume;
   }
+  STOP_PROFILING(&compute_profile, "calc_new_density");
 }
 
 // Calculates the artificial viscous forces for momentum acceleration
@@ -557,6 +601,7 @@ void calculate_artificial_viscosity(
     const double* nodal_volumes, const double* limiter,
     double* node_force_x, double* node_force_y)
 {
+  START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
     const int node_offset = nodes_to_cells_off[(nn)];
@@ -642,6 +687,7 @@ void calculate_artificial_viscosity(
       }
     }
   }
+  STOP_PROFILING(&compute_profile, "artificial_viscosity");
 }
 
 // Controls the timestep for the simulation
@@ -651,6 +697,7 @@ void set_timestep(
 {
   // Calculate the timestep based on the computational mesh and CFL condition
   double local_dt = DBL_MAX;
+  START_PROFILING(&compute_profile);
 #pragma omp parallel for reduction(min: local_dt)
   for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
@@ -671,6 +718,7 @@ void set_timestep(
     const double soundspeed = sqrt(GAM*(GAM-1.0)*energy[(cc)]);
     local_dt = min(local_dt, shortest_edge/soundspeed);
   }
+  STOP_PROFILING(&compute_profile, __func__);
 
   *dt = CFL*local_dt;
   printf("Timestep %.8fs\n", *dt);
@@ -683,6 +731,7 @@ void update_velocity(
     double* velocity_y0, double* velocity_x1, double* velocity_y1) 
 {
   // Calculate the corrected time centered velocities
+  START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
     // Calculate the new velocities
@@ -693,51 +742,6 @@ void update_velocity(
     velocity_x0[(nn)] = 0.5*(velocity_x1[(nn)] + velocity_x0[(nn)]);
     velocity_y0[(nn)] = 0.5*(velocity_y1[(nn)] + velocity_y0[(nn)]);
   }
+  STOP_PROFILING(&compute_profile, "calc_new_velocity_time_center");
 }
-
-#if 0
-// Calculate the limiter
-for(int cc = 0; cc < ncells; ++cc) {
-
-  const int nodes_off = cells_to_nodes_off[(cc)];
-  const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
-
-  for(int nn = 0; nn < nnodes_around_cell; ++nn) {
-    const int node_l_index = (nn == 0) 
-      ? cells_to_nodes[(nodes_off+nnodes_around_cell-1)] 
-      : cells_to_nodes[(nodes_off)+(nn-1)]; 
-    const int node_c_index = cells_to_nodes[(nodes_off)+(nn)]; 
-    const int node_r_index = (nn == nnodes_around_cell-1) 
-      ? cells_to_nodes[(nodes_off)] : cells_to_nodes[(nodes_off)+(nn+1)];
-
-    const double velocity_mag = 
-      sqrt((velocity_x1[(node_c_index)]*velocity_x1[(node_c_index)]+
-            velocity_y1[(node_c_index)]*velocity_y1[(node_c_index)]);
-          const double nodes_mag = 
-          sqrt(nodes_x1[(node_c_index)]*nodes_x1[(node_c_index)]+
-            nodes_y1[(node_c_index)]*nodes_y1[(node_c_index)]);
-          const double velocity_x1_unit = velocity_x1[(node_c_index)]/velocity_mag;
-          const double velocity_y1_unit = velocity_y1[(node_c_index)]/velocity_mag;
-          const double nodes_x1_unit = nodes_x1[(node_c_index)]/nodes_mag;
-          const double nodes_y1_unit = nodes_y1[(node_c_index)]/nodes_mag;
-
-          const double cond = nodes_mag/velocity_mag;
-          const double r_l = 
-          ((velocity_x1[(node_c_index)]-velocity_x1[(node_l_index)])*velocity_x1_unit+
-           (velocity_y1[(node_l_index)]-velocity_y1[(node_l_index)])*velocity_y1_unit)/
-          ((nodes_x1[(node_c_index)]-nodes_x1[(node_l_index)])*nodes_x1_unit+
-           (nodes_y1[(node_c_index)]-nodes_y1[(node_l_index)])*nodes_y1_unit)*cond;
-          const double r_r = 
-          ((velocity_x1[(node_r_index)]-velocity_x1[(node_c_index)])*velocity_x1_unit+
-           (velocity_y1[(node_r_index)]-velocity_y1[(node_r_index)])*velocity_y1_unit)/
-          ((nodes_x1[(node_r_index)]-nodes_x1[(node_c_index)])*nodes_x1_unit+
-           (nodes_y1[(node_r_index)]-nodes_y1[(node_c_index)])*nodes_y1_unit)*cond;
-
-          double limiter_i = min(0.5*(r_l+r_r), 2.0*r_l);
-          limiter_i = min(limiter_i, 2.0*r_r);
-          limiter_i = min(limiter_i, 1.0);
-          limiter[(node_c_index)] = max(0.0, limiter_i);
-  }
-}
-#endif // if 0
 
