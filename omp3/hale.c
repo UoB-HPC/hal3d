@@ -631,6 +631,10 @@ void calculate_artificial_viscosity(
 
         // Add the contributions of the edge based artifical viscous terms
         // to the main force terms
+        //
+        //
+        //
+        // TODO: THERE IS A RACE CONDITION HERE.....
         node_force_x[(nn)] -= edge_visc_force_x;
         node_force_x[(node_r_index)] += edge_visc_force_x;
         node_force_y[(nn)] -= edge_visc_force_y;
