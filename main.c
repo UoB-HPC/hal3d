@@ -31,6 +31,7 @@ int main(int argc, char** argv)
   mesh.rank = MASTER;
   mesh.nranks = 1;
   const int visit_dump = get_int_parameter("visit_dump", hale_params);
+  const int read_umesh = get_int_parameter("read_umesh", hale_params);
 
   // Perform initialisation routines
   initialise_mpi(argc, argv, &mesh.rank, &mesh.nranks);
@@ -40,9 +41,12 @@ int main(int argc, char** argv)
 
   // Fetch the size of the unstructured mesh
   UnstructuredMesh umesh;
-  umesh.node_filename = get_parameter("node_file", hale_params);
-  umesh.ele_filename = get_parameter("ele_file", hale_params);
-  read_unstructured_mesh_sizes(&umesh);
+
+  if(read_umesh) {
+    umesh.node_filename = get_parameter("node_file", hale_params);
+    umesh.ele_filename = get_parameter("ele_file", hale_params);
+    read_unstructured_mesh_sizes(&umesh);
+  }
 
   // Initialise the hale-specific data arrays
   HaleData hale_data = {0};
@@ -51,8 +55,14 @@ int main(int argc, char** argv)
 
   // Initialise data arrays and then fill in unstructured mesh data
   size_t allocated = initialise_hale_data_2d(&hale_data, &umesh);
-  double* variables[2] = { hale_data.density0, hale_data.energy0 };
-  allocated += read_unstructured_mesh(&umesh, variables);
+
+  if(read_umesh) {
+    double* variables[2] = { hale_data.density0, hale_data.energy0 };
+    allocated += read_unstructured_mesh(&umesh, variables);
+  }
+  else {
+    allocated += convert_mesh_to_umesh(&umesh, &mesh);
+  }
 
   printf("Allocated %.3fGB bytes of data\n", allocated/(double)GB);
 
