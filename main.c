@@ -194,10 +194,8 @@ void validate(
   double* values = (double*)malloc(sizeof(double)*MAX_KEYS);
   if(!get_key_value_parameter(
         params_filename, HALE_TESTS, keys, values, &nresults)) {
-#if 0
     printf("Warning. Test entry was not found, could NOT validate.\n");
     return;
-#endif // if 0
   }
 
   double expected_energy;

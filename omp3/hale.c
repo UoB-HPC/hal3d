@@ -229,7 +229,7 @@ void solve_unstructured_hydro_2d(
 
   // Calculate the force contributions for pressure gradients
   START_PROFILING(&compute_profile);
-#pragma omp parallel for
+#pragma omp parallel for simd
   for(int cc = 0; cc < ncells; ++cc) {
     const int nodes_off = cells_to_nodes_off[(cc)];
     const int nnodes_around_cell = cells_to_nodes_off[(cc+1)]-nodes_off;
@@ -269,7 +269,7 @@ void solve_unstructured_hydro_2d(
   // Calculate the time centered evolved velocities, by first calculating the
   // predicted values at the new timestep and then averaging with current velocity
   START_PROFILING(&compute_profile);
-#pragma omp parallel for
+#pragma omp parallel for simd
   for(int nn = 0; nn < nnodes; ++nn) {
     // Determine the predicted velocity
     velocity_x1[(nn)] = velocity_x0[(nn)] + mesh->dt*node_force_x[(nn)]/nodal_mass[(nn)];
@@ -287,7 +287,7 @@ void solve_unstructured_hydro_2d(
 
   // Move the nodes by the predicted velocity
   START_PROFILING(&compute_profile);
-#pragma omp parallel for
+#pragma omp parallel for simd
   for(int nn = 0; nn < nnodes; ++nn) {
     nodes_x1[(nn)] = nodes_x0[(nn)] + mesh->dt*velocity_x1[(nn)];
     nodes_y1[(nn)] = nodes_y0[(nn)] + mesh->dt*velocity_y1[(nn)];
