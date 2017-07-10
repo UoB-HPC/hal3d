@@ -5,6 +5,7 @@
 #include "hale_interface.h"
 #include "hale_data.h"
 #include "../mesh.h"
+#include "../umesh.h"
 #include "../comms.h"
 #include "../params.h"
 

@@ -5,6 +5,7 @@
 
 #include <stdlib.h> 
 #include "../mesh.h"
+#include "../umesh.h"
 
 #define CFL 0.3
 #define VALIDATE_TOLERANCE     1.0e-5
@@ -46,29 +47,9 @@ typedef struct {
 size_t initialise_hale_data_2d(
     HaleData* hale_data, UnstructuredMesh* umesh);
 
+// Deallocates all of the hale specific data
 void deallocate_hale_data_2d(
     HaleData* hale_data);
-
-size_t initialise_unstructured_mesh(
-    Mesh* mesh, UnstructuredMesh* unstructured_mesh);
-
-// Reflect the node centered velocities on the boundary
-void handle_unstructured_reflect(
-    const int nnodes, const int* boundary_index, const int* boundary_type,
-    const double* boundary_normal_x, const double* boundary_normal_y, 
-    double* velocity_x, double* velocity_y);
-
-// Fill boundary cells with interior values
-void handle_unstructured_cell_boundary(
-    const int ncells, const int* halo_cell, double* arr);
-
-// Fill halo nodes with interior values
-void handle_unstructured_node_boundary(
-    const int nnodes, const int* halo_index, const int* halo_neighbour, double* arr);
-
-// Reads an unstructured mesh from an input file
-size_t read_unstructured_mesh(
-    UnstructuredMesh* umesh, double** variables);
 
 // Writes out unstructured triangles to visit
 void write_unstructured_to_visit(

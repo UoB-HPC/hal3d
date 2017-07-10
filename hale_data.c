@@ -35,6 +35,7 @@ size_t initialise_hale_data_2d(
   return allocated;
 }
 
+// Deallocates all of the hale specific data
 void deallocate_hale_data(
     HaleData* hale_data)
 {
