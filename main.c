@@ -45,8 +45,14 @@ int main(int argc, char** argv)
   if(read_umesh) {
     umesh.node_filename = get_parameter("node_file", hale_params);
     umesh.ele_filename = get_parameter("ele_file", hale_params);
-    read_unstructured_mesh_sizes(&umesh);
+    read_nodes_data(&umesh);
   }
+
+#if 0
+  decompose_unstructured_mesh(
+      mesh->rank, mesh->nranks, umesh->ncells, umesh->nnodes, 
+      umesh->cell_centroids_x, umesh->cell_centroids_y, umesh->node_neighbours);
+#endif // if 0
 
   // Initialise the hale-specific data arrays
   HaleData hale_data = {0};
