@@ -39,13 +39,15 @@ int main(int argc, char** argv)
   initialise_devices(mesh.rank);
   initialise_mesh_2d(&mesh);
 
+  size_t allocated = 0;
+
   // Fetch the size of the unstructured mesh
   UnstructuredMesh umesh;
 
   if(read_umesh) {
     umesh.node_filename = get_parameter("node_file", hale_params);
     umesh.ele_filename = get_parameter("ele_file", hale_params);
-    read_nodes_data(&umesh);
+    allocated += read_nodes_data(&umesh);
   }
 
 #if 0
@@ -60,11 +62,11 @@ int main(int argc, char** argv)
   hale_data.visc_coeff2 = get_double_parameter("visc_coeff2", hale_params);
 
   // Initialise data arrays and then fill in unstructured mesh data
-  size_t allocated = initialise_hale_data_2d(&hale_data, &umesh);
+  allocated += initialise_hale_data_2d(&hale_data, &umesh);
 
   if(read_umesh) {
     double* variables[2] = { hale_data.density0, hale_data.energy0 };
-    allocated += read_unstructured_mesh(&umesh, variables);
+    allocated += read_element_data(&umesh, variables);
   }
   else {
     allocated += convert_mesh_to_umesh(&umesh, &mesh);
@@ -96,7 +98,7 @@ int main(int argc, char** argv)
 
   set_timestep(
       umesh.ncells, umesh.cells_to_nodes, 
-      umesh.cells_to_nodes_off, umesh.nodes_x0, 
+      umesh.cells_offsets, umesh.nodes_x0, 
       umesh.nodes_y0, hale_data.energy0, &mesh.dt);
 
   // Main timestep loop
@@ -112,8 +114,8 @@ int main(int argc, char** argv)
     solve_unstructured_hydro_2d(
         &mesh, umesh.ncells, umesh.nnodes, hale_data.visc_coeff1, 
         hale_data.visc_coeff2, umesh.cell_centroids_x, umesh.cell_centroids_y, 
-        umesh.cells_to_nodes, umesh.cells_to_nodes_off, umesh.nodes_to_cells, 
-        umesh.nodes_to_cells_off, umesh.nodes_x0, umesh.nodes_y0, umesh.nodes_x1, 
+        umesh.cells_to_nodes, umesh.cells_offsets, umesh.nodes_to_cells, 
+        umesh.nodes_offsets, umesh.nodes_x0, umesh.nodes_y0, umesh.nodes_x1, 
         umesh.nodes_y1, umesh.boundary_index, umesh.boundary_type, umesh.boundary_normal_x, 
         umesh.boundary_normal_y, hale_data.energy0, hale_data.energy1, hale_data.density0, 
         hale_data.density1, hale_data.pressure0, hale_data.pressure1, 
