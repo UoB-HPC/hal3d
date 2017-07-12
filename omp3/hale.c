@@ -762,6 +762,7 @@ void update_velocity(
   STOP_PROFILING(&compute_profile, "calc_new_velocity_time_center");
 }
 
+#if 0
 // Gathers the sub-cell values
 void gather(
     const int ncells, const int nnodes, const int* cells_offsets, 
@@ -886,6 +887,7 @@ void gather(
     }
   }
 }
+#endif // if 0
 
 #if 0
 // The mesh remapping algorithm

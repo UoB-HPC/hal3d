@@ -42,35 +42,24 @@ int main(int argc, char** argv)
   size_t allocated = 0;
 
   // Fetch the size of the unstructured mesh
-  UnstructuredMesh umesh;
+  UnstructuredMesh umesh = {0};
+  HaleData hale_data = {0};
 
   if(read_umesh) {
     umesh.node_filename = get_parameter("node_file", hale_params);
     umesh.ele_filename = get_parameter("ele_file", hale_params);
-    allocated += read_nodes_data(&umesh);
-  }
 
-#if 0
-  decompose_unstructured_mesh(
-      mesh->rank, mesh->nranks, umesh->ncells, umesh->nnodes, 
-      umesh->cell_centroids_x, umesh->cell_centroids_y, umesh->node_neighbours);
-#endif // if 0
-
-  // Initialise the hale-specific data arrays
-  HaleData hale_data = {0};
-  hale_data.visc_coeff1 = get_double_parameter("visc_coeff1", hale_params);
-  hale_data.visc_coeff2 = get_double_parameter("visc_coeff2", hale_params);
-
-  // Initialise data arrays and then fill in unstructured mesh data
-  allocated += initialise_hale_data_2d(&hale_data, &umesh);
-
-  if(read_umesh) {
-    double* variables[2] = { hale_data.density0, hale_data.energy0 };
-    allocated += read_element_data(&umesh, variables);
+    double* cell_variables[2] = { hale_data.density0, hale_data.energy0 };
+    allocated += read_unstructured_mesh(&umesh, cell_variables, 2);
   }
   else {
     allocated += convert_mesh_to_umesh(&umesh, &mesh);
   }
+
+  // Initialise the hale-specific data arrays
+  hale_data.visc_coeff1 = get_double_parameter("visc_coeff1", hale_params);
+  hale_data.visc_coeff2 = get_double_parameter("visc_coeff2", hale_params);
+  allocated += initialise_hale_data_2d(&hale_data, &umesh);
 
   printf("Allocated %.3fGB bytes of data\n", allocated/(double)GB);
 

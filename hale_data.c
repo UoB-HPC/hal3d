@@ -11,9 +11,7 @@
 size_t initialise_hale_data_2d(
     HaleData* hale_data, UnstructuredMesh* umesh)
 {
-  size_t allocated = allocate_data(&hale_data->energy0, umesh->ncells);
-  allocated += allocate_data(&hale_data->density0, umesh->ncells);
-  allocated += allocate_data(&hale_data->pressure0, umesh->ncells);
+  size_t allocated = allocate_data(&hale_data->pressure0, umesh->ncells);
   allocated += allocate_data(&hale_data->velocity_x0, umesh->nnodes);
   allocated += allocate_data(&hale_data->velocity_y0, umesh->nnodes);
   allocated += allocate_data(&hale_data->energy1, umesh->ncells);
@@ -40,15 +38,6 @@ void deallocate_hale_data(
     HaleData* hale_data)
 {
   // TODO: Populate this correctly !
-  deallocate_data(hale_data->energy1);
-  deallocate_data(hale_data->density1);
-  deallocate_data(hale_data->pressure1);
-  deallocate_data(hale_data->velocity_x1);
-  deallocate_data(hale_data->velocity_y1);
-  deallocate_data(hale_data->cell_force_x);
-  deallocate_data(hale_data->cell_force_y);
-  deallocate_data(hale_data->node_force_x);
-  deallocate_data(hale_data->node_force_y);
 }
 
 // Writes out unstructured triangles to visit
