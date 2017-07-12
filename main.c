@@ -49,7 +49,7 @@ int main(int argc, char** argv)
     umesh.node_filename = get_parameter("node_file", hale_params);
     umesh.ele_filename = get_parameter("ele_file", hale_params);
 
-    double* cell_variables[2] = { hale_data.density0, hale_data.energy0 };
+    double** cell_variables[2] = { &hale_data.density0, &hale_data.energy0 };
     allocated += read_unstructured_mesh(&umesh, cell_variables, 2);
   }
   else {

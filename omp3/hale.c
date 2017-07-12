@@ -104,7 +104,8 @@ void solve_unstructured_hydro_2d(
 
       // TODO: this should be updated to fix the issues with hourglassing...
       if(sub_cell_volume <= 0.0) {
-        TERMINATE("Encountered cell with unphysical volume %d.", cc);
+        TERMINATE("Encountered cell with unphysical volume %.12f in cell %d.", 
+            sub_cell_volume, cc);
       }
 
       // Reduce the total cell volume for later calculation
@@ -164,7 +165,8 @@ void solve_unstructured_hydro_2d(
 
       // TODO: this should be updated to fix the issues with hourglassing...
       if(sub_cell_volume <= 0.0) {
-        TERMINATE("Encountered cell with unphysical volume %d.", cc);
+        TERMINATE("Encountered cell with unphysical volume %.12f in cell %d.", 
+            sub_cell_volume, cc);
       }
 
       nodal_mass[(nn)] += density0[(cell_index)]*sub_cell_volume;
