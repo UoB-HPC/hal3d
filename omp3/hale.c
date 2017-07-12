@@ -40,14 +40,14 @@ void solve_unstructured_hydro_2d(
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
-    const int nodes_off = cells_offsets[(cc)];
-    const int nnodes_around_cell = cells_offsets[(cc+1)]-nodes_off;
+    const int cells_off = cells_offsets[(cc)];
+    const int nnodes_around_cell = cells_offsets[(cc+1)]-cells_off;
     const double inv_Np = 1.0/(double)nnodes_around_cell;
 
     double cx = 0.0;
     double cy = 0.0;
     for(int nn = 0; nn < nnodes_around_cell; ++nn) {
-      const int node_index = cells_to_nodes[(nodes_off)+(nn)];
+      const int node_index = cells_to_nodes[(cells_off)+(nn)];
       cx += nodes_x0[(node_index)]*inv_Np;
       cy += nodes_y0[(node_index)]*inv_Np;
     }
@@ -70,8 +70,8 @@ void solve_unstructured_hydro_2d(
   double total_mass = 0.0;
 #pragma omp parallel for reduction(+: total_mass)
   for(int cc = 0; cc < ncells; ++cc) {
-    const int nodes_off = cells_offsets[(cc)];
-    const int nnodes_around_cell = cells_offsets[(cc+1)]-nodes_off;
+    const int cells_off = cells_offsets[(cc)];
+    const int nnodes_around_cell = cells_offsets[(cc+1)]-cells_off;
     const double cell_c_x = cell_centroids_x[(cc)];
     const double cell_c_y = cell_centroids_y[(cc)];
 
@@ -80,11 +80,11 @@ void solve_unstructured_hydro_2d(
 
       // Determine the three point stencil of nodes around current node
       const int node_l_index = (nn == 0) 
-        ? cells_to_nodes[(nodes_off+nnodes_around_cell-1)] 
-        : cells_to_nodes[(nodes_off)+(nn-1)]; 
-      const int node_c_index = cells_to_nodes[(nodes_off)+(nn)]; 
+        ? cells_to_nodes[(cells_off+nnodes_around_cell-1)] 
+        : cells_to_nodes[(cells_off)+(nn-1)]; 
+      const int node_c_index = cells_to_nodes[(cells_off)+(nn)]; 
       const int node_r_index = (nn == nnodes_around_cell-1) 
-        ? cells_to_nodes[(nodes_off)] : cells_to_nodes[(nodes_off)+(nn+1)];
+        ? cells_to_nodes[(cells_off)] : cells_to_nodes[(cells_off)+(nn+1)];
 
       const double node_c_x = nodes_x0[(node_c_index)];
       const double node_c_y = nodes_y0[(node_c_index)];
@@ -124,10 +124,10 @@ void solve_unstructured_hydro_2d(
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
-    const int node_offset = nodes_offsets[(nn)];
-    const int ncells_by_node = nodes_offsets[(nn+1)]-node_offset;
+    const int nodes_off = nodes_offsets[(nn)];
+    const int ncells_by_node = nodes_offsets[(nn+1)]-nodes_off;
     for(int cc = 0; cc < ncells_by_node; ++cc) {
-      const int cell_index = nodes_to_cells[(node_offset+cc)];
+      const int cell_index = nodes_to_cells[(nodes_off+cc)];
       const int cell_offset = cells_offsets[(cell_index)];
       const int nnodes_by_cell = cells_offsets[(cell_index+1)]-cell_offset;
 
@@ -194,10 +194,10 @@ void solve_unstructured_hydro_2d(
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
-    const int node_offset = nodes_offsets[(nn)];
-    const int ncells_by_node = nodes_offsets[(nn+1)]-node_offset;
+    const int nodes_off = nodes_offsets[(nn)];
+    const int ncells_by_node = nodes_offsets[(nn+1)]-nodes_off;
     for(int cc = 0; cc < ncells_by_node; ++cc) {
-      const int cell_index = nodes_to_cells[(node_offset+cc)];
+      const int cell_index = nodes_to_cells[(nodes_off+cc)];
       const int cell_offset = cells_offsets[(cell_index)];
       const int nnodes_by_cell = cells_offsets[(cell_index+1)]-cell_offset;
 
@@ -233,19 +233,19 @@ void solve_unstructured_hydro_2d(
   START_PROFILING(&compute_profile);
 #pragma omp parallel for simd
   for(int cc = 0; cc < ncells; ++cc) {
-    const int nodes_off = cells_offsets[(cc)];
-    const int nnodes_around_cell = cells_offsets[(cc+1)]-nodes_off;
+    const int cells_off = cells_offsets[(cc)];
+    const int nnodes_around_cell = cells_offsets[(cc+1)]-cells_off;
 
     for(int nn = 0; nn < nnodes_around_cell; ++nn) {
-      const int node_c_index = cells_to_nodes[(nodes_off)+(nn)]; 
+      const int node_c_index = cells_to_nodes[(cells_off)+(nn)]; 
 
       // Determine the three point stencil of nodes around current node
       const int node_l_index = (nn == 0) 
-        ? cells_to_nodes[(nodes_off+nnodes_around_cell-1)] 
-        : cells_to_nodes[(nodes_off)+(nn-1)]; 
+        ? cells_to_nodes[(cells_off+nnodes_around_cell-1)] 
+        : cells_to_nodes[(cells_off)+(nn-1)]; 
       const int node_r_index = (nn == nnodes_around_cell-1) 
-        ? cells_to_nodes[(nodes_off)]
-        : cells_to_nodes[(nodes_off)+(nn+1)];
+        ? cells_to_nodes[(cells_off)]
+        : cells_to_nodes[(cells_off)+(nn+1)];
 
       // Calculate the area vectors away from cell through node, using
       // the half edge vectors adjacent to the node combined
@@ -256,8 +256,8 @@ void solve_unstructured_hydro_2d(
         -0.5*((nodes_x0[(node_c_index)]-nodes_x0[(node_l_index)]) +
             (nodes_x0[(node_r_index)]-nodes_x0[(node_c_index)]));
 
-      cell_force_x[(nodes_off)+(nn)] = pressure0[(cc)]*S_x;
-      cell_force_y[(nodes_off)+(nn)] = pressure0[(cc)]*S_y;
+      cell_force_x[(cells_off)+(nn)] = pressure0[(cc)]*S_x;
+      cell_force_y[(cells_off)+(nn)] = pressure0[(cc)]*S_y;
     }
   }
   STOP_PROFILING(&compute_profile, "calc_cell_forces");
@@ -304,16 +304,16 @@ void solve_unstructured_hydro_2d(
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
-    const int nodes_off = cells_offsets[(cc)];
-    const int nnodes_around_cell = cells_offsets[(cc+1)]-nodes_off;
+    const int cells_off = cells_offsets[(cc)];
+    const int nnodes_around_cell = cells_offsets[(cc+1)]-cells_off;
 
     // Sum the time centered velocity by the sub-cell forces
     double force = 0.0;
     for(int nn = 0; nn < nnodes_around_cell; ++nn) {
-      const int node_index = cells_to_nodes[(nodes_off)+(nn)];
+      const int node_index = cells_to_nodes[(cells_off)+(nn)];
       force += 
-        (velocity_x1[(node_index)]*cell_force_x[(nodes_off)+(nn)] +
-         velocity_y1[(node_index)]*cell_force_y[(nodes_off)+(nn)]);
+        (velocity_x1[(node_index)]*cell_force_x[(cells_off)+(nn)] +
+         velocity_y1[(node_index)]*cell_force_y[(cells_off)+(nn)]);
     }
 
     energy1[(cc)] = energy0[(cc)] - mesh->dt*force/cell_mass[(cc)];
@@ -324,16 +324,16 @@ void solve_unstructured_hydro_2d(
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
-    const int nodes_off = cells_offsets[(cc)];
-    const int nnodes_around_cell = cells_offsets[(cc+1)]-nodes_off;
+    const int cells_off = cells_offsets[(cc)];
+    const int nnodes_around_cell = cells_offsets[(cc+1)]-cells_off;
 
     double cell_volume = 0.0;
     for(int nn = 0; nn < nnodes_around_cell; ++nn) {
 
       // Determine the three point stencil of nodes around current node
-      const int node_c_index = cells_to_nodes[(nodes_off)+(nn)]; 
+      const int node_c_index = cells_to_nodes[(cells_off)+(nn)]; 
       const int node_r_index = (nn == nnodes_around_cell-1) 
-        ? cells_to_nodes[(nodes_off)] : cells_to_nodes[(nodes_off)+(nn+1)];
+        ? cells_to_nodes[(cells_off)] : cells_to_nodes[(cells_off)+(nn+1)];
 
       // Reduce the total cell volume for later calculation
       cell_volume += 0.5*(nodes_x1[node_c_index]+nodes_x1[node_r_index])*
@@ -380,14 +380,14 @@ void solve_unstructured_hydro_2d(
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
-    const int nodes_off = cells_offsets[(cc)];
-    const int nnodes_around_cell = cells_offsets[(cc+1)]-nodes_off;
+    const int cells_off = cells_offsets[(cc)];
+    const int nnodes_around_cell = cells_offsets[(cc+1)]-cells_off;
     const double inv_Np = 1.0/(double)nnodes_around_cell;
 
     double cx = 0.0;
     double cy = 0.0;
     for(int nn = 0; nn < nnodes_around_cell; ++nn) {
-      const int node_index = cells_to_nodes[(nodes_off)+(nn)];
+      const int node_index = cells_to_nodes[(cells_off)+(nn)];
       cx += nodes_x1[(node_index)]*inv_Np;
       cy += nodes_y1[(node_index)]*inv_Np;
     }
@@ -400,12 +400,12 @@ void solve_unstructured_hydro_2d(
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
-    const int node_offset = nodes_offsets[(nn)];
-    const int ncells_by_node = nodes_offsets[(nn+1)]-node_offset;
+    const int nodes_off = nodes_offsets[(nn)];
+    const int ncells_by_node = nodes_offsets[(nn+1)]-nodes_off;
     double nc = 0.0;
     double nv = 0.0;
     for(int cc = 0; cc < ncells_by_node; ++cc) {
-      const int cell_index = nodes_to_cells[(node_offset+cc)];
+      const int cell_index = nodes_to_cells[(nodes_off+cc)];
       const int cell_offset = cells_offsets[(cell_index)];
       const int nnodes_by_cell = cells_offsets[(cell_index+1)]-cell_offset;
 
@@ -464,10 +464,10 @@ void solve_unstructured_hydro_2d(
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
-    const int node_offset = nodes_offsets[(nn)];
-    const int ncells_by_node = nodes_offsets[(nn+1)]-node_offset;
+    const int nodes_off = nodes_offsets[(nn)];
+    const int ncells_by_node = nodes_offsets[(nn+1)]-nodes_off;
     for(int cc = 0; cc < ncells_by_node; ++cc) {
-      const int cell_index = nodes_to_cells[(node_offset+cc)];
+      const int cell_index = nodes_to_cells[(nodes_off+cc)];
       const int cell_offset = cells_offsets[(cell_index)];
       const int nnodes_by_cell = cells_offsets[(cell_index+1)]-cell_offset;
 
@@ -503,19 +503,19 @@ void solve_unstructured_hydro_2d(
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
-    const int nodes_off = cells_offsets[(cc)];
-    const int nnodes_around_cell = cells_offsets[(cc+1)]-nodes_off;
+    const int cells_off = cells_offsets[(cc)];
+    const int nnodes_around_cell = cells_offsets[(cc+1)]-cells_off;
 
     for(int nn = 0; nn < nnodes_around_cell; ++nn) {
-      const int node_c_index = cells_to_nodes[(nodes_off)+(nn)]; 
+      const int node_c_index = cells_to_nodes[(cells_off)+(nn)]; 
 
       // Determine the three point stencil of nodes around current node
       const int node_l_index = (nn == 0) 
-        ? cells_to_nodes[(nodes_off+nnodes_around_cell-1)] 
-        : cells_to_nodes[(nodes_off)+(nn-1)]; 
+        ? cells_to_nodes[(cells_off+nnodes_around_cell-1)] 
+        : cells_to_nodes[(cells_off)+(nn-1)]; 
       const int node_r_index = (nn == nnodes_around_cell-1) 
-        ? cells_to_nodes[(nodes_off)]
-        : cells_to_nodes[(nodes_off)+(nn+1)];
+        ? cells_to_nodes[(cells_off)]
+        : cells_to_nodes[(cells_off)+(nn+1)];
 
       // Calculate the area vectors away from cell through node, using
       // the half edge vectors adjacent to the node combined
@@ -526,8 +526,8 @@ void solve_unstructured_hydro_2d(
         -0.5*((nodes_x1[(node_c_index)]-nodes_x1[(node_l_index)]) +
             (nodes_x1[(node_r_index)]-nodes_x1[(node_c_index)]));
 
-      cell_force_x[(nodes_off)+(nn)] = pressure1[(cc)]*S_x;
-      cell_force_y[(nodes_off)+(nn)] = pressure1[(cc)]*S_y;
+      cell_force_x[(cells_off)+(nn)] = pressure1[(cc)]*S_x;
+      cell_force_y[(cells_off)+(nn)] = pressure1[(cc)]*S_y;
     }
   }
   STOP_PROFILING(&compute_profile, "calc_cell_forces");
@@ -563,16 +563,16 @@ void solve_unstructured_hydro_2d(
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
-    const int nodes_off = cells_offsets[(cc)];
-    const int nnodes_around_cell = cells_offsets[(cc+1)]-nodes_off;
+    const int cells_off = cells_offsets[(cc)];
+    const int nnodes_around_cell = cells_offsets[(cc+1)]-cells_off;
 
     // Sum the time centered velocity by the sub-cell forces
     double force = 0.0;
     for(int nn = 0; nn < nnodes_around_cell; ++nn) {
-      const int node_index = cells_to_nodes[(nodes_off)+(nn)];
+      const int node_index = cells_to_nodes[(cells_off)+(nn)];
       force += 
-        (velocity_x0[(node_index)]*cell_force_x[(nodes_off)+(nn)] +
-         velocity_y0[(node_index)]*cell_force_y[(nodes_off)+(nn)]);
+        (velocity_x0[(node_index)]*cell_force_x[(cells_off)+(nn)] +
+         velocity_y0[(node_index)]*cell_force_y[(cells_off)+(nn)]);
     }
 
     energy0[(cc)] -= mesh->dt*force/cell_mass[(cc)];
@@ -583,15 +583,15 @@ void solve_unstructured_hydro_2d(
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
-    const int nodes_off = cells_offsets[(cc)];
-    const int nnodes_around_cell = cells_offsets[(cc+1)]-nodes_off;
+    const int cells_off = cells_offsets[(cc)];
+    const int nnodes_around_cell = cells_offsets[(cc+1)]-cells_off;
 
     double cell_volume = 0.0;
     for(int nn = 0; nn < nnodes_around_cell; ++nn) {
       // Calculate the new volume of the cell
-      const int node_c_index = cells_to_nodes[(nodes_off)+(nn)]; 
+      const int node_c_index = cells_to_nodes[(cells_off)+(nn)]; 
       const int node_r_index = (nn == nnodes_around_cell-1) 
-        ? cells_to_nodes[(nodes_off)] : cells_to_nodes[(nodes_off)+(nn+1)];
+        ? cells_to_nodes[(cells_off)] : cells_to_nodes[(cells_off)+(nn+1)];
       cell_volume += 
         0.5*(nodes_x0[node_c_index]+nodes_x0[node_r_index])*
         (nodes_y0[node_r_index]-nodes_y0[node_c_index]);
@@ -619,10 +619,10 @@ void calculate_artificial_viscosity(
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for(int nn = 0; nn < nnodes; ++nn) {
-    const int node_offset = nodes_offsets[(nn)];
-    const int ncells_by_node = nodes_offsets[(nn+1)]-node_offset;
+    const int nodes_off = nodes_offsets[(nn)];
+    const int ncells_by_node = nodes_offsets[(nn+1)]-nodes_off;
     for(int cc = 0; cc < ncells_by_node; ++cc) {
-      const int cell_index = nodes_to_cells[(node_offset+cc)];
+      const int cell_index = nodes_to_cells[(nodes_off+cc)];
       const int cell_offset = cells_offsets[(cell_index)];
       const int nnodes_by_cell = cells_offsets[(cell_index+1)]-cell_offset;
 
@@ -719,15 +719,15 @@ void set_timestep(
   START_PROFILING(&compute_profile);
 #pragma omp parallel for reduction(min: local_dt)
   for(int cc = 0; cc < ncells; ++cc) {
-    const int nodes_off = cells_offsets[(cc)];
-    const int nnodes_around_cell = cells_offsets[(cc+1)]-nodes_off;
+    const int cells_off = cells_offsets[(cc)];
+    const int nnodes_around_cell = cells_offsets[(cc+1)]-cells_off;
 
     double shortest_edge = DBL_MAX;
     for(int nn = 0; nn < nnodes_around_cell; ++nn) {
       // Calculate the new volume of the cell
-      const int node_c_index = cells_to_nodes[(nodes_off)+(nn)]; 
+      const int node_c_index = cells_to_nodes[(cells_off)+(nn)]; 
       const int node_r_index = (nn == nnodes_around_cell-1) 
-        ? cells_to_nodes[(nodes_off)] : cells_to_nodes[(nodes_off)+(nn+1)];
+        ? cells_to_nodes[(cells_off)] : cells_to_nodes[(cells_off)+(nn+1)];
       const double x_component = nodes_x[(node_c_index)]-nodes_x[(node_r_index)];
       const double y_component = nodes_y[(node_c_index)]-nodes_y[(node_r_index)];
       shortest_edge = min(shortest_edge, 
@@ -764,7 +764,6 @@ void update_velocity(
   STOP_PROFILING(&compute_profile, "calc_new_velocity_time_center");
 }
 
-#if 0
 // Gathers the sub-cell values
 void gather(
     const int ncells, const int nnodes, const int* cells_offsets, 
@@ -774,8 +773,8 @@ void gather(
 {
   // Lets attempt to calculate the sub-cell internal energy
   for(int cc = 0; cc < ncells; ++cc) {
-    const int nodes_off = cells_offsets[(cc)];
-    const int nnodes_around_cell = cells_offsets[(cc+1)]-nodes_off;
+    const int cells_off = cells_offsets[(cc)];
+    const int nnodes_around_cell = cells_offsets[(cc+1)]-cells_off;
 
     // Fetch the cell centroids position
     const double cell_c_x = cell_centroids_x[(cc)];
@@ -795,6 +794,11 @@ void gather(
       const int neighbours_off = cells_offsets[(cc)];
       const int neighbour_index = cells_to_cells[(neighbours_off+nn)];
 
+      // TODO: NOT SURE IF THIS IS THE CORRECT THING TO DO
+      if(neighbour_index == IS_BOUNDARY) {
+        continue;
+      }
+
       // Calculate the vector pointing between the cell centroids
       double es_x = (cell_centroids_x[(neighbour_index)]-cell_c_x);
       double es_y = (cell_centroids_y[(neighbour_index)]-cell_c_y);
@@ -803,9 +807,8 @@ void gather(
       es_y /= centroid_distance;
 
 #if 0
-      // Calculate the edge differentials
-      const int vertex0 = edge_vertex0[(edge_index)];
-      const int vertex1 = edge_vertex1[(edge_index)];
+      // Need to find the edge
+      cells_to_nodes[(cells_off
 
       // Calculate the area vector, even though vertices aren't ordered well
       double A_x = (vertices_y[vertex1]-vertices_y[vertex0]);
@@ -843,11 +846,11 @@ void gather(
 
       // Determine the three point stencil of nodes around anchor node
       const int node_l_index = (nn == 0) 
-        ? cells_to_nodes[(nodes_off+nnodes_around_cell-1)] 
-        : cells_to_nodes[(nodes_off)+(nn-1)]; 
-      const int node_c_index = cells_to_nodes[(nodes_off)+(nn)]; 
+        ? cells_to_nodes[(cells_off+nnodes_around_cell-1)] 
+        : cells_to_nodes[(cells_off)+(nn-1)]; 
+      const int node_c_index = cells_to_nodes[(cells_off)+(nn)]; 
       const int node_r_index = (nn == nnodes_around_cell-1) 
-        ? cells_to_nodes[(nodes_off)] : cells_to_nodes[(nodes_off)+(nn+1)];
+        ? cells_to_nodes[(cells_off)] : cells_to_nodes[(cells_off)+(nn+1)];
 
       // Get the anchor node position
       const double node_c_x = nodes_x0[(node_c_index)];
@@ -889,7 +892,6 @@ void gather(
     }
   }
 }
-#endif // if 0
 
 #if 0
 // The mesh remapping algorithm
