@@ -13,7 +13,7 @@
 void solve_unstructured_hydro_2d(
     Mesh* mesh, const int ncells, const int nnodes, const double visc_coeff1, 
     const double visc_coeff2, double* cell_centroids_x, double* cell_centroids_y, 
-    int* cells_to_nodes, int* cells_offsets, int* nodes_to_cells, 
+    int* cells_to_nodes, int* cells_offsets, int* nodes_to_cells, int* cells_to_cells,
     int* nodes_offsets, double* nodes_x0, double* nodes_y0, double* nodes_x1, 
     double* nodes_y1, int* boundary_index, int* boundary_type, double* boundary_normal_x, 
     double* boundary_normal_y, double* energy0, double* energy1, double* density0, 
@@ -22,7 +22,7 @@ void solve_unstructured_hydro_2d(
     double* cell_force_x, double* cell_force_y, double* node_force_x, 
     double* node_force_y, double* node_force_x2, double* node_force_y2, 
     double* cell_mass, double* nodal_mass, double* nodal_volumes, 
-    double* nodal_soundspeed, double* limiter)
+    double* nodal_soundspeed, double* limiter, double* sub_cell_energy)
 {
   /*
    *    PREDICTOR
@@ -41,12 +41,12 @@ void solve_unstructured_hydro_2d(
 #pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
     const int cells_off = cells_offsets[(cc)];
-    const int nnodes_around_cell = cells_offsets[(cc+1)]-cells_off;
-    const double inv_Np = 1.0/(double)nnodes_around_cell;
+    const int nnodes_by_cell = cells_offsets[(cc+1)]-cells_off;
+    const double inv_Np = 1.0/(double)nnodes_by_cell;
 
     double cx = 0.0;
     double cy = 0.0;
-    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+    for(int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int node_index = cells_to_nodes[(cells_off)+(nn)];
       cx += nodes_x0[(node_index)]*inv_Np;
       cy += nodes_y0[(node_index)]*inv_Np;
@@ -55,6 +55,185 @@ void solve_unstructured_hydro_2d(
     cell_centroids_y[(cc)] = cy;
   }
   STOP_PROFILING(&compute_profile, "calc_centroids");
+
+  // TODO: Does this least squares approach still work if we break
+  // some of the conditions that fall naturally from having even sides 
+  // on all of our shapes?
+
+  // Lets attempt to calculate the sub-cell internal energy
+  for(int cc = 0; cc < ncells; ++cc) {
+    const int cells_off = cells_offsets[(cc)];
+    const int nnodes_by_cell = cells_offsets[(cc+1)]-cells_off;
+
+    // Fetch the cell centroids position
+    const double cell_c_x = cell_centroids_x[(cc)];
+    const double cell_c_y = cell_centroids_y[(cc)];
+
+    /* Least squares regression taken from nodes in order to determine
+     * the gradients that exist across the internal energy */
+
+    // Calculate the coefficents to matrix M
+    double MTM[3] = { 0.0 }; // Describes the three unique quantities in (M^T.M)
+    double MT_del_phi[2] = { 0.0 };
+
+    // Calculate the coefficients for all edges
+    for(int nn = 0; nn < nnodes_by_cell; ++nn) {
+      const int neighbour_index = cells_to_cells[(cells_off+nn)];
+
+      // TODO: NOT SURE IF THIS IS THE CORRECT THING TO DO WITH BOUNDARY CONDITION
+      if(neighbour_index == IS_BOUNDARY) {
+        continue;
+      }
+
+      // Calculate the vector pointing between the cell centroids
+      double es_x = (cell_centroids_x[(neighbour_index)]-cell_c_x);
+      double es_y = (cell_centroids_y[(neighbour_index)]-cell_c_y);
+      const double centroid_distance = sqrt(es_x*es_x+es_y*es_y);
+      es_x /= centroid_distance;
+      es_y /= centroid_distance;
+
+      // The edge relating to our current neighbour
+      const int node_c_index = cells_to_nodes[(cells_off+nn)];
+      const int node_l_index = (nn-1 >= 0) 
+        ? cells_to_nodes[(cells_off+nn-1)] 
+        : cells_to_nodes[(cells_off+nnodes_by_cell-1)];
+
+      // Calculate the area vector for the face that we are looking at
+      double A_x = (nodes_y0[(node_l_index)]-nodes_y0[(node_c_index)]);
+      double A_y = -(nodes_x0[(node_l_index)]-nodes_x0[(node_c_index)]);
+
+      // Fix the direction that the area vector is pointing in
+      if((A_x*es_x+A_y*es_y) < 0.0) {
+        A_x = -A_x;
+        A_y = -A_y;
+      }
+
+      // Calculate the gradient matrix
+      const double phi0 = energy0[(cc)];
+      const double phi_ff = energy0[(neighbour_index)];
+      MTM[0] += es_x*es_x;
+      MTM[1] += es_x*es_y;
+      MTM[2] += es_y*es_y;
+      MT_del_phi[0] += es_x*(phi_ff-phi0);
+      MT_del_phi[1] += es_y*(phi_ff-phi0);
+    }
+
+    // Solve the equation for the temperature gradients
+    const double MTM_det = (1.0/(MTM[0]*MTM[2]-MTM[1]*MTM[1]));
+    const double grad_e_x = 
+      MTM_det*(MT_del_phi[0]*MTM[2]-MT_del_phi[1]*MTM[1]);
+    const double grad_e_y = 
+      MTM_det*(MT_del_phi[1]*MTM[0]-MT_del_phi[0]*MTM[1]);
+
+    // Calculate the energy density in the cell
+    double energy_density = energy0[(cc)]*density0[(cc)];
+
+    /* Can now determine the sub cell internal energy */
+
+    // Loop over all sub-cells to calculate integrals
+    for(int nn = 0; nn < nnodes_by_cell; ++nn) {
+      // Determine the three point stencil of nodes around anchor node
+      const int node_l_index = (nn == 0) 
+        ? cells_to_nodes[(cells_off+nnodes_by_cell-1)] 
+        : cells_to_nodes[(cells_off)+(nn-1)]; 
+      const int node_c_index = cells_to_nodes[(cells_off)+(nn)]; 
+      const int node_r_index = (nn == nnodes_by_cell-1) 
+        ? cells_to_nodes[(cells_off)] : cells_to_nodes[(cells_off)+(nn+1)];
+
+      // Get the anchor node position
+      const double node_c_x = nodes_x0[(node_c_index)];
+      const double node_c_y = nodes_y0[(node_c_index)];
+
+      // Get the midpoints between l and r nodes and current node
+      const double node_l_x = 0.5*(nodes_x0[(node_l_index)]+node_c_x);
+      const double node_l_y = 0.5*(nodes_y0[(node_l_index)]+node_c_y);
+      const double node_r_x = 0.5*(node_c_x+nodes_x0[(node_r_index)]);
+      const double node_r_y = 0.5*(node_c_y+nodes_y0[(node_r_index)]);
+
+      // Shoelace formula for the sub-cell volume
+      const double sub_cell_volume =
+        0.5*((node_l_x*node_c_y + node_c_x*node_r_y +
+              node_r_x*cell_c_y + cell_c_x*node_l_y) -
+            (node_c_x*node_l_y + node_r_x*node_c_y +
+             cell_c_x*node_r_y + node_l_x*cell_c_y));
+
+      // Calculate the volume integral weighted by x and y
+      const double sub_cell_x_volume =
+        (1.0/6.0)*(
+            (node_c_x*node_c_x+node_c_x*node_r_x+node_r_x*node_r_x)*(node_r_y-node_c_y) +
+            (node_r_x*node_r_x+node_r_x*cell_c_x+cell_c_x*cell_c_x)*(cell_c_y-node_r_y) +
+            (cell_c_x*cell_c_x+cell_c_x*node_l_x+node_l_x*node_l_x)*(node_l_y-cell_c_y) +
+            (node_l_x*node_l_x+node_l_x*node_c_x+node_c_x*node_c_x)*(node_c_y-node_l_y));
+      const double sub_cell_y_volume =
+        (1.0/6.0)*(
+            (node_c_y*node_c_y+node_c_y*node_r_y+node_r_y*node_r_y)*(node_r_x-node_c_x) +
+            (node_r_y*node_r_y+node_r_y*cell_c_y+cell_c_y*cell_c_y)*(cell_c_x-node_r_x) +
+            (cell_c_y*cell_c_y+cell_c_y*node_l_y+node_l_y*node_l_y)*(node_l_x-cell_c_x) +
+            (node_l_y*node_l_y+node_l_y*node_c_y+node_c_y*node_c_y)*(node_c_x-node_l_x));
+
+      // Calculate the sub cell energy mass
+      double sub_cell_e_mass = energy_density*sub_cell_volume +
+        grad_e_x*(sub_cell_x_volume-sub_cell_volume*cell_c_x) + 
+        grad_e_y*(sub_cell_y_volume-sub_cell_volume*cell_c_y);
+
+      sub_cell_energy[(cc*nnodes_by_cell+nn)] = sub_cell_e_mass;
+
+#if 0
+      sub_cell_energy[(cc*nnodes_by_cell+nn)] /= sub_cell_volume;
+#endif // if 0
+    }
+  }
+
+  for(int cc = 0; cc < ncells; ++cc) {
+    const int cells_off = cells_offsets[(cc)];
+    const int nnodes_by_cell = cells_offsets[(cc+1)]-cells_off;
+    const double cell_c_x = cell_centroids_x[(cc)];
+    const double cell_c_y = cell_centroids_y[(cc)];
+    double rhs = 0.0;
+    double cell_volume = 0.0;
+    for(int nn = 0; nn < nnodes_by_cell; ++nn) {
+      // Determine the three point stencil of nodes around current node
+      const int node_l_index = (nn == 0) 
+        ? cells_to_nodes[(cells_off+nnodes_by_cell-1)] 
+        : cells_to_nodes[(cells_off)+(nn-1)]; 
+      const int node_c_index = cells_to_nodes[(cells_off)+(nn)]; 
+      const int node_r_index = (nn == nnodes_by_cell-1) 
+        ? cells_to_nodes[(cells_off)] : cells_to_nodes[(cells_off)+(nn+1)];
+
+      const double node_c_x = nodes_x0[(node_c_index)];
+      const double node_c_y = nodes_y0[(node_c_index)];
+
+      // Get the midpoints between l and r nodes and current node
+      const double node_l_x = 0.5*(nodes_x0[node_l_index]+node_c_x);
+      const double node_l_y = 0.5*(nodes_y0[node_l_index]+node_c_y);
+      const double node_r_x = 0.5*(node_c_x+nodes_x0[node_r_index]);
+      const double node_r_y = 0.5*(node_c_y+nodes_y0[node_r_index]);
+
+      // Use shoelace formula to get the volume between node and cell c
+      const double sub_cell_volume =
+        0.5*((node_l_x*node_c_y + node_c_x*node_r_y +
+              node_r_x*cell_c_y + cell_c_x*node_l_y) -
+            (node_c_x*node_l_y + node_r_x*node_c_y +
+             cell_c_x*node_r_y + node_l_x*cell_c_y));
+
+      // Reduce the total cell volume for later calculation
+      cell_volume += sub_cell_volume;
+      rhs += sub_cell_energy[(cc*nnodes_by_cell+nn)];
+    }
+    double lhs = density0[(cc)]*energy0[(cc)]*cell_volume;
+    if( rhs != lhs ) {
+      printf("%.12f = %.12f\n", lhs, rhs);
+    }
+  }
+
+  for(int cc = 0; cc < ncells; ++cc) {
+    const int cells_off = cells_offsets[(cc)];
+    const int nnodes_by_cell = cells_offsets[(cc+1)]-cells_off;
+    for(int nn = 0; nn < nnodes_by_cell; ++nn) {
+      printf("%.12f ", sub_cell_energy[(cc*nnodes_by_cell+nn)]);
+    }
+    printf("\n");
+  }
 
   START_PROFILING(&compute_profile);
 #pragma omp parallel for simd
@@ -71,19 +250,19 @@ void solve_unstructured_hydro_2d(
 #pragma omp parallel for reduction(+: total_mass)
   for(int cc = 0; cc < ncells; ++cc) {
     const int cells_off = cells_offsets[(cc)];
-    const int nnodes_around_cell = cells_offsets[(cc+1)]-cells_off;
+    const int nnodes_by_cell = cells_offsets[(cc+1)]-cells_off;
     const double cell_c_x = cell_centroids_x[(cc)];
     const double cell_c_y = cell_centroids_y[(cc)];
 
     double cell_volume = 0.0;
-    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+    for(int nn = 0; nn < nnodes_by_cell; ++nn) {
 
       // Determine the three point stencil of nodes around current node
       const int node_l_index = (nn == 0) 
-        ? cells_to_nodes[(cells_off+nnodes_around_cell-1)] 
+        ? cells_to_nodes[(cells_off+nnodes_by_cell-1)] 
         : cells_to_nodes[(cells_off)+(nn-1)]; 
       const int node_c_index = cells_to_nodes[(cells_off)+(nn)]; 
-      const int node_r_index = (nn == nnodes_around_cell-1) 
+      const int node_r_index = (nn == nnodes_by_cell-1) 
         ? cells_to_nodes[(cells_off)] : cells_to_nodes[(cells_off)+(nn+1)];
 
       const double node_c_x = nodes_x0[(node_c_index)];
@@ -234,16 +413,16 @@ void solve_unstructured_hydro_2d(
 #pragma omp parallel for simd
   for(int cc = 0; cc < ncells; ++cc) {
     const int cells_off = cells_offsets[(cc)];
-    const int nnodes_around_cell = cells_offsets[(cc+1)]-cells_off;
+    const int nnodes_by_cell = cells_offsets[(cc+1)]-cells_off;
 
-    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+    for(int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int node_c_index = cells_to_nodes[(cells_off)+(nn)]; 
 
       // Determine the three point stencil of nodes around current node
       const int node_l_index = (nn == 0) 
-        ? cells_to_nodes[(cells_off+nnodes_around_cell-1)] 
+        ? cells_to_nodes[(cells_off+nnodes_by_cell-1)] 
         : cells_to_nodes[(cells_off)+(nn-1)]; 
-      const int node_r_index = (nn == nnodes_around_cell-1) 
+      const int node_r_index = (nn == nnodes_by_cell-1) 
         ? cells_to_nodes[(cells_off)]
         : cells_to_nodes[(cells_off)+(nn+1)];
 
@@ -305,11 +484,11 @@ void solve_unstructured_hydro_2d(
 #pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
     const int cells_off = cells_offsets[(cc)];
-    const int nnodes_around_cell = cells_offsets[(cc+1)]-cells_off;
+    const int nnodes_by_cell = cells_offsets[(cc+1)]-cells_off;
 
     // Sum the time centered velocity by the sub-cell forces
     double force = 0.0;
-    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+    for(int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int node_index = cells_to_nodes[(cells_off)+(nn)];
       force += 
         (velocity_x1[(node_index)]*cell_force_x[(cells_off)+(nn)] +
@@ -325,14 +504,14 @@ void solve_unstructured_hydro_2d(
 #pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
     const int cells_off = cells_offsets[(cc)];
-    const int nnodes_around_cell = cells_offsets[(cc+1)]-cells_off;
+    const int nnodes_by_cell = cells_offsets[(cc+1)]-cells_off;
 
     double cell_volume = 0.0;
-    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+    for(int nn = 0; nn < nnodes_by_cell; ++nn) {
 
       // Determine the three point stencil of nodes around current node
       const int node_c_index = cells_to_nodes[(cells_off)+(nn)]; 
-      const int node_r_index = (nn == nnodes_around_cell-1) 
+      const int node_r_index = (nn == nnodes_by_cell-1) 
         ? cells_to_nodes[(cells_off)] : cells_to_nodes[(cells_off)+(nn+1)];
 
       // Reduce the total cell volume for later calculation
@@ -381,12 +560,12 @@ void solve_unstructured_hydro_2d(
 #pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
     const int cells_off = cells_offsets[(cc)];
-    const int nnodes_around_cell = cells_offsets[(cc+1)]-cells_off;
-    const double inv_Np = 1.0/(double)nnodes_around_cell;
+    const int nnodes_by_cell = cells_offsets[(cc+1)]-cells_off;
+    const double inv_Np = 1.0/(double)nnodes_by_cell;
 
     double cx = 0.0;
     double cy = 0.0;
-    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+    for(int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int node_index = cells_to_nodes[(cells_off)+(nn)];
       cx += nodes_x1[(node_index)]*inv_Np;
       cy += nodes_y1[(node_index)]*inv_Np;
@@ -504,16 +683,16 @@ void solve_unstructured_hydro_2d(
 #pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
     const int cells_off = cells_offsets[(cc)];
-    const int nnodes_around_cell = cells_offsets[(cc+1)]-cells_off;
+    const int nnodes_by_cell = cells_offsets[(cc+1)]-cells_off;
 
-    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+    for(int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int node_c_index = cells_to_nodes[(cells_off)+(nn)]; 
 
       // Determine the three point stencil of nodes around current node
       const int node_l_index = (nn == 0) 
-        ? cells_to_nodes[(cells_off+nnodes_around_cell-1)] 
+        ? cells_to_nodes[(cells_off+nnodes_by_cell-1)] 
         : cells_to_nodes[(cells_off)+(nn-1)]; 
-      const int node_r_index = (nn == nnodes_around_cell-1) 
+      const int node_r_index = (nn == nnodes_by_cell-1) 
         ? cells_to_nodes[(cells_off)]
         : cells_to_nodes[(cells_off)+(nn+1)];
 
@@ -564,11 +743,11 @@ void solve_unstructured_hydro_2d(
 #pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
     const int cells_off = cells_offsets[(cc)];
-    const int nnodes_around_cell = cells_offsets[(cc+1)]-cells_off;
+    const int nnodes_by_cell = cells_offsets[(cc+1)]-cells_off;
 
     // Sum the time centered velocity by the sub-cell forces
     double force = 0.0;
-    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+    for(int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int node_index = cells_to_nodes[(cells_off)+(nn)];
       force += 
         (velocity_x0[(node_index)]*cell_force_x[(cells_off)+(nn)] +
@@ -584,13 +763,13 @@ void solve_unstructured_hydro_2d(
 #pragma omp parallel for
   for(int cc = 0; cc < ncells; ++cc) {
     const int cells_off = cells_offsets[(cc)];
-    const int nnodes_around_cell = cells_offsets[(cc+1)]-cells_off;
+    const int nnodes_by_cell = cells_offsets[(cc+1)]-cells_off;
 
     double cell_volume = 0.0;
-    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+    for(int nn = 0; nn < nnodes_by_cell; ++nn) {
       // Calculate the new volume of the cell
       const int node_c_index = cells_to_nodes[(cells_off)+(nn)]; 
-      const int node_r_index = (nn == nnodes_around_cell-1) 
+      const int node_r_index = (nn == nnodes_by_cell-1) 
         ? cells_to_nodes[(cells_off)] : cells_to_nodes[(cells_off)+(nn+1)];
       cell_volume += 
         0.5*(nodes_x0[node_c_index]+nodes_x0[node_r_index])*
@@ -720,13 +899,13 @@ void set_timestep(
 #pragma omp parallel for reduction(min: local_dt)
   for(int cc = 0; cc < ncells; ++cc) {
     const int cells_off = cells_offsets[(cc)];
-    const int nnodes_around_cell = cells_offsets[(cc+1)]-cells_off;
+    const int nnodes_by_cell = cells_offsets[(cc+1)]-cells_off;
 
     double shortest_edge = DBL_MAX;
-    for(int nn = 0; nn < nnodes_around_cell; ++nn) {
+    for(int nn = 0; nn < nnodes_by_cell; ++nn) {
       // Calculate the new volume of the cell
       const int node_c_index = cells_to_nodes[(cells_off)+(nn)]; 
-      const int node_r_index = (nn == nnodes_around_cell-1) 
+      const int node_r_index = (nn == nnodes_by_cell-1) 
         ? cells_to_nodes[(cells_off)] : cells_to_nodes[(cells_off)+(nn+1)];
       const double x_component = nodes_x[(node_c_index)]-nodes_x[(node_r_index)];
       const double y_component = nodes_y[(node_c_index)]-nodes_y[(node_r_index)];
@@ -771,126 +950,6 @@ void gather(
     const double* cell_centroids_y, const double* nodes_x0, const double* nodes_y0,
     const double* energy, const double* density, double* sub_cell_energy)
 {
-  // Lets attempt to calculate the sub-cell internal energy
-  for(int cc = 0; cc < ncells; ++cc) {
-    const int cells_off = cells_offsets[(cc)];
-    const int nnodes_around_cell = cells_offsets[(cc+1)]-cells_off;
-
-    // Fetch the cell centroids position
-    const double cell_c_x = cell_centroids_x[(cc)];
-    const double cell_c_y = cell_centroids_y[(cc)];
-
-    /* Least squares regression taken from nodes in order to determine
-     * the gradients that exist across the internal energy */
-
-    // Calculate the coefficents to matrix M
-    double MTM[3] = { 0.0 }; // Describes the three unique quantities in (M^T.M)
-    double MT_del_phi[2] = { 0.0 };
-    double coeff[2] = { 0.0 };
-
-    // Calculate the coefficients for all edges
-    const int nneighbours = nnodes;
-    for(int nn = 0; nn < nneighbours; ++nn) {
-      const int neighbours_off = cells_offsets[(cc)];
-      const int neighbour_index = cells_to_cells[(neighbours_off+nn)];
-
-      // TODO: NOT SURE IF THIS IS THE CORRECT THING TO DO
-      if(neighbour_index == IS_BOUNDARY) {
-        continue;
-      }
-
-      // Calculate the vector pointing between the cell centroids
-      double es_x = (cell_centroids_x[(neighbour_index)]-cell_c_x);
-      double es_y = (cell_centroids_y[(neighbour_index)]-cell_c_y);
-      const double centroid_distance = sqrt(es_x*es_x+es_y*es_y);
-      es_x /= centroid_distance;
-      es_y /= centroid_distance;
-
-#if 0
-      // Need to find the edge
-      cells_to_nodes[(cells_off
-
-      // Calculate the area vector, even though vertices aren't ordered well
-      double A_x = (vertices_y[vertex1]-vertices_y[vertex0]);
-      double A_y = -(vertices_x[vertex1]-vertices_x[vertex0]);
-      if((A_x*es_x+A_y*es_y) < 0.0) {
-        A_x = -A_x;
-        A_y = -A_y;
-      }
-#endif // if 0
-
-      // Calculate the gradient matrix
-      const double phi0 = energy[(cc)];
-      const double phi_ff = energy[(neighbour_index)];
-      MTM[0] += es_x*es_x;
-      MTM[1] += es_x*es_y;
-      MTM[2] += es_y*es_y;
-      MT_del_phi[0] += es_x*(phi_ff-phi0);
-      MT_del_phi[1] += es_y*(phi_ff-phi0);
-    }
-
-    // Solve the equation for the temperature gradients
-    const double MTM_det = (1.0/(MTM[0]*MTM[2]-MTM[1]*MTM[1]));
-    const double grad_e_x = 
-      MTM_det*(MT_del_phi[0]*MTM[2]-MT_del_phi[1]*MTM[1]);
-    const double grad_e_y = 
-      MTM_det*(MT_del_phi[1]*MTM[0]-MT_del_phi[0]*MTM[1]);
-
-    // Calculate the energy density in the cell
-    double energy_density = energy[(cc)]*density[(cc)];
-
-    /* Can now determine the sub cell internal energy */
-
-    // Loop over all sub-cells to calculate integrals
-    for(int nn = 0; nn < nnodes; ++nn) {
-
-      // Determine the three point stencil of nodes around anchor node
-      const int node_l_index = (nn == 0) 
-        ? cells_to_nodes[(cells_off+nnodes_around_cell-1)] 
-        : cells_to_nodes[(cells_off)+(nn-1)]; 
-      const int node_c_index = cells_to_nodes[(cells_off)+(nn)]; 
-      const int node_r_index = (nn == nnodes_around_cell-1) 
-        ? cells_to_nodes[(cells_off)] : cells_to_nodes[(cells_off)+(nn+1)];
-
-      // Get the anchor node position
-      const double node_c_x = nodes_x0[(node_c_index)];
-      const double node_c_y = nodes_y0[(node_c_index)];
-
-      // Get the midpoints between l and r nodes and current node
-      const double node_l_x = 0.5*(nodes_x0[node_l_index]+node_c_x);
-      const double node_l_y = 0.5*(nodes_y0[node_l_index]+node_c_y);
-      const double node_r_x = 0.5*(node_c_x+nodes_x0[node_r_index]);
-      const double node_r_y = 0.5*(node_c_y+nodes_y0[node_r_index]);
-
-      // Shoelace formula for the sub-cell volume
-      const double sub_cell_volume =
-        0.5*((node_l_x*node_c_y + node_c_x*node_r_y +
-              node_r_x*cell_c_y + cell_c_x*node_l_y) -
-            (node_c_x*node_l_y + node_r_x*node_c_y +
-             cell_c_x*node_r_y + node_l_x*cell_c_y));
-
-      // Calculate the volume integral weighted by x and y
-      const double sub_cell_x_volume =
-        (1.0/6.0)*(
-            (node_c_x*node_c_x+node_c_x*node_r_x+node_r_x*node_r_x)*(node_r_y-node_c_y) +
-            (node_r_x*node_r_x+node_r_x*cell_c_x+cell_c_x*cell_c_x)*(cell_c_y-node_r_y) +
-            (cell_c_x*cell_c_x+cell_c_x*node_l_x+node_l_x*node_l_x)*(node_l_y-cell_c_y) +
-            (node_l_x*node_l_x+node_l_x*node_c_x+node_c_x*node_c_x)*(node_c_y-node_l_y));
-      const double sub_cell_y_volume =
-        (1.0/6.0)*(
-            (node_c_y*node_c_y+node_c_y*node_r_y+node_r_y*node_r_y)*(node_r_x-node_c_x) +
-            (node_r_y*node_r_y+node_r_y*cell_c_y+cell_c_y*cell_c_y)*(cell_c_x-node_r_x) +
-            (cell_c_y*cell_c_y+cell_c_y*node_l_y+node_l_y*node_l_y)*(node_l_x-cell_c_x) +
-            (node_l_y*node_l_y+node_l_y*node_c_y+node_c_y*node_c_y)*(node_c_x-node_l_x));
-
-      // Calculate the sub cell energy mass
-      double sub_cell_e_mass = energy_density*sub_cell_volume +
-        grad_e_x*(sub_cell_x_volume-sub_cell_volume*cell_c_x) + 
-        grad_e_y*(sub_cell_y_volume-sub_cell_volume*cell_c_y);
-
-      sub_cell_energy[(cc*nnodes+nn)] = sub_cell_e_mass/sub_cell_volume;
-    }
-  }
 }
 
 #if 0

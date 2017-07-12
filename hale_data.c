@@ -30,6 +30,7 @@ size_t initialise_hale_data_2d(
   allocated += allocate_data(&hale_data->nodal_volumes, umesh->nnodes);
   allocated += allocate_data(&hale_data->nodal_soundspeed, umesh->nnodes);
   allocated += allocate_data(&hale_data->limiter, umesh->nnodes);
+  allocated += allocate_data(&hale_data->sub_cell_energy, umesh->ncells*umesh->nnodes_by_cell);
   return allocated;
 }
 

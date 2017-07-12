@@ -38,6 +38,7 @@ typedef struct {
   double* nodal_volumes;
   double* nodal_soundspeed;
   double* limiter;
+  double* sub_cell_energy;
 
   double visc_coeff1;
   double visc_coeff2;
