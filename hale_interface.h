@@ -30,8 +30,8 @@ extern "C" {
       double* cell_force_x, double* cell_force_y, double* node_force_x, 
       double* node_force_y, double* node_force_x2, double* node_force_y2, 
       double* cell_mass, double* nodal_mass, double* nodal_volumes, 
-      double* nodal_soundspeed, double* limiter, double* sub_cell_energy, 
-      double* sub_cell_mass, double* sub_cell_velocity_x, 
+      double* nodal_soundspeed, double* limiter, double* sub_cell_volume,
+      double* sub_cell_energy, double* sub_cell_mass, double* sub_cell_velocity_x, 
       double* sub_cell_velocity_y);
 
   // Controls the timestep for the simulation
