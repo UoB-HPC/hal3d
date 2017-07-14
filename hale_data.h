@@ -24,8 +24,6 @@ typedef struct {
   double* velocity_y0;
   double* velocity_x1; 
   double* velocity_y1;
-  double* cell_force_x;
-  double* cell_force_y; 
   double* node_force_x;
   double* node_force_y;
   double* node_force_x2;
@@ -39,6 +37,11 @@ typedef struct {
   double* nodal_soundspeed;
   double* limiter;
   double* sub_cell_energy;
+  double* sub_cell_mass;
+  double* sub_cell_velocity_x;
+  double* sub_cell_velocity_y;
+  double* sub_cell_force_x;
+  double* sub_cell_force_y; 
 
   double visc_coeff1;
   double visc_coeff2;
