@@ -115,7 +115,7 @@ int main(int argc, char** argv)
         hale_data.nodal_mass, hale_data.nodal_volumes, hale_data.nodal_soundspeed, 
         hale_data.limiter, hale_data.sub_cell_volume, hale_data.sub_cell_energy,
         hale_data.sub_cell_mass, hale_data.sub_cell_velocity_x,
-        hale_data.sub_cell_velocity_y);
+        hale_data.sub_cell_velocity_y, hale_data.sub_cell_kinetic_energy);
 
     wallclock += omp_get_wtime()-w0;
     elapsed_sim_time += mesh.dt;

@@ -43,6 +43,7 @@ typedef struct {
   double* sub_cell_force_x;
   double* sub_cell_force_y; 
   double* sub_cell_volume;
+  double* sub_cell_kinetic_energy;
 
   double visc_coeff1;
   double visc_coeff2;

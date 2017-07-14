@@ -24,7 +24,7 @@ void solve_unstructured_hydro_2d(
     double* cell_mass, double* nodal_mass, double* nodal_volumes, 
     double* nodal_soundspeed, double* limiter, double* sub_cell_volume,
     double* sub_cell_energy, double* sub_cell_mass, double* sub_cell_velocity_x, 
-    double* sub_cell_velocity_y)
+    double* sub_cell_velocity_y, double* sub_cell_kinetic_energy)
 {
   /*
    *    PREDICTOR
@@ -100,29 +100,23 @@ void solve_unstructured_hydro_2d(
       const double node_r_y = 0.5*(node_c_y+nodes_y0[node_r_index]);
 
       // Use shoelace formula to get the volume between node and cell c
-      sub_cell_volume[(node_c_index)] =
+      sub_cell_volume[(cells_off+nn)] =
         0.5*((node_l_x*node_c_y + node_c_x*node_r_y +
               node_r_x*cell_c_y + cell_c_x*node_l_y) -
             (node_c_x*node_l_y + node_r_x*node_c_y +
              cell_c_x*node_r_y + node_l_x*cell_c_y));
 
       // TODO: this should be updated to fix the issues with hourglassing...
-      if(sub_cell_volume[(node_c_index)] <= 0.0) {
+      if(sub_cell_volume[(cells_off+nn)] <= 0.0) {
         TERMINATE("Encountered cell with unphysical volume %.12f in cell %d.", 
-            sub_cell_volume[(node_c_index)], cc);
+            sub_cell_volume[(cells_off+nn)], cc);
       }
 
       // Reduce the total cell volume for later calculation
-      cell_volume += sub_cell_volume[(node_c_index)];
-      sub_cell_mass[(node_c_index)] = cell_mass[(cc)]/sub_cell_volume[(node_c_index)];
+      cell_volume += sub_cell_volume[(cells_off+nn)];
+      sub_cell_mass[(cells_off+nn)] = density0[(cc)]*sub_cell_volume[(cells_off+nn)];
     }
-
-    // Scale by the cell volume
-    for(int nn = 0; nn < nnodes_by_cell; ++nn) {
-      const int node_c_index = cells_to_nodes[(cells_off)+(nn)]; 
-      sub_cell_mass[(node_c_index)] *= cell_volume;
-    }
-
+    
     // Calculate the mass and store volume for the whole cell
     cell_mass[(cc)] = density0[(cc)]*cell_volume;
     total_mass += cell_mass[(cc)];
@@ -242,14 +236,11 @@ void solve_unstructured_hydro_2d(
             (node_l_y*node_l_y+node_l_y*node_c_y+node_c_y*node_c_y)*(node_c_x-node_l_x));
 
       // Calculate the sub cell energy mass
-      double sub_cell_e_mass = energy_density*sub_cell_volume[(node_c_index)] +
-        grad_e_x*(sub_cell_x_volume-sub_cell_volume[(node_c_index)]*cell_c_x) + 
-        grad_e_y*(sub_cell_y_volume-sub_cell_volume[(node_c_index)]*cell_c_y);
+      double sub_cell_e_mass = energy_density*sub_cell_volume[(cells_off+ss)] +
+        grad_e_x*(sub_cell_x_volume-sub_cell_volume[(cells_off+ss)]*cell_c_x) + 
+        grad_e_y*(sub_cell_y_volume-sub_cell_volume[(cells_off+ss)]*cell_c_y);
 
-      // TODO: Should rename all of these invocations of the node_c_index
-      // to something like sub_cell_index
-      sub_cell_energy[(node_c_index)] = sub_cell_e_mass;
-      sub_cell_mass[(node_c_index)] = density0[(cc)]*sub_cell_volume[(node_c_index)];
+      sub_cell_energy[(cells_off+ss)] = sub_cell_e_mass;
     }
   }
 
@@ -268,17 +259,20 @@ void solve_unstructured_hydro_2d(
       const int node_index = cells_to_nodes[(cells_off)+(ss)]; 
       velocities_x[(ss)] = velocity_x0[(node_index)];
       velocities_y[(ss)] = velocity_y0[(node_index)];
-      masses[(ss)] = sub_cell_mass[(node_index)];
+      masses[(ss)] = sub_cell_mass[(cells_off+ss)];
     }
 
-    double coeff_x = 0.0;
-    double coeff_y = 0.0;
+    double vel_coeff_x = 0.0;
+    double vel_coeff_y = 0.0;
+    double ke_coeff = 0.0;
     for(int ss = 0; ss < nsub_cells; ++ss) {
       const int p_index = (ss==0) ? (nsub_cells-1) : (ss-1);
       const int n_index = (ss==nsub_cells-1) ? (0) : (ss+1);
-      coeff_x += velocities_x[(ss)]*
+      vel_coeff_x += velocities_x[(ss)]*
         (4.0*masses[(ss)]-masses[(p_index)]-masses[(n_index)])/(8.0*cell_mass[(cc)]);
-      coeff_y += velocities_y[(ss)]*
+      vel_coeff_y += velocities_y[(ss)]*
+        (4.0*masses[(ss)]-masses[(p_index)]-masses[(n_index)])/(8.0*cell_mass[(cc)]);
+      ke_coeff += 0.5*(velocities_x[(ss)]*velocities_x[(ss)]+velocities_y[(ss)]*velocities_y[(ss)])*
         (4.0*masses[(ss)]-masses[(p_index)]-masses[(n_index)])/(8.0*cell_mass[(cc)]);
     }
 
@@ -286,42 +280,25 @@ void solve_unstructured_hydro_2d(
     for(int ss = 0; ss < nsub_cells; ++ss) {
       const int p_index = (ss==0) ? (nsub_cells-1) : (ss-1);
       const int n_index = (ss==nsub_cells-1) ? (0) : (ss+1);
-      sub_cell_velocity_x[(cells_off+ss)] = coeff_x + 0.25*(
+      sub_cell_velocity_x[(cells_off+ss)] = vel_coeff_x + 0.25*(
           2.0*velocities_x[(ss)]+0.5*velocities_x[(n_index)]+0.5*velocities_x[(p_index)]);
-      sub_cell_velocity_y[(cells_off+ss)] = coeff_y + 0.25*(
+      sub_cell_velocity_y[(cells_off+ss)] = vel_coeff_y + 0.25*(
           2.0*velocities_y[(ss)]+0.5*velocities_y[(n_index)]+0.5*velocities_y[(p_index)]);
+
+      const double ke_c = 
+        0.5*(velocities_x[(ss)]*velocities_x[(ss)]+
+            velocities_y[(ss)]*velocities_y[(ss)]);
+      const double ke_p = 
+        0.5*(velocities_x[(p_index)]*velocities_x[(p_index)]+
+            velocities_y[(p_index)]*velocities_y[(p_index)]);
+      const double ke_n = 
+        0.5*(velocities_x[(n_index)]*velocities_x[(n_index)]+
+            velocities_y[(n_index)]*velocities_y[(n_index)]);
+
+      sub_cell_kinetic_energy[(cells_off+ss)] = 
+        ke_coeff + 0.25*(2.0*ke_c+0.5*ke_n+0.5*ke_p);
     }
   }
-
-  // Calculate the sub-cell velocities
-  for(int cc = 0; cc < ncells; ++cc) {
-    const int cells_off = cells_offsets[(cc)];
-    const int nsub_cells = cells_offsets[(cc+1)]-cells_off;
-
-    // Privatise all of the data we will need
-    // Gather the sub cell velocities
-    double rhs = 0.0;
-    double lhs = 0.0;
-    double mass = 0.0;
-
-    for(int ss = 0; ss < nsub_cells; ++ss) {
-      const int node_index = cells_to_nodes[(cells_off)+(ss)]; 
-      printf("cell_mass %.15f\n", cell_mass[(cc)]);
-      printf("sub_cells_mass %.15f\n", sub_cell_mass[(node_index)]);
-      printf("sub_cell_velocity_x %.15f\n", sub_cell_velocity_x[(node_index)]);
-      printf("sub_cell_mass*sub_cell_velocity_x %.15f\n",
-          sub_cell_mass[(node_index)]*sub_cell_velocity_x[(node_index)]);
-
-      rhs += sub_cell_mass[(node_index)]*velocity_x0[(node_index)];
-      lhs += sub_cell_mass[(node_index)]*sub_cell_velocity_x[(node_index)];
-      mass += sub_cell_mass[(node_index)];
-    }
-
-    printf("total_rhs %.15f total_lhs %.15f\n", rhs, lhs);
-    printf("mass %.15f\n\n", mass);
-  }
-
-  TERMINATE("");
 
 #if 0
   // Calculate the nodal mass
@@ -342,6 +319,10 @@ void solve_unstructured_hydro_2d(
           break;
         }
       }
+
+      // TODO: If we want, we can access the cached values for
+      // the sub_cell_volume, it's going to mean far fewer memory accesses
+      // although they will be annoyingly ordered
 
       const double cell_c_x = cell_centroids_x[(cell_index)];
       const double cell_c_y = cell_centroids_y[(cell_index)];
@@ -805,6 +786,7 @@ void solve_unstructured_hydro_2d(
     density0[(cc)] = cell_mass[(cc)]/cell_volume;
   }
   STOP_PROFILING(&compute_profile, "calc_new_density");
+#endif
 }
 
 // Calculates the artificial viscous forces for momentum acceleration
@@ -991,58 +973,58 @@ void remap_mesh(
 
 
 #if 0
-  for(int cc = 0; cc < ncells; ++cc) {
-    const int cells_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc+1)]-cells_off;
-    const double cell_c_x = cell_centroids_x[(cc)];
-    const double cell_c_y = cell_centroids_y[(cc)];
-    double rhs = 0.0;
-    double cell_volume = 0.0;
-    int bn = 0;
-    for(int nn = 0; nn < nnodes_by_cell; ++nn) {
-      // Determine the three point stencil of nodes around current node
-      const int node_l_index = (nn == 0) 
-        ? cells_to_nodes[(cells_off+nnodes_by_cell-1)] 
-        : cells_to_nodes[(cells_off)+(nn-1)]; 
-      const int node_c_index = cells_to_nodes[(cells_off)+(nn)]; 
-      const int node_r_index = (nn == nnodes_by_cell-1) 
-        ? cells_to_nodes[(cells_off)] : cells_to_nodes[(cells_off)+(nn+1)];
+for(int cc = 0; cc < ncells; ++cc) {
+  const int cells_off = cells_offsets[(cc)];
+  const int nnodes_by_cell = cells_offsets[(cc+1)]-cells_off;
+  const double cell_c_x = cell_centroids_x[(cc)];
+  const double cell_c_y = cell_centroids_y[(cc)];
+  double rhs = 0.0;
+  double cell_volume = 0.0;
+  int bn = 0;
+  for(int nn = 0; nn < nnodes_by_cell; ++nn) {
+    // Determine the three point stencil of nodes around current node
+    const int node_l_index = (nn == 0) 
+      ? cells_to_nodes[(cells_off+nnodes_by_cell-1)] 
+      : cells_to_nodes[(cells_off)+(nn-1)]; 
+    const int node_c_index = cells_to_nodes[(cells_off)+(nn)]; 
+    const int node_r_index = (nn == nnodes_by_cell-1) 
+      ? cells_to_nodes[(cells_off)] : cells_to_nodes[(cells_off)+(nn+1)];
 
-      const double node_c_x = nodes_x0[(node_c_index)];
-      const double node_c_y = nodes_y0[(node_c_index)];
+    const double node_c_x = nodes_x0[(node_c_index)];
+    const double node_c_y = nodes_y0[(node_c_index)];
 
-      // Get the midpoints between l and r nodes and current node
-      const double node_l_x = 0.5*(nodes_x0[node_l_index]+node_c_x);
-      const double node_l_y = 0.5*(nodes_y0[node_l_index]+node_c_y);
-      const double node_r_x = 0.5*(node_c_x+nodes_x0[node_r_index]);
-      const double node_r_y = 0.5*(node_c_y+nodes_y0[node_r_index]);
+    // Get the midpoints between l and r nodes and current node
+    const double node_l_x = 0.5*(nodes_x0[node_l_index]+node_c_x);
+    const double node_l_y = 0.5*(nodes_y0[node_l_index]+node_c_y);
+    const double node_r_x = 0.5*(node_c_x+nodes_x0[node_r_index]);
+    const double node_r_y = 0.5*(node_c_y+nodes_y0[node_r_index]);
 
-      // Use shoelace formula to get the volume between node and cell c
-      const double sub_cell_volume =
-        0.5*((node_l_x*node_c_y + node_c_x*node_r_y +
-              node_r_x*cell_c_y + cell_c_x*node_l_y) -
-            (node_c_x*node_l_y + node_r_x*node_c_y +
-             cell_c_x*node_r_y + node_l_x*cell_c_y));
+    // Use shoelace formula to get the volume between node and cell c
+    const double sub_cell_volume =
+      0.5*((node_l_x*node_c_y + node_c_x*node_r_y +
+            node_r_x*cell_c_y + cell_c_x*node_l_y) -
+          (node_c_x*node_l_y + node_r_x*node_c_y +
+           cell_c_x*node_r_y + node_l_x*cell_c_y));
 
-      // Reduce the total cell volume for later calculation
-      cell_volume += sub_cell_volume;
-      rhs += sub_cell_energy[(cc*nnodes_by_cell+nn)];
-      if( boundary_index[(node_c_index)] != IS_INTERIOR_NODE ) {
-        bn++;
-      }
-    }
-    double lhs = density0[(cc)]*energy0[(cc)]*cell_volume;
-    if( rhs != lhs ) {
-      printf("%.12f = %.12f %d\n", lhs, rhs, bn);
+    // Reduce the total cell volume for later calculation
+    cell_volume += sub_cell_volume;
+    rhs += sub_cell_energy[(cc*nnodes_by_cell+nn)];
+    if( boundary_index[(node_c_index)] != IS_INTERIOR_NODE ) {
+      bn++;
     }
   }
-
-  for(int cc = 0; cc < ncells; ++cc) {
-    const int cells_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc+1)]-cells_off;
-    for(int nn = 0; nn < nnodes_by_cell; ++nn) {
-      printf("%.12f ", sub_cell_energy[(cc*nnodes_by_cell+nn)]);
-    }
-    printf("\n");
+  double lhs = density0[(cc)]*energy0[(cc)]*cell_volume;
+  if( rhs != lhs ) {
+    printf("%.12f = %.12f %d\n", lhs, rhs, bn);
   }
+}
+
+for(int cc = 0; cc < ncells; ++cc) {
+  const int cells_off = cells_offsets[(cc)];
+  const int nnodes_by_cell = cells_offsets[(cc+1)]-cells_off;
+  for(int nn = 0; nn < nnodes_by_cell; ++nn) {
+    printf("%.12f ", sub_cell_energy[(cc*nnodes_by_cell+nn)]);
+  }
+  printf("\n");
+}
 #endif // if 0
