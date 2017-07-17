@@ -259,7 +259,7 @@ void solve_unstructured_hydro_2d(
     const int cells_off = cells_offsets[(cc)];
     const int nsub_cells = cells_offsets[(cc + 1)] - cells_off;
 
-    // Calculate the gradient using a least squares linear regression
+    // Calculate the gradient of the change in density between the sub-cells
     for (int ss = 0; ss < nsub_cells; ++ss) {
       const int sub_c_cell_index = (cells_off + ss);
       const int node_c_index = cells_to_nodes[(cells_off) + (ss)];
@@ -308,25 +308,49 @@ void solve_unstructured_hydro_2d(
         }
       }
 
-      sub_cell_neighbour_indices[2] = ;
-      sub_cell_neighbour_indices[3] = ;
+      sub_cell_neighbour_indices[2] =
+          (ss == nsub_cells - 1) ? (cells_off + 0) : (cells_off + ss + 1);
+      sub_cell_neighbour_indices[3] =
+          (ss == 0) ? (cells_off + nsub_cells - 1) : (cells_off + ss - 1);
 
       // Loop over all of the neighbours
+      double a = 0.0;
+      double b = 0.0;
+      double c = 0.0;
+      double d = 0.0;
+      double e = 0.0;
+
+      // Fetch the density for the sub-cell
+      double sub_cell_c_density = sub_cell_mass[(sub_cell_c_index)] /
+                                  sub_cell_volume[(sub_cell_c_index)];
+
       for (int nn = 0; nn < nsub_cell_neighbours; ++nn) {
-        const int sub_cell_neighbour_index = sub_cell_neighbour_indices[(nn)];
+        const int sub_cell_n_index = sub_cell_neighbour_indices[(nn)];
+
+        // Fetch the density for the neighbour
+        double sub_cell_n_density = sub_cell_mass[(sub_cell_c_index)] /
+                                    sub_cell_volume[(sub_cell_c_index)];
+
+        // Calculate the differential quantities
         const double dx = sub_cell_centroids_x[(sub_cell_neighbour_index)] -
                           sub_cell_centroids_x[(sub_cell_c_index)];
         const double dy = sub_cell_centroids_y[(sub_cell_neighbour_index)] -
                           sub_cell_centroids_y[(sub_cell_c_index)];
+        const double drho = sub_cell_n_density - sub_cell_c_density;
+
         double omega2 = 1.0 / (dx * dx + dy * dy);
+
+        // Calculate the coefficients for the minimisation
+        a += omega * omega * dx * dx;
+        b += omega * omega * dx * dy;
+        c += omega * omega * dy * dy;
+        d += omega * omega * drho * dx;
+        e += omega * omega * drho * dy;
       }
 
-      // We need to find four neighbours
-      // Each of those neighbours have a centroid, get it
-      // Sum up all of the coefficients
-
-      // Here we are going to determine the result of the linear function
-      // using the gradient just determined
+      // Solve the minimisation problem to get the gradients for the sub-cell
+      const double rho_x = (c * d - b * e) / (a * c - b * b);
+      const double rho_y = (a * e - b * d) / (a * c - b * b);
 
       // Calculate the
       for (int ss = 0; ss < nsub_cells; ++ss) {
