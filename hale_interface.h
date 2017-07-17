@@ -17,8 +17,10 @@
 extern "C" {
 #endif
 
+// Solve a single timestep on the given mesh
 void solve_unstructured_hydro_2d(
-    Mesh* mesh, const int ncells, const int nnodes, const double visc_coeff1,
+    Mesh* mesh, const int ncells, const int nnodes,
+    const int nsub_cell_neighbours, const double visc_coeff1,
     const double visc_coeff2, double* cell_centroids_x,
     double* cell_centroids_y, int* cells_to_nodes, int* cells_offsets,
     int* nodes_to_cells, int* cells_to_cells, int* nodes_offsets,
@@ -33,7 +35,7 @@ void solve_unstructured_hydro_2d(
     double* nodal_volumes, double* nodal_soundspeed, double* limiter,
     double* sub_cell_volume, double* sub_cell_energy, double* sub_cell_mass,
     double* sub_cell_velocity_x, double* sub_cell_velocity_y,
-    double* sub_cell_kinetic_energy, double* sub_cell_centoids_x,
+    double* sub_cell_kinetic_energy, double* sub_cell_centroids_x,
     double* sub_cell_centroids_y);
 
 // Controls the timestep for the simulation
