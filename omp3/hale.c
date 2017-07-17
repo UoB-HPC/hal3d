@@ -26,19 +26,8 @@ void solve_unstructured_hydro_2d(
     double* nodal_volumes, double* nodal_soundspeed, double* limiter,
     double* sub_cell_volume, double* sub_cell_energy, double* sub_cell_mass,
     double* sub_cell_velocity_x, double* sub_cell_velocity_y,
-    double* sub_cell_kinetic_energy) {
-  /*
-   *    PREDICTOR
-   */
-
-  // Calculate the pressure using the ideal gas equation of state
-  START_PROFILING(&compute_profile);
-#pragma omp parallel for
-  for (int cc = 0; cc < ncells; ++cc) {
-    pressure0[(cc)] = (GAM - 1.0) * energy0[(cc)] * density0[(cc)];
-  }
-  STOP_PROFILING(&compute_profile, "equation_of_state");
-
+    double* sub_cell_kinetic_energy, double* sub_cell_centroids_x,
+    double* sub_cell_centroids_y) {
   START_PROFILING(&compute_profile);
 #pragma omp parallel for simd
   for (int nn = 0; nn < nnodes; ++nn) {
@@ -47,6 +36,10 @@ void solve_unstructured_hydro_2d(
     nodal_soundspeed[(nn)] = 0.0;
   }
   STOP_PROFILING(&compute_profile, "zero_nodal_arrays");
+
+  /*
+   * REMAP STEP PROTOTYPE
+   */
 
   double total_mass = 0.0;
   for (int cc = 0; cc < ncells; ++cc) {
@@ -255,6 +248,10 @@ void solve_unstructured_hydro_2d(
     }
   }
 
+  initialise_sub_cell_centroids(ncells, cells_offsets, cells_to_nodes, nodes_x0,
+                                nodes_y0, cell_centroids_x, cell_centroids_y,
+                                sub_cell_centroids_x, sub_cell_centroids_y);
+
   // Here we calculate the swept edges, essentially we are fitting a linear
   // function that describes the change is
   for (int cc = 0; cc < ncells; ++cc) {
@@ -264,6 +261,14 @@ void solve_unstructured_hydro_2d(
 
     // Calculate the gradient using a least squares linear regression
     for (int ss = 0; ss < nsub_cells; ++ss) {
+
+      const int sub_cell_l_index =
+          (ss == 0) ? cells_to_nodes[(cells_off + nnodes_by_cell - 1)]
+                    : cells_to_nodes[(cells_off) + (ss - 1)];
+      const int sub_cell_c_index = cells_to_nodes[(cells_off) + (ss)];
+      const int sub_cell_r_index = (ss == nnodes_by_cell - 1)
+                                       ? cells_to_nodes[(cells_off)]
+                                       : cells_to_nodes[(cells_off) + (ss + 1)];
 
       // We need to find four neighbours
       // Each of those neighbours have a centroid, get it
@@ -277,6 +282,18 @@ void solve_unstructured_hydro_2d(
     for (int ss = 0; ss < nsub_cells; ++ss) {
     }
   }
+
+  /*
+   *    PREDICTOR
+   */
+
+  // Calculate the pressure using the ideal gas equation of state
+  START_PROFILING(&compute_profile);
+#pragma omp parallel for
+  for (int cc = 0; cc < ncells; ++cc) {
+    pressure0[(cc)] = (GAM - 1.0) * energy0[(cc)] * density0[(cc)];
+  }
+  STOP_PROFILING(&compute_profile, "equation_of_state");
 
   // Calculate the nodal mass
   START_PROFILING(&compute_profile);
@@ -1004,17 +1021,60 @@ void initialise_cell_centroids(const int ncells, const int* cells_offsets,
   for (int cc = 0; cc < ncells; ++cc) {
     const int cells_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cells_off;
-    const double inv_Np = 1.0 / (double)nnodes_by_cell;
 
     double cx = 0.0;
     double cy = 0.0;
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int node_index = cells_to_nodes[(cells_off) + (nn)];
-      cx += nodes_x0[(node_index)] * inv_Np;
-      cy += nodes_y0[(node_index)] * inv_Np;
+      cx += nodes_x0[(node_index)];
+      cy += nodes_y0[(node_index)];
     }
-    cell_centroids_x[(cc)] = cx;
-    cell_centroids_y[(cc)] = cy;
+    cell_centroids_x[(cc)] = cx / (double)nnodes_by_cell;
+    cell_centroids_y[(cc)] = cy / (double)nnodes_by_cell;
+  }
+  STOP_PROFILING(&compute_profile, __func__);
+}
+
+// Initialises the centroids for each cell
+void initialise_sub_cell_centroids(
+    const int ncells, const int* cells_offsets, const int* cells_to_nodes,
+    const double* nodes_x0, const double* nodes_y0,
+    const double* cell_centroids_x, const double* cell_centroids_y,
+    double* sub_cell_centroids_x, double* sub_cell_centroids_y) {
+  // Calculate the cell centroids
+  START_PROFILING(&compute_profile);
+#pragma omp parallel for
+  for (int cc = 0; cc < ncells; ++cc) {
+    const int cells_off = cells_offsets[(cc)];
+    const int nsub_cells = cells_offsets[(cc + 1)] - cells_off;
+
+    const double cell_c_x = cell_centroids_x[(cc)];
+    const double cell_c_y = cell_centroids_y[(cc)];
+
+    for (int ss = 0; ss < nsub_cells; ++ss) {
+      // Determine the three point stencil of nodes around current node
+      const int node_l_index =
+          (ss == 0) ? cells_to_nodes[(cells_off + nsub_cells - 1)]
+                    : cells_to_nodes[(cells_off) + (ss - 1)];
+      const int node_c_index = cells_to_nodes[(cells_off) + (ss)];
+      const int node_r_index = (ss == nsub_cells - 1)
+                                   ? cells_to_nodes[(cells_off)]
+                                   : cells_to_nodes[(cells_off) + (ss + 1)];
+
+      const double node_c_x = nodes_x0[(node_c_index)];
+      const double node_c_y = nodes_y0[(node_c_index)];
+
+      // Get the midpoints between l and r nodes and current node
+      const double node_l_x = 0.5 * (nodes_x0[node_l_index] + node_c_x);
+      const double node_l_y = 0.5 * (nodes_y0[node_l_index] + node_c_y);
+      const double node_r_x = 0.5 * (node_c_x + nodes_x0[node_r_index]);
+      const double node_r_y = 0.5 * (node_c_y + nodes_y0[node_r_index]);
+
+      sub_cell_centroids_x[(cc)] =
+          0.25 * (node_c_x + node_l_x + node_r_x + cell_c_x);
+      sub_cell_centroids_y[(cc)] =
+          0.25 * (node_c_y + node_l_y + node_r_y + cell_c_y);
+    }
   }
   STOP_PROFILING(&compute_profile, __func__);
 }

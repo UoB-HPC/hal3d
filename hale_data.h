@@ -44,6 +44,8 @@ typedef struct {
   double* sub_cell_force_y;
   double* sub_cell_volume;
   double* sub_cell_kinetic_energy;
+  double* sub_cell_centroids_x;
+  double* sub_cell_centroids_y;
 
   double visc_coeff1;
   double visc_coeff2;
@@ -66,6 +68,13 @@ void initialise_cell_centroids(const int ncells, const int* cells_offsets,
                                const double* nodes_x0, const double* nodes_y0,
                                double* cell_centroids_x,
                                double* cell_centroids_y);
+
+// Initialises the centroids for each cell
+void initialise_sub_cell_centroids(
+    const int ncells, const int* cells_offsets, const int* cells_to_nodes,
+    const double* nodes_x0, const double* nodes_y0,
+    const double* cell_centroids_x, const double* cell_centroids_y,
+    double* sub_cell_centroids_x, double* sub_cell_centroids_y);
 
 // Deallocates all of the hale specific data
 void deallocate_hale_data_2d(HaleData* hale_data);
