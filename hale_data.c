@@ -46,12 +46,16 @@ size_t initialise_hale_data_2d(HaleData* hale_data, UnstructuredMesh* umesh) {
   // In hale, the fundamental principle is that the mass at the cell and
   // sub-cell are conserved, so we can initialise them from the mesh
   // and then only the remapping step will ever adjust them
-
+  initialise_cell_centroids(umesh->ncells, umesh->cells_offsets,
+                            umesh->cells_to_nodes, umesh->nodes_x0,
+                            umesh->nodes_y0, umesh->cell_centroids_x,
+                            umesh->cell_centroids_y);
   initialise_mesh_mass(umesh->ncells, umesh->cells_offsets,
                        umesh->cell_centroids_x, umesh->cell_centroids_y,
                        umesh->cells_to_nodes, hale_data->density0,
                        umesh->nodes_x0, umesh->nodes_y0, hale_data->cell_mass,
                        umesh->sub_cell_volume, hale_data->sub_cell_mass);
+
   return allocated;
 }
 

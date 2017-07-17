@@ -60,6 +60,13 @@ void initialise_mesh_mass(const int ncells, const int* cells_offsets,
                           double* cell_mass, double* sub_cell_volume,
                           double* sub_cell_mass);
 
+// Initialises the centroids for each cell
+void initialise_cell_centroids(const int ncells, const int* cells_offsets,
+                               const int* cells_to_nodes,
+                               const double* nodes_x0, const double* nodes_y0,
+                               double* cell_centroids_x,
+                               double* cell_centroids_y);
+
 // Deallocates all of the hale specific data
 void deallocate_hale_data_2d(HaleData* hale_data);
 
