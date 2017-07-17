@@ -26,6 +26,8 @@ size_t initialise_hale_data_2d(HaleData* hale_data, UnstructuredMesh* umesh) {
   allocated += allocate_data(&hale_data->nodal_volumes, umesh->nnodes);
   allocated += allocate_data(&hale_data->nodal_soundspeed, umesh->nnodes);
   allocated += allocate_data(&hale_data->limiter, umesh->nnodes);
+  allocated += allocate_data(&hale_data->original_nodes_x, umesh->nnodes);
+  allocated += allocate_data(&hale_data->original_nodes_y, umesh->nnodes);
   allocated += allocate_data(&hale_data->sub_cell_volume,
                              umesh->ncells * umesh->nnodes_by_cell);
   allocated += allocate_data(&hale_data->sub_cell_force_x,
@@ -42,8 +44,10 @@ size_t initialise_hale_data_2d(HaleData* hale_data, UnstructuredMesh* umesh) {
                              umesh->ncells * umesh->nnodes_by_cell);
   allocated += allocate_data(&hale_data->sub_cell_velocity_y,
                              umesh->ncells * umesh->nnodes_by_cell);
-  allocated += allocate_data(&hale_data->original_nodes_x, umesh->nnodes);
-  allocated += allocate_data(&hale_data->original_nodes_y, umesh->nnodes);
+  allocated += allocate_data(&hale_data->sub_cell_grad_x,
+                             umesh->ncells * umesh->nnodes_by_cell);
+  allocated += allocate_data(&hale_data->sub_cell_grad_y,
+                             umesh->ncells * umesh->nnodes_by_cell->nnodes);
 
   // In hale, the fundamental principle is that the mass at the cell and
   // sub-cell are conserved, so we can initialise them from the mesh

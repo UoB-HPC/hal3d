@@ -9,6 +9,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+// TODO: At this stage, there are so many additional fields required
+// to handle the sub-cell data for the remapping phase, there will be some use
+// in considering whether some of the fields could be shared or whether
+// adaptations to the algorithm are even necessary for this particular point
+
 // Solve a single timestep on the given mesh
 void solve_unstructured_hydro_2d(
     Mesh* mesh, const int ncells, const int nnodes,
@@ -17,7 +22,8 @@ void solve_unstructured_hydro_2d(
     double* cell_centroids_y, int* cells_to_nodes, int* cells_offsets,
     int* nodes_to_cells, int* cells_to_cells, int* nodes_offsets,
     double* nodes_x0, double* nodes_y0, double* nodes_x1, double* nodes_y1,
-    int* boundary_index, int* boundary_type, double* boundary_normal_x,
+    int* boundary_index, int* boundary_type, const double* original_nodes_x,
+    const double* original_nodes_y, double* boundary_normal_x,
     double* boundary_normal_y, double* energy0, double* energy1,
     double* density0, double* density1, double* pressure0, double* pressure1,
     double* velocity_x0, double* velocity_y0, double* velocity_x1,
@@ -28,15 +34,8 @@ void solve_unstructured_hydro_2d(
     double* sub_cell_volume, double* sub_cell_energy, double* sub_cell_mass,
     double* sub_cell_velocity_x, double* sub_cell_velocity_y,
     double* sub_cell_kinetic_energy, double* sub_cell_centroids_x,
-    double* sub_cell_centroids_y) {
-  START_PROFILING(&compute_profile);
-#pragma omp parallel for simd
-  for (int nn = 0; nn < nnodes; ++nn) {
-    nodal_mass[(nn)] = 0.0;
-    nodal_volumes[(nn)] = 0.0;
-    nodal_soundspeed[(nn)] = 0.0;
-  }
-  STOP_PROFILING(&compute_profile, "zero_nodal_arrays");
+    double* sub_cell_centroids_y, double* sub_cell_grad_x,
+    double* sub_cell_grad_y) {
 
   /*
    * REMAP STEP PROTOTYPE
@@ -253,15 +252,18 @@ void solve_unstructured_hydro_2d(
                                 nodes_y0, cell_centroids_x, cell_centroids_y,
                                 sub_cell_centroids_x, sub_cell_centroids_y);
 
-  // Here we calculate the swept edges, essentially we are fitting a linear
-  // function that describes the change is
+  // TODO: Need to handle the boundary conditions here... in the other routine
+  // we simply ignore the boundaries in the gradient calculation, still not sure
+  // if this a reasonable approach but it's definitely the easiest
+
+  // Here we calculate the gradient for the quantity in each sub-cell
   for (int cc = 0; cc < ncells; ++cc) {
     const int cells_off = cells_offsets[(cc)];
     const int nsub_cells = cells_offsets[(cc + 1)] - cells_off;
 
     // Calculate the gradient of the change in density between the sub-cells
     for (int ss = 0; ss < nsub_cells; ++ss) {
-      const int sub_c_cell_index = (cells_off + ss);
+      const int sub_cell_c_index = (cells_off + ss);
       const int node_c_index = cells_to_nodes[(cells_off) + (ss)];
 
       const int nodes_off = nodes_offsets[(node_c_index)];
@@ -269,8 +271,7 @@ void solve_unstructured_hydro_2d(
 
       // Scan through the cells attached to the sub-cell's external node, to
       // fetch the two cells that neighbour the sub-cell
-      const int nouter_neighbours = 2;
-      int out_cell_index[nouter_neighbours] = {-1, -1};
+      int out_cell_index[2] = {-1, -1};
       for (int cc2 = 0; cc2 < ncells_by_node; ++cc2) {
         const int cell_index = nodes_to_cells[(nodes_off + cc2)];
         if (cell_index == cc) {
@@ -293,16 +294,16 @@ void solve_unstructured_hydro_2d(
       // The indices for sub-cells in neighbourhood of current sub-cell
       int sub_cell_neighbour_indices[nsub_cell_neighbours];
 
-      for (int oo = 0; oo < nouter_neighbour; ++oo) {
-        const int out_cells_off0 = cells_offsets[(out_cell_index0)];
-        const int out_nnodes0 =
-            cells_offsets[(out_cell_index0 + 1)] - cells_off;
+      for (int oo = 0; oo < 2; ++oo) {
+        const int out_cells_off = cells_offsets[(out_cell_index[oo])];
+        const int out_nnodes =
+            cells_offsets[(out_cell_index[oo] + 1)] - cells_off;
 
-        for (int nn = 0; nn < out_nnodes0; ++nn) {
-          const int out_node_c_index0 = cells_to_nodes[(out_cells_off0 + nn)];
+        for (int nn = 0; nn < out_nnodes; ++nn) {
+          const int out_node_c_index = cells_to_nodes[(out_cells_off + nn)];
           if (node_c_index == node_c_index) {
             // We have found the neighbouring sub-cell
-            sub_cell_neighbour_indices[oo] = (out_cells_off0 + nn);
+            sub_cell_neighbour_indices[oo] = (out_cells_off + nn);
             break;
           }
         }
@@ -332,35 +333,55 @@ void solve_unstructured_hydro_2d(
                                     sub_cell_volume[(sub_cell_c_index)];
 
         // Calculate the differential quantities
-        const double dx = sub_cell_centroids_x[(sub_cell_neighbour_index)] -
+        const double dx = sub_cell_centroids_x[(sub_cell_n_index)] -
                           sub_cell_centroids_x[(sub_cell_c_index)];
-        const double dy = sub_cell_centroids_y[(sub_cell_neighbour_index)] -
+        const double dy = sub_cell_centroids_y[(sub_cell_n_index)] -
                           sub_cell_centroids_y[(sub_cell_c_index)];
         const double drho = sub_cell_n_density - sub_cell_c_density;
 
         double omega2 = 1.0 / (dx * dx + dy * dy);
 
         // Calculate the coefficients for the minimisation
-        a += omega * omega * dx * dx;
-        b += omega * omega * dx * dy;
-        c += omega * omega * dy * dy;
-        d += omega * omega * drho * dx;
-        e += omega * omega * drho * dy;
+        a += omega2 * dx * dx;
+        b += omega2 * dx * dy;
+        c += omega2 * dy * dy;
+        d += omega2 * drho * dx;
+        e += omega2 * drho * dy;
       }
 
       // Solve the minimisation problem to get the gradients for the sub-cell
-      const double rho_x = (c * d - b * e) / (a * c - b * b);
-      const double rho_y = (a * e - b * d) / (a * c - b * b);
-
-      // Update the sub-cell mass
-      for (int ss = 0; ss < nsub_cells; ++ss) {
-      }
+      sub_cell_grad_x[(sub_cell_c_index)] = (c * d - b * e) / (a * c - b * b);
+      sub_cell_grad_y[(sub_cell_c_index)] = (a * e - b * d) / (a * c - b * b);
     }
   }
 
+  // Here we are going to update the mass using the linear function that we have
+  // now been able to successfully describe for all of the sub-cells
+  for (int cc = 0; cc < ncells; ++cc) {
+    const int cells_off = cells_offsets[(cc)];
+    const int nsub_cells = cells_offsets[(cc + 1)] - cells_off;
+
+    // Consider all of the sub-cells that are in the new grid, assuming that we
+    // have maintained identical connectivity
+    for (int ss = 0; ss < nsub_cells; ++ss) {
+      const int sub_cell_c_index = (cells_off + ss);
+      const int node_c_index = cells_to_nodes[(cells_off) + (ss)];
+    }
+  }
+
+#if 0
   /*
    *    PREDICTOR
    */
+
+  START_PROFILING(&compute_profile);
+#pragma omp parallel for simd
+  for (int nn = 0; nn < nnodes; ++nn) {
+    nodal_mass[(nn)] = 0.0;
+    nodal_volumes[(nn)] = 0.0;
+    nodal_soundspeed[(nn)] = 0.0;
+  }
+  STOP_PROFILING(&compute_profile, "zero_nodal_arrays");
 
   // Calculate the pressure using the ideal gas equation of state
   START_PROFILING(&compute_profile);
@@ -848,6 +869,7 @@ void solve_unstructured_hydro_2d(
     density0[(cc)] = cell_mass[(cc)] / cell_volume;
   }
   STOP_PROFILING(&compute_profile, "calc_new_density");
+#endif // if 0
 }
 
 // Calculates the artificial viscous forces for momentum acceleration

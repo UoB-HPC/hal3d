@@ -98,7 +98,8 @@ int main(int argc, char** argv) {
         umesh.cell_centroids_y, umesh.cells_to_nodes, umesh.cells_offsets,
         umesh.nodes_to_cells, umesh.cells_to_cells, umesh.nodes_offsets,
         umesh.nodes_x0, umesh.nodes_y0, umesh.nodes_x1, umesh.nodes_y1,
-        umesh.boundary_index, umesh.boundary_type, umesh.boundary_normal_x,
+        umesh.boundary_index, umesh.boundary_type, hale_data.original_nodes_x,
+        hale_data.original_nodes_y, umesh.boundary_normal_x,
         umesh.boundary_normal_y, hale_data.energy0, hale_data.energy1,
         hale_data.density0, hale_data.density1, hale_data.pressure0,
         hale_data.pressure1, hale_data.velocity_x0, hale_data.velocity_y0,
@@ -109,7 +110,9 @@ int main(int argc, char** argv) {
         hale_data.nodal_volumes, hale_data.nodal_soundspeed, hale_data.limiter,
         hale_data.sub_cell_volume, hale_data.sub_cell_energy,
         hale_data.sub_cell_mass, hale_data.sub_cell_velocity_x,
-        hale_data.sub_cell_velocity_y, hale_data.sub_cell_kinetic_energy);
+        hale_data.sub_cell_velocity_y, hale_data.sub_cell_kinetic_energy,
+        hale_data.sub_cell_centroids_x, hale_data.sub_cell_centroids_y,
+        hale_data.sub_cell_grad_x, hale_data.sub_cell_grad_y);
 
     wallclock += omp_get_wtime() - w0;
     elapsed_sim_time += mesh.dt;

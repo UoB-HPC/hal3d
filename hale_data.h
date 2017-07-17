@@ -46,6 +46,8 @@ typedef struct {
   double* sub_cell_kinetic_energy;
   double* sub_cell_centroids_x;
   double* sub_cell_centroids_y;
+  double* sub_cell_grad_x;
+  double* sub_cell_grad_y;
   double* original_nodes_x;
   double* original_nodes_y;
 
