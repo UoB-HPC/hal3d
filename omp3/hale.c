@@ -16,26 +16,25 @@
 
 // Solve a single timestep on the given mesh
 void solve_unstructured_hydro_2d(
-    Mesh* mesh, const int ncells, const int nnodes,
-    const int nsub_cell_neighbours, const double visc_coeff1,
-    const double visc_coeff2, double* cell_centroids_x,
-    double* cell_centroids_y, int* cells_to_nodes, int* cells_offsets,
-    int* nodes_to_cells, int* cells_to_cells, int* nodes_offsets,
-    double* nodes_x0, double* nodes_y0, double* nodes_x1, double* nodes_y1,
-    int* boundary_index, int* boundary_type, const double* original_nodes_x,
-    const double* original_nodes_y, double* boundary_normal_x,
-    double* boundary_normal_y, double* energy0, double* energy1,
-    double* density0, double* density1, double* pressure0, double* pressure1,
-    double* velocity_x0, double* velocity_y0, double* velocity_x1,
-    double* velocity_y1, double* sub_cell_force_x, double* sub_cell_force_y,
-    double* node_force_x, double* node_force_y, double* node_force_x2,
-    double* node_force_y2, double* cell_mass, double* nodal_mass,
-    double* nodal_volumes, double* nodal_soundspeed, double* limiter,
-    double* sub_cell_volume, double* sub_cell_energy, double* sub_cell_mass,
-    double* sub_cell_velocity_x, double* sub_cell_velocity_y,
-    double* sub_cell_kinetic_energy, double* sub_cell_centroids_x,
-    double* sub_cell_centroids_y, double* sub_cell_grad_x,
-    double* sub_cell_grad_y) {
+    Mesh* mesh, const int ncells, const int nnodes, const int nsub_cell_edges,
+    const double visc_coeff1, const double visc_coeff2,
+    double* cell_centroids_x, double* cell_centroids_y, int* cells_to_nodes,
+    int* cells_offsets, int* nodes_to_cells, int* cells_to_cells,
+    int* nodes_offsets, double* nodes_x0, double* nodes_y0, double* nodes_x1,
+    double* nodes_y1, int* boundary_index, int* boundary_type,
+    const double* rezoned_nodes_x, const double* rezoned_nodes_y,
+    double* boundary_normal_x, double* boundary_normal_y, double* energy0,
+    double* energy1, double* density0, double* density1, double* pressure0,
+    double* pressure1, double* velocity_x0, double* velocity_y0,
+    double* velocity_x1, double* velocity_y1, double* sub_cell_force_x,
+    double* sub_cell_force_y, double* node_force_x, double* node_force_y,
+    double* node_force_x2, double* node_force_y2, double* cell_mass,
+    double* nodal_mass, double* nodal_volumes, double* nodal_soundspeed,
+    double* limiter, double* sub_cell_volume, double* sub_cell_energy,
+    double* sub_cell_mass, double* sub_cell_velocity_x,
+    double* sub_cell_velocity_y, double* sub_cell_kinetic_energy,
+    double* sub_cell_centroids_x, double* sub_cell_centroids_y,
+    double* sub_cell_grad_x, double* sub_cell_grad_y) {
 
   /*
    * REMAP STEP PROTOTYPE
@@ -134,6 +133,8 @@ void solve_unstructured_hydro_2d(
       const int node_r_index = (ss == nnodes_by_cell - 1)
                                    ? cells_to_nodes[(cells_off)]
                                    : cells_to_nodes[(cells_off) + (ss + 1)];
+
+      // TODO: refactor the routines here so that they operate in loops...
 
       // Get the anchor node position
       const double node_c_x = nodes_x0[(node_c_index)];
@@ -292,7 +293,7 @@ void solve_unstructured_hydro_2d(
       }
 
       // The indices for sub-cells in neighbourhood of current sub-cell
-      int sub_cell_neighbour_indices[nsub_cell_neighbours];
+      int sub_cell_neighbour_indices[nsub_cell_edges];
 
       for (int oo = 0; oo < 2; ++oo) {
         const int out_cells_off = cells_offsets[(out_cell_index[oo])];
@@ -325,7 +326,7 @@ void solve_unstructured_hydro_2d(
       double sub_cell_c_density = sub_cell_mass[(sub_cell_c_index)] /
                                   sub_cell_volume[(sub_cell_c_index)];
 
-      for (int nn = 0; nn < nsub_cell_neighbours; ++nn) {
+      for (int nn = 0; nn < nsub_cell_edges; ++nn) {
         const int sub_cell_n_index = sub_cell_neighbour_indices[(nn)];
 
         // Fetch the density for the neighbour
@@ -361,11 +362,86 @@ void solve_unstructured_hydro_2d(
     const int cells_off = cells_offsets[(cc)];
     const int nsub_cells = cells_offsets[(cc + 1)] - cells_off;
 
+    // Store the cell centroids as these are the same for all of the
+    // sub-cells that are within this cell
+    const double cell_c_x = cell_centroids_x[(cell_index)];
+    const double cell_c_y = cell_centroids_y[(cell_index)];
+    const double rezoned_cell_c_x = cell_centroids_x[(cell_index)];
+    const double rezoned_cell_c_y = cell_centroids_y[(cell_index)];
+
     // Consider all of the sub-cells that are in the new grid, assuming that we
     // have maintained identical connectivity
     for (int ss = 0; ss < nsub_cells; ++ss) {
       const int sub_cell_c_index = (cells_off + ss);
+
+      // Determine the three point stencil of nodes around anchor node
+      const int node_l_index =
+          (ss == 0) ? cells_to_nodes[(cells_off + nnodes_by_cell - 1)]
+                    : cells_to_nodes[(cells_off) + (ss - 1)];
       const int node_c_index = cells_to_nodes[(cells_off) + (ss)];
+      const int node_r_index = (ss == nnodes_by_cell - 1)
+                                   ? cells_to_nodes[(cells_off)]
+                                   : cells_to_nodes[(cells_off) + (ss + 1)];
+
+      // Calculate the nodes surrounding the sub-cell
+      double sub_cell_nodes_x[nsub_cell_edges];
+      double sub_cell_nodes_y[nsub_cell_edges];
+      double new_sub_cell_nodes_x[nsub_cell_edges];
+      double new_sub_cell_nodes_y[nsub_cell_edges];
+
+      // The sub-cell is surrounded by the anchor node, midpoints on the outer
+      // edges and the center of the cell
+      sub_cell_nodes_x[0] = nodes_x0[(node_c_index)];
+      sub_cell_nodes_y[0] = nodes_y0[(node_c_index)];
+      sub_cell_nodes_x[1] = 0.5 * (node_c_x + nodes_x0[(node_r_index)]);
+      sub_cell_nodes_y[1] = 0.5 * (node_c_y + nodes_y0[(node_r_index)]);
+      sub_cell_nodes_x[2] = cell_c_x;
+      sub_cell_nodes_y[2] = cell_c_y;
+      sub_cell_nodes_x[3] = 0.5 * (nodes_x0[(node_l_index)] + node_c_x);
+      sub_cell_nodes_y[3] = 0.5 * (nodes_y0[(node_l_index)] + node_c_y);
+
+      // Get the same data for the new sub-cell after rezoning
+      new_sub_cell_nodes_x[0] = rezoned_nodes_x0[(node_c_index)];
+      new_sub_cell_nodes_y[0] = rezoned_nodes_y0[(node_c_index)];
+      new_sub_cell_nodes_x[1] =
+          0.5 * (node_c_x + rezoned_nodes_x0[(node_r_index)]);
+      new_sub_cell_nodes_y[1] =
+          0.5 * (node_c_y + rezoned_nodes_y0[(node_r_index)]);
+      new_sub_cell_nodes_x[2] = cell_c_x;
+      new_sub_cell_nodes_y[2] = cell_c_y;
+      new_sub_cell_nodes_x[3] =
+          0.5 * (rezoned_nodes_x0[(node_l_index)] + node_c_x);
+      new_sub_cell_nodes_y[3] =
+          0.5 * (rezoned_nodes_y0[(node_l_index)] + node_c_y);
+
+      for (int ee = 0; ee < nsub_cell_edges; ++ee) {
+        const int node0_off = (cells_off + ss);
+        const int node1_off =
+            (ss == nsub_cells - 1) ? (cells_off) : (cells_off + ss);
+
+        const int node0_index = cells_to_nodes[(node0_off)];
+        const int node1_index = cells_to_nodes[(node1_off)];
+
+        // This ordering of nodes encompasses the swept region for the edge
+        double nodes_x[nsub_cell_indices];
+        double nodes_y[nsub_cell_indices];
+        nodes_x[0] = nodes_x0[(node0_index)];
+        nodes_x[1] = nodes_x0[(node1_index)];
+        nodes_x[2] = rezoned_nodes_x[(node1_index)];
+        nodes_x[3] = rezoned_nodes_x[(node0_index)];
+        nodes_y[0] = nodes_y0[(node0_index)];
+        nodes_y[1] = nodes_y0[(node1_index)];
+        nodes_y[2] = rezoned_nodes_y[(node1_index)];
+        nodes_y[3] = rezoned_nodes_y[(node0_index)];
+
+        // We want to calculate the volume integral
+        double volume = 0.0;
+        for (int nn = 0; nn < nsub_cell_indices; ++nn) {
+          volume += 0.5 * (nodes_x[0] * nodes_x[1]) * (nodes_y[1] - nodes_y[0]);
+        }
+
+        // The sign of the volume determines the donor sub-cell
+      }
     }
   }
 
@@ -418,11 +494,11 @@ void solve_unstructured_hydro_2d(
       const double cell_c_y = cell_centroids_y[(cell_index)];
 
       const int node_l_index =
-          (nn2 - 1 >= 0) ? cells_to_nodes[(cell_offset + nn2 - 1)]
-                         : cells_to_nodes[(cell_offset + nnodes_by_cell - 1)];
+        (nn2 - 1 >= 0) ? cells_to_nodes[(cell_offset + nn2 - 1)]
+        : cells_to_nodes[(cell_offset + nnodes_by_cell - 1)];
       const int node_r_index = (nn2 + 1 < nnodes_by_cell)
-                                   ? cells_to_nodes[(cell_offset + nn2 + 1)]
-                                   : cells_to_nodes[(cell_offset)];
+        ? cells_to_nodes[(cell_offset + nn2 + 1)]
+        : cells_to_nodes[(cell_offset)];
 
       const double node_c_x = nodes_x0[(nn)];
       const double node_c_y = nodes_y0[(nn)];
@@ -435,22 +511,22 @@ void solve_unstructured_hydro_2d(
 
       // Use shoelace formula to get the volume between node and cell c
       const double sub_cell_volume =
-          0.5 * ((node_l_x * node_c_y + node_c_x * node_r_y +
-                  node_r_x * cell_c_y + cell_c_x * node_l_y) -
-                 (node_c_x * node_l_y + node_r_x * node_c_y +
-                  cell_c_x * node_r_y + node_l_x * cell_c_y));
+        0.5 * ((node_l_x * node_c_y + node_c_x * node_r_y +
+              node_r_x * cell_c_y + cell_c_x * node_l_y) -
+            (node_c_x * node_l_y + node_r_x * node_c_y +
+             cell_c_x * node_r_y + node_l_x * cell_c_y));
 
       // TODO: this should be updated to fix the issues with hourglassing...
       if (sub_cell_volume <= 0.0) {
         TERMINATE("Encountered cell with unphysical volume %.12f in cell %d.",
-                  sub_cell_volume, cc);
+            sub_cell_volume, cc);
       }
 
       nodal_mass[(nn)] += density0[(cell_index)] * sub_cell_volume;
 
       // Calculate the volume and soundspeed at the node
       nodal_soundspeed[(nn)] +=
-          sqrt(GAM * (GAM - 1.0) * energy0[(cell_index)]) * sub_cell_volume;
+        sqrt(GAM * (GAM - 1.0) * energy0[(cell_index)]) * sub_cell_volume;
       nodal_volumes[(nn)] += sub_cell_volume;
     }
   }
@@ -487,18 +563,18 @@ void solve_unstructured_hydro_2d(
       }
 
       const int node_l_index =
-          (nn2 - 1 >= 0) ? cells_to_nodes[(cell_offset + nn2 - 1)]
-                         : cells_to_nodes[(cell_offset + nnodes_by_cell - 1)];
+        (nn2 - 1 >= 0) ? cells_to_nodes[(cell_offset + nn2 - 1)]
+        : cells_to_nodes[(cell_offset + nnodes_by_cell - 1)];
       const int node_r_index = (nn2 + 1 < nnodes_by_cell)
-                                   ? cells_to_nodes[(cell_offset + nn2 + 1)]
-                                   : cells_to_nodes[(cell_offset)];
+        ? cells_to_nodes[(cell_offset + nn2 + 1)]
+        : cells_to_nodes[(cell_offset)];
 
       // Calculate the area vectors away from cell through node, using
       // the half edge vectors adjacent to the node combined
       const double S_x = 0.5 * ((nodes_y0[(nn)] - nodes_y0[(node_l_index)]) +
-                                (nodes_y0[(node_r_index)] - nodes_y0[(nn)]));
+          (nodes_y0[(node_r_index)] - nodes_y0[(nn)]));
       const double S_y = -0.5 * ((nodes_x0[(nn)] - nodes_x0[(node_l_index)]) +
-                                 (nodes_x0[(node_r_index)] - nodes_x0[(nn)]));
+          (nodes_x0[(node_r_index)] - nodes_x0[(nn)]));
 
       node_force_x[(nn)] += pressure0[(cell_index)] * S_x;
       node_force_y[(nn)] += pressure0[(cell_index)] * S_y;
@@ -518,20 +594,20 @@ void solve_unstructured_hydro_2d(
 
       // Determine the three point stencil of nodes around current node
       const int node_l_index =
-          (nn == 0) ? cells_to_nodes[(cells_off + nnodes_by_cell - 1)]
-                    : cells_to_nodes[(cells_off) + (nn - 1)];
+        (nn == 0) ? cells_to_nodes[(cells_off + nnodes_by_cell - 1)]
+        : cells_to_nodes[(cells_off) + (nn - 1)];
       const int node_r_index = (nn == nnodes_by_cell - 1)
-                                   ? cells_to_nodes[(cells_off)]
-                                   : cells_to_nodes[(cells_off) + (nn + 1)];
+        ? cells_to_nodes[(cells_off)]
+        : cells_to_nodes[(cells_off) + (nn + 1)];
 
       // Calculate the area vectors away from cell through node, using
       // the half edge vectors adjacent to the node combined
       const double S_x =
-          0.5 * ((nodes_y0[(node_c_index)] - nodes_y0[(node_l_index)]) +
-                 (nodes_y0[(node_r_index)] - nodes_y0[(node_c_index)]));
+        0.5 * ((nodes_y0[(node_c_index)] - nodes_y0[(node_l_index)]) +
+            (nodes_y0[(node_r_index)] - nodes_y0[(node_c_index)]));
       const double S_y =
-          -0.5 * ((nodes_x0[(node_c_index)] - nodes_x0[(node_l_index)]) +
-                  (nodes_x0[(node_r_index)] - nodes_x0[(node_c_index)]));
+        -0.5 * ((nodes_x0[(node_c_index)] - nodes_x0[(node_l_index)]) +
+            (nodes_x0[(node_r_index)] - nodes_x0[(node_c_index)]));
 
       sub_cell_force_x[(cells_off) + (nn)] = pressure0[(cc)] * S_x;
       sub_cell_force_y[(cells_off) + (nn)] = pressure0[(cc)] * S_y;
@@ -554,9 +630,9 @@ void solve_unstructured_hydro_2d(
   for (int nn = 0; nn < nnodes; ++nn) {
     // Determine the predicted velocity
     velocity_x1[(nn)] =
-        velocity_x0[(nn)] + mesh->dt * node_force_x[(nn)] / nodal_mass[(nn)];
+      velocity_x0[(nn)] + mesh->dt * node_force_x[(nn)] / nodal_mass[(nn)];
     velocity_y1[(nn)] =
-        velocity_y0[(nn)] + mesh->dt * node_force_y[(nn)] / nodal_mass[(nn)];
+      velocity_y0[(nn)] + mesh->dt * node_force_y[(nn)] / nodal_mass[(nn)];
 
     // Calculate the time centered velocity
     velocity_x1[(nn)] = 0.5 * (velocity_x0[(nn)] + velocity_x1[(nn)]);
@@ -565,8 +641,8 @@ void solve_unstructured_hydro_2d(
   STOP_PROFILING(&compute_profile, "calc_new_velocity");
 
   handle_unstructured_reflect(nnodes, boundary_index, boundary_type,
-                              boundary_normal_x, boundary_normal_y, velocity_x1,
-                              velocity_y1);
+      boundary_normal_x, boundary_normal_y, velocity_x1,
+      velocity_y1);
 
   // Move the nodes by the predicted velocity
   START_PROFILING(&compute_profile);
@@ -578,7 +654,7 @@ void solve_unstructured_hydro_2d(
   STOP_PROFILING(&compute_profile, "move_nodes");
 
   set_timestep(ncells, cells_to_nodes, cells_offsets, nodes_x1, nodes_y1,
-               energy0, &mesh->dt);
+      energy0, &mesh->dt);
 
   // Calculate the predicted energy
   START_PROFILING(&compute_profile);
@@ -592,8 +668,8 @@ void solve_unstructured_hydro_2d(
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int node_index = cells_to_nodes[(cells_off) + (nn)];
       force +=
-          (velocity_x1[(node_index)] * sub_cell_force_x[(cells_off) + (nn)] +
-           velocity_y1[(node_index)] * sub_cell_force_y[(cells_off) + (nn)]);
+        (velocity_x1[(node_index)] * sub_cell_force_x[(cells_off) + (nn)] +
+         velocity_y1[(node_index)] * sub_cell_force_y[(cells_off) + (nn)]);
     }
 
     energy1[(cc)] = energy0[(cc)] - mesh->dt * force / cell_mass[(cc)];
@@ -613,19 +689,19 @@ void solve_unstructured_hydro_2d(
       // Determine the three point stencil of nodes around current node
       const int node_c_index = cells_to_nodes[(cells_off) + (nn)];
       const int node_r_index = (nn == nnodes_by_cell - 1)
-                                   ? cells_to_nodes[(cells_off)]
-                                   : cells_to_nodes[(cells_off) + (nn + 1)];
+        ? cells_to_nodes[(cells_off)]
+        : cells_to_nodes[(cells_off) + (nn + 1)];
 
       // Reduce the total cell volume for later calculation
       cell_volume += 0.5 * (nodes_x1[node_c_index] + nodes_x1[node_r_index]) *
-                     (nodes_y1[node_r_index] - nodes_y1[node_c_index]);
+        (nodes_y1[node_r_index] - nodes_y1[node_c_index]);
     }
 
     density1[(cc)] = cell_mass[(cc)] / cell_volume;
   }
   STOP_PROFILING(&compute_profile, "calc_new_density");
 
-  // Calculate the time centered pressure from mid point between original and
+  // Calculate the time centered pressure from mid point between rezoned and
   // predicted pressures
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
@@ -658,7 +734,7 @@ void solve_unstructured_hydro_2d(
    */
 
   initialise_cell_centroids(ncells, cells_offsets, cells_to_nodes, nodes_x1,
-                            nodes_y1, cell_centroids_x, cell_centroids_y);
+      nodes_y1, cell_centroids_x, cell_centroids_y);
 
   // Calculate the new nodal soundspeed and volumes
   START_PROFILING(&compute_profile);
@@ -685,11 +761,11 @@ void solve_unstructured_hydro_2d(
       const double cell_c_y = cell_centroids_y[(cell_index)];
 
       const int node_l_index =
-          (nn2 - 1 >= 0) ? cells_to_nodes[(cell_offset + nn2 - 1)]
-                         : cells_to_nodes[(cell_offset + nnodes_by_cell - 1)];
+        (nn2 - 1 >= 0) ? cells_to_nodes[(cell_offset + nn2 - 1)]
+        : cells_to_nodes[(cell_offset + nnodes_by_cell - 1)];
       const int node_r_index = (nn2 + 1 < nnodes_by_cell)
-                                   ? cells_to_nodes[(cell_offset + nn2 + 1)]
-                                   : cells_to_nodes[(cell_offset)];
+        ? cells_to_nodes[(cell_offset + nn2 + 1)]
+        : cells_to_nodes[(cell_offset)];
 
       const double node_c_x = nodes_x1[(nn)];
       const double node_c_y = nodes_y1[(nn)];
@@ -702,10 +778,10 @@ void solve_unstructured_hydro_2d(
 
       // Use shoelace formula to get the volume between node and cell c
       const double sub_cell_volume =
-          0.5 * ((node_l_x * node_c_y + node_c_x * node_r_y +
-                  node_r_x * cell_c_y + cell_c_x * node_l_y) -
-                 (node_c_x * node_l_y + node_r_x * node_c_y +
-                  cell_c_x * node_r_y + node_l_x * cell_c_y));
+        0.5 * ((node_l_x * node_c_y + node_c_x * node_r_y +
+              node_r_x * cell_c_y + cell_c_x * node_l_y) -
+            (node_c_x * node_l_y + node_r_x * node_c_y +
+             cell_c_x * node_r_y + node_l_x * cell_c_y));
 
       // Add contributions to the nodal mass from adjacent sub-cells
       nc += sqrt(GAM * (GAM - 1.0) * energy1[(cell_index)]) * sub_cell_volume;
@@ -746,18 +822,18 @@ void solve_unstructured_hydro_2d(
       }
 
       const int node_l_index =
-          (nn2 - 1 >= 0) ? cells_to_nodes[(cell_offset + nn2 - 1)]
-                         : cells_to_nodes[(cell_offset + nnodes_by_cell - 1)];
+        (nn2 - 1 >= 0) ? cells_to_nodes[(cell_offset + nn2 - 1)]
+        : cells_to_nodes[(cell_offset + nnodes_by_cell - 1)];
       const int node_r_index = (nn2 + 1 < nnodes_by_cell)
-                                   ? cells_to_nodes[(cell_offset + nn2 + 1)]
-                                   : cells_to_nodes[(cell_offset)];
+        ? cells_to_nodes[(cell_offset + nn2 + 1)]
+        : cells_to_nodes[(cell_offset)];
 
       // Calculate the area vectors away from cell through node, using
       // the half edge vectors adjacent to the node combined
       const double S_x = 0.5 * ((nodes_y1[(nn)] - nodes_y1[(node_l_index)]) +
-                                (nodes_y1[(node_r_index)] - nodes_y1[(nn)]));
+          (nodes_y1[(node_r_index)] - nodes_y1[(nn)]));
       const double S_y = -0.5 * ((nodes_x1[(nn)] - nodes_x1[(node_l_index)]) +
-                                 (nodes_x1[(node_r_index)] - nodes_x1[(nn)]));
+          (nodes_x1[(node_r_index)] - nodes_x1[(nn)]));
 
       node_force_x[(nn)] += pressure1[(cell_index)] * S_x;
       node_force_y[(nn)] += pressure1[(cell_index)] * S_y;
@@ -777,20 +853,20 @@ void solve_unstructured_hydro_2d(
 
       // Determine the three point stencil of nodes around current node
       const int node_l_index =
-          (nn == 0) ? cells_to_nodes[(cells_off + nnodes_by_cell - 1)]
-                    : cells_to_nodes[(cells_off) + (nn - 1)];
+        (nn == 0) ? cells_to_nodes[(cells_off + nnodes_by_cell - 1)]
+        : cells_to_nodes[(cells_off) + (nn - 1)];
       const int node_r_index = (nn == nnodes_by_cell - 1)
-                                   ? cells_to_nodes[(cells_off)]
-                                   : cells_to_nodes[(cells_off) + (nn + 1)];
+        ? cells_to_nodes[(cells_off)]
+        : cells_to_nodes[(cells_off) + (nn + 1)];
 
       // Calculate the area vectors away from cell through node, using
       // the half edge vectors adjacent to the node combined
       const double S_x =
-          0.5 * ((nodes_y1[(node_c_index)] - nodes_y1[(node_l_index)]) +
-                 (nodes_y1[(node_r_index)] - nodes_y1[(node_c_index)]));
+        0.5 * ((nodes_y1[(node_c_index)] - nodes_y1[(node_l_index)]) +
+            (nodes_y1[(node_r_index)] - nodes_y1[(node_c_index)]));
       const double S_y =
-          -0.5 * ((nodes_x1[(node_c_index)] - nodes_x1[(node_l_index)]) +
-                  (nodes_x1[(node_r_index)] - nodes_x1[(node_c_index)]));
+        -0.5 * ((nodes_x1[(node_c_index)] - nodes_x1[(node_l_index)]) +
+            (nodes_x1[(node_r_index)] - nodes_x1[(node_c_index)]));
 
       sub_cell_force_x[(cells_off) + (nn)] = pressure1[(cc)] * S_x;
       sub_cell_force_y[(cells_off) + (nn)] = pressure1[(cc)] * S_y;
@@ -806,11 +882,11 @@ void solve_unstructured_hydro_2d(
       node_force_y2);
 
   update_velocity(nnodes, mesh->dt, node_force_x, node_force_y, nodal_mass,
-                  velocity_x0, velocity_y0, velocity_x1, velocity_y1);
+      velocity_x0, velocity_y0, velocity_x1, velocity_y1);
 
   handle_unstructured_reflect(nnodes, boundary_index, boundary_type,
-                              boundary_normal_x, boundary_normal_y, velocity_x0,
-                              velocity_y0);
+      boundary_normal_x, boundary_normal_y, velocity_x0,
+      velocity_y0);
 
   // Calculate the corrected node movements
   START_PROFILING(&compute_profile);
@@ -822,10 +898,10 @@ void solve_unstructured_hydro_2d(
   STOP_PROFILING(&compute_profile, "move_nodes");
 
   initialise_cell_centroids(ncells, cells_offsets, cells_to_nodes, nodes_x0,
-                            nodes_y0, cell_centroids_x, cell_centroids_y);
+      nodes_y0, cell_centroids_x, cell_centroids_y);
 
   set_timestep(ncells, cells_to_nodes, cells_offsets, nodes_x0, nodes_y0,
-               energy1, &mesh->dt);
+      energy1, &mesh->dt);
 
   // Calculate the final energy
   START_PROFILING(&compute_profile);
@@ -839,8 +915,8 @@ void solve_unstructured_hydro_2d(
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int node_index = cells_to_nodes[(cells_off) + (nn)];
       force +=
-          (velocity_x0[(node_index)] * sub_cell_force_x[(cells_off) + (nn)] +
-           velocity_y0[(node_index)] * sub_cell_force_y[(cells_off) + (nn)]);
+        (velocity_x0[(node_index)] * sub_cell_force_x[(cells_off) + (nn)] +
+         velocity_y0[(node_index)] * sub_cell_force_y[(cells_off) + (nn)]);
     }
 
     energy0[(cc)] -= mesh->dt * force / cell_mass[(cc)];
@@ -859,10 +935,10 @@ void solve_unstructured_hydro_2d(
       // Calculate the new volume of the cell
       const int node_c_index = cells_to_nodes[(cells_off) + (nn)];
       const int node_r_index = (nn == nnodes_by_cell - 1)
-                                   ? cells_to_nodes[(cells_off)]
-                                   : cells_to_nodes[(cells_off) + (nn + 1)];
+        ? cells_to_nodes[(cells_off)]
+        : cells_to_nodes[(cells_off) + (nn + 1)];
       cell_volume += 0.5 * (nodes_x0[node_c_index] + nodes_x0[node_r_index]) *
-                     (nodes_y0[node_r_index] - nodes_y0[node_c_index]);
+        (nodes_y0[node_r_index] - nodes_y0[node_c_index]);
     }
 
     // Update the density using the new volume
@@ -1177,16 +1253,16 @@ void initialise_sub_cell_centroids(const int ncells, const int* cells_offsets,
   STOP_PROFILING(&compute_profile, __func__);
 }
 
-// Stores the original mesh specification, in case we aren't going to use a
-// rezoning strategy and want to perform an Eulerian remap
-void store_original_mesh(const int nnodes, const double* nodes_x,
-                         const double* nodes_y, double* original_nodes_x,
-                         double* original_nodes_y) {
+// Stores the rezoned mesh specification as the original mesh. Until we
+// determine a reasonable rezoning algorithm, this makes us Eulerian
+void store_rezoned_mesh(const int nnodes, const double* nodes_x,
+                        const double* nodes_y, double* rezoned_nodes_x,
+                        double* rezoned_nodes_y) {
 
-// Store the original nodes
+// Store the rezoned nodes
 #pragma omp parallel for
   for (int nn = 0; nn < nnodes; ++nn) {
-    original_nodes_x[(nn)] = nodes_x[(nn)];
-    original_nodes_y[(nn)] = nodes_y[(nn)];
+    rezoned_nodes_x[(nn)] = nodes_x[(nn)];
+    rezoned_nodes_y[(nn)] = nodes_y[(nn)];
   }
 }

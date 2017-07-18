@@ -93,7 +93,7 @@ int main(int argc, char** argv) {
     double w0 = omp_get_wtime();
 
     solve_unstructured_hydro_2d(
-        &mesh, umesh.ncells, umesh.nnodes, umesh.nsub_cell_neighbours,
+        &mesh, umesh.ncells, umesh.nnodes, umesh.nsub_cell_edges,
         hale_data.visc_coeff1, hale_data.visc_coeff2, umesh.cell_centroids_x,
         umesh.cell_centroids_y, umesh.cells_to_nodes, umesh.cells_offsets,
         umesh.nodes_to_cells, umesh.cells_to_cells, umesh.nodes_offsets,
