@@ -48,8 +48,8 @@ typedef struct {
   double* sub_cell_centroids_y;
   double* sub_cell_grad_x;
   double* sub_cell_grad_y;
-  double* original_nodes_x;
-  double* original_nodes_y;
+  double* rezoned_nodes_x;
+  double* rezoned_nodes_y;
 
   double visc_coeff1;
   double visc_coeff2;
@@ -80,11 +80,11 @@ void initialise_sub_cell_centroids(
     const double* cell_centroids_x, const double* cell_centroids_y,
     double* sub_cell_centroids_x, double* sub_cell_centroids_y);
 
-// Stores the original grid specification, in case we aren't going to use a
+// Stores the rezoned grid specification, in case we aren't going to use a
 // rezoning strategy and want to perform an Eulerian remap
-void store_original_mesh(const int nnodes, const double* nodes_x,
-                         const double* nodes_y, double* original_nodes_x,
-                         double* original_nodes_y);
+void store_rezoned_mesh(const int nnodes, const double* nodes_x,
+                        const double* nodes_y, double* rezoned_nodes_x,
+                        double* rezoned_nodes_y);
 
 // Deallocates all of the hale specific data
 void deallocate_hale_data_2d(HaleData* hale_data);

@@ -37,7 +37,8 @@ void solve_unstructured_hydro_2d(
     double* sub_cell_volume, double* sub_cell_energy, double* sub_cell_mass,
     double* sub_cell_velocity_x, double* sub_cell_velocity_y,
     double* sub_cell_kinetic_energy, double* sub_cell_centroids_x,
-    double* sub_cell_centroids_y);
+    double* sub_cell_centroids_y, double* sub_cell_grad_x,
+    double* sub_cell_grad_y);
 
 // Controls the timestep for the simulation
 void set_timestep(const int ncells, const int* cells_to_nodes,
