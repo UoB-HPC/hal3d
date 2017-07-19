@@ -36,16 +36,9 @@ void solve_unstructured_hydro_2d(
     double* sub_cell_centroids_x, double* sub_cell_centroids_y,
     double* sub_cell_grad_x, double* sub_cell_grad_y) {
 
-#if 0
   /*
    * REMAP STEP PROTOTYPE
    */
-
-  double total_mass = 0.0;
-  for (int cc = 0; cc < ncells; ++cc) {
-    total_mass += cell_mass[(cc)];
-  }
-  printf("total mass %.12f\n", total_mass);
 
   // Calculate the sub-cell energies
   for (int cc = 0; cc < ncells; ++cc) {
@@ -445,7 +438,13 @@ void solve_unstructured_hydro_2d(
       }
     }
   }
-#endif // if 0
+
+#if 0
+  double total_mass = 0.0;
+  for (int cc = 0; cc < ncells; ++cc) {
+    total_mass += cell_mass[(cc)];
+  }
+  printf("total mass %.12f\n", total_mass);
 
   /*
    *    PREDICTOR
@@ -946,6 +945,7 @@ void solve_unstructured_hydro_2d(
     density0[(cc)] = cell_mass[(cc)] / cell_volume;
   }
   STOP_PROFILING(&compute_profile, "calc_new_density");
+#endif // if 0
 }
 
 // Calculates the artificial viscous forces for momentum acceleration
