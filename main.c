@@ -24,6 +24,15 @@ int main(int argc, char** argv) {
   mesh.niters = get_int_parameter("iterations", hale_params);
   mesh.max_dt = get_double_parameter("max_dt", ARCH_ROOT_PARAMS);
   mesh.sim_end = get_double_parameter("sim_end", ARCH_ROOT_PARAMS);
+  mesh.global_nx = get_int_parameter("nx", hale_params);
+  mesh.global_ny = get_int_parameter("ny", hale_params);
+  mesh.global_nz = get_int_parameter("nz", hale_params);
+  mesh.local_nx = mesh.global_nx + 2 * mesh.pad;
+  mesh.local_ny = mesh.global_ny + 2 * mesh.pad;
+  mesh.local_nz = mesh.global_nz + 2 * mesh.pad;
+  mesh.width = get_double_parameter("width", ARCH_ROOT_PARAMS);
+  mesh.height = get_double_parameter("height", ARCH_ROOT_PARAMS);
+  mesh.depth = get_double_parameter("depth", ARCH_ROOT_PARAMS);
   mesh.dt = get_double_parameter("dt", hale_params);
   mesh.dt_h = mesh.dt;
   mesh.rank = MASTER;
@@ -35,7 +44,7 @@ int main(int argc, char** argv) {
   initialise_mpi(argc, argv, &mesh.rank, &mesh.nranks);
   initialise_comms(&mesh);
   initialise_devices(mesh.rank);
-  initialise_mesh_2d(&mesh);
+  initialise_mesh_3d(&mesh);
 
   size_t allocated = 0;
 
@@ -50,13 +59,13 @@ int main(int argc, char** argv) {
     double** cell_variables[2] = {&hale_data.density0, &hale_data.energy0};
     allocated += read_unstructured_mesh(&umesh, cell_variables, 2);
   } else {
-    allocated += convert_mesh_to_umesh(&umesh, &mesh);
+    allocated += convert_mesh_to_umesh_3d(&umesh, &mesh);
   }
 
   // Initialise the hale-specific data arrays
   hale_data.visc_coeff1 = get_double_parameter("visc_coeff1", hale_params);
   hale_data.visc_coeff2 = get_double_parameter("visc_coeff2", hale_params);
-  allocated += initialise_hale_data_2d(&hale_data, &umesh);
+  allocated += initialise_hale_data(&hale_data, &umesh);
 
   printf("Allocated %.3fGB bytes of data\n", allocated / (double)GB);
 
@@ -70,9 +79,10 @@ int main(int argc, char** argv) {
   }
 
   if (visit_dump) {
-    write_unstructured_to_visit(
+    write_unstructured_to_visit_3d(
         umesh.nnodes, umesh.ncells, 0, umesh.nodes_x0, umesh.nodes_y0,
-        umesh.cells_to_nodes, hale_data.density0, 0, umesh.nnodes_by_cell == 4);
+        umesh.nodes_z0, umesh.cells_to_nodes, hale_data.density0, 0,
+        umesh.nnodes_by_cell == 8);
   }
 
   // Prepare for solve
@@ -80,7 +90,8 @@ int main(int argc, char** argv) {
   double elapsed_sim_time = 0.0;
 
   set_timestep(umesh.ncells, umesh.cells_to_nodes, umesh.cells_offsets,
-               umesh.nodes_x0, umesh.nodes_y0, hale_data.energy0, &mesh.dt);
+               umesh.nodes_x0, umesh.nodes_y0, umesh.nodes_z0,
+               hale_data.energy0, &mesh.dt);
 
   // Main timestep loop
   int tt;
@@ -95,24 +106,30 @@ int main(int argc, char** argv) {
     solve_unstructured_hydro_2d(
         &mesh, umesh.ncells, umesh.nnodes, umesh.nsub_cell_edges,
         hale_data.visc_coeff1, hale_data.visc_coeff2, umesh.cell_centroids_x,
-        umesh.cell_centroids_y, umesh.cells_to_nodes, umesh.cells_offsets,
-        umesh.nodes_to_cells, umesh.cells_to_cells, umesh.nodes_offsets,
-        umesh.nodes_x0, umesh.nodes_y0, umesh.nodes_x1, umesh.nodes_y1,
-        umesh.boundary_index, umesh.boundary_type, hale_data.rezoned_nodes_x,
-        hale_data.rezoned_nodes_y, umesh.boundary_normal_x,
-        umesh.boundary_normal_y, hale_data.energy0, hale_data.energy1,
+        umesh.cell_centroids_y, umesh.cell_centroids_z, umesh.cells_to_nodes,
+        umesh.cells_offsets, umesh.nodes_to_cells, umesh.cells_to_cells,
+        umesh.nodes_offsets, umesh.nodes_x0, umesh.nodes_y0, umesh.nodes_z0,
+        umesh.nodes_x1, umesh.nodes_y1, umesh.nodes_z1, umesh.boundary_index,
+        umesh.boundary_type, hale_data.rezoned_nodes_x,
+        hale_data.rezoned_nodes_y, hale_data.rezoned_nodes_z,
+        umesh.boundary_normal_x, umesh.boundary_normal_y,
+        umesh.boundary_normal_z, hale_data.energy0, hale_data.energy1,
         hale_data.density0, hale_data.density1, hale_data.pressure0,
         hale_data.pressure1, hale_data.velocity_x0, hale_data.velocity_y0,
-        hale_data.velocity_x1, hale_data.velocity_y1,
-        hale_data.sub_cell_force_x, hale_data.sub_cell_force_y,
-        hale_data.node_force_x, hale_data.node_force_y, hale_data.node_force_x2,
-        hale_data.node_force_y2, hale_data.cell_mass, hale_data.nodal_mass,
+        hale_data.velocity_z0, hale_data.velocity_x1, hale_data.velocity_y1,
+        hale_data.velocity_z1, hale_data.sub_cell_force_x,
+        hale_data.sub_cell_force_y, hale_data.sub_cell_force_z,
+        hale_data.node_force_x, hale_data.node_force_y, hale_data.node_force_z,
+        hale_data.node_force_x2, hale_data.node_force_y2,
+        hale_data.node_force_z2, hale_data.cell_mass, hale_data.nodal_mass,
         hale_data.nodal_volumes, hale_data.nodal_soundspeed, hale_data.limiter,
         hale_data.sub_cell_volume, hale_data.sub_cell_energy,
         hale_data.sub_cell_mass, hale_data.sub_cell_velocity_x,
-        hale_data.sub_cell_velocity_y, hale_data.sub_cell_kinetic_energy,
-        hale_data.sub_cell_centroids_x, hale_data.sub_cell_centroids_y,
-        hale_data.sub_cell_grad_x, hale_data.sub_cell_grad_y);
+        hale_data.sub_cell_velocity_y, hale_data.sub_cell_velocity_z,
+        hale_data.sub_cell_kinetic_energy, hale_data.sub_cell_centroids_x,
+        hale_data.sub_cell_centroids_y, hale_data.sub_cell_centroids_z,
+        hale_data.sub_cell_grad_x, hale_data.sub_cell_grad_y,
+        hale_data.sub_cell_grad_z);
 
     wallclock += omp_get_wtime() - w0;
     elapsed_sim_time += mesh.dt;
@@ -129,10 +146,10 @@ int main(int argc, char** argv) {
     }
 
     if (visit_dump) {
-      write_unstructured_to_visit(umesh.nnodes, umesh.ncells, tt + 1,
-                                  umesh.nodes_x0, umesh.nodes_y0,
-                                  umesh.cells_to_nodes, hale_data.density0, 0,
-                                  umesh.nnodes_by_cell == 4);
+      write_unstructured_to_visit_3d(
+          umesh.nnodes, umesh.ncells, tt + 1, umesh.nodes_x0, umesh.nodes_y0,
+          umesh.nodes_z0, umesh.cells_to_nodes, hale_data.density0, 0,
+          umesh.nnodes_by_cell == 8);
     }
   }
 
