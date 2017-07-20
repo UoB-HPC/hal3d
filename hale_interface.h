@@ -46,9 +46,9 @@ void solve_unstructured_hydro_2d(
 
 // Controls the timestep for the simulation
 void set_timestep(const int ncells, const int* cells_to_nodes,
-                  const int* cells_to_nodes_off, const double* nodes_x,
+                  const int* cells_offsets, const double* nodes_x,
                   const double* nodes_y, const double* nodes_z,
-                  const double* energy0, double* dt);
+                  const double* energy, double* dt);
 
 #ifdef __cplusplus
 }

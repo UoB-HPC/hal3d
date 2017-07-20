@@ -21,7 +21,7 @@ void solve_unstructured_hydro_2d(
     const double visc_coeff2, double* cell_centroids_x,
     double* cell_centroids_y, double* cell_centroids_z, int* cells_to_nodes,
     int* cells_offsets, int* nodes_to_cells, int* cells_to_cells,
-    int* nodes_offsets, double* nodes_x0, double* nodes_y0, double* z0,
+    int* nodes_offsets, double* nodes_x0, double* nodes_y0, double* nodes_z0,
     double* nodes_x1, double* nodes_y1, double* nodes_z1, int* boundary_index,
     int* boundary_type, const double* original_nodes_x,
     const double* original_nodes_y, const double* original_nodes_z,
@@ -30,16 +30,17 @@ void solve_unstructured_hydro_2d(
     double* density0, double* density1, double* pressure0, double* pressure1,
     double* velocity_x0, double* velocity_y0, double* velocity_z0,
     double* velocity_x1, double* velocity_y1, double* velocity_z1,
-    double* sub_cell_force_x, double* sub_cell_force_y, double* cell_force_z,
-    double* node_force_x, double* node_force_y, double* node_force_z,
-    double* node_force_x2, double* node_force_y2, double* node_force_z2,
-    double* cell_mass, double* nodal_mass, double* nodal_volumes,
-    double* nodal_soundspeed, double* limiter, double* sub_cell_volume,
-    double* sub_cell_energy, double* sub_cell_mass, double* sub_cell_velocity_x,
-    double* sub_cell_velocity_y, double* sub_cell_velocity_z,
-    double* sub_cell_kinetic_energy, double* sub_cell_centroids_x,
-    double* sub_cell_centroids_y, double* sub_cell_centroids_z,
-    double* sub_cell_grad_x, double* sub_cell_grad_y, double* sub_cell_grad_z) {
+    double* sub_cell_force_x, double* sub_cell_force_y,
+    double* sub_cell_force_z, double* node_force_x, double* node_force_y,
+    double* node_force_z, double* node_force_x2, double* node_force_y2,
+    double* node_force_z2, double* cell_mass, double* nodal_mass,
+    double* nodal_volumes, double* nodal_soundspeed, double* limiter,
+    double* sub_cell_volume, double* sub_cell_energy, double* sub_cell_mass,
+    double* sub_cell_velocity_x, double* sub_cell_velocity_y,
+    double* sub_cell_velocity_z, double* sub_cell_kinetic_energy,
+    double* sub_cell_centroids_x, double* sub_cell_centroids_y,
+    double* sub_cell_centroids_z, double* sub_cell_grad_x,
+    double* sub_cell_grad_y, double* sub_cell_grad_z) {
 
   double total_mass = 0.0;
   for (int cc = 0; cc < ncells; ++cc) {
@@ -146,6 +147,9 @@ void solve_unstructured_hydro_2d(
       }
 
       // TODO: Determine the area vectors
+      double S_x = 0.0;
+      double S_y = 0.0;
+      double S_z = 0.0;
 
       // Calculate the force vector due to pressure at the node
       node_force_x[(nn)] += pressure0[(cell_index)] * S_x;
@@ -168,6 +172,9 @@ void solve_unstructured_hydro_2d(
       const int node_c_index = cells_to_nodes[(cells_off) + (nn)];
 
       // TODO: determine the area vectors
+      double S_x = 0.0;
+      double S_y = 0.0;
+      double S_z = 0.0;
 
       // Store the sub-cell force due to pressure
       sub_cell_force_x[(cells_off + nn)] = pressure0[(cc)] * S_x;
@@ -206,10 +213,10 @@ void solve_unstructured_hydro_2d(
   }
   STOP_PROFILING(&compute_profile, "calc_new_velocity");
 
-  handle_unstructured_reflect(nnodes, boundary_index, boundary_type,
-                              boundary_normal_x, boundary_normal_y,
-                              boundary_normal_z, velocity_x1, velocity_y1,
-                              velocity_z1);
+  handle_unstructured_reflect_3d(nnodes, boundary_index, boundary_type,
+                                 boundary_normal_x, boundary_normal_y,
+                                 boundary_normal_z, velocity_x1, velocity_y1,
+                                 velocity_z1);
 
   // Move the nodes by the predicted velocity
   START_PROFILING(&compute_profile);
@@ -365,6 +372,9 @@ void solve_unstructured_hydro_2d(
       }
 
       // TODO: CALCULATE THE AREA VECTORS
+      double S_x = 0.0;
+      double S_y = 0.0;
+      double S_z = 0.0;
 
       node_force_x[(nn)] += pressure1[(cell_index)] * S_x;
       node_force_y[(nn)] += pressure1[(cell_index)] * S_y;
@@ -384,6 +394,9 @@ void solve_unstructured_hydro_2d(
       const int node_c_index = cells_to_nodes[(cells_off) + (nn)];
 
       // TODO: CALCULATE THE AREA VECTORS
+      double S_x = 0.0;
+      double S_y = 0.0;
+      double S_z = 0.0;
 
       sub_cell_force_x[(cells_off + nn)] = pressure1[(cc)] * S_x;
       sub_cell_force_y[(cells_off + nn)] = pressure1[(cc)] * S_y;
@@ -404,10 +417,10 @@ void solve_unstructured_hydro_2d(
                   nodal_mass, velocity_x0, velocity_y0, velocity_z0,
                   velocity_x1, velocity_y1, velocity_z1);
 
-  handle_unstructured_reflect(nnodes, boundary_index, boundary_type,
-                              boundary_normal_x, boundary_normal_y,
-                              boundary_normal_z, velocity_x0, velocity_y0,
-                              velocity_z0);
+  handle_unstructured_reflect_3d(nnodes, boundary_index, boundary_type,
+                                 boundary_normal_x, boundary_normal_y,
+                                 boundary_normal_z, velocity_x0, velocity_y0,
+                                 velocity_z0);
 
   // Calculate the corrected node movements
   START_PROFILING(&compute_profile);
@@ -496,6 +509,10 @@ void calculate_artificial_viscosity(
         }
       }
 
+      // TODO NEED TO CALCULATE THE CORRECT NODES THAT WE NEED TO BE LOOKING AT
+      // HERE??? LOOK BACK AT THE PAPER...
+      int node_r_index = 0;
+
       // Calculate the velocity gradients
       const double grad_velocity_x =
           velocity_x[(node_r_index)] - velocity_x[(nn)];
@@ -512,18 +529,24 @@ void calculate_artificial_viscosity(
           (grad_velocity_x != 0.0) ? grad_velocity_x / grad_velocity_mag : 0.0;
       const double grad_velocity_unit_y =
           (grad_velocity_y != 0.0) ? grad_velocity_y / grad_velocity_mag : 0.0;
-      const double grad_velocity_unit_y =
+      const double grad_velocity_unit_z =
           (grad_velocity_z != 0.0) ? grad_velocity_z / grad_velocity_mag : 0.0;
 
       // TODO: WE NEED TO CALCULATE THE FACE CENTERED DENSITY HERE, WHICH IS
       // PROBABLY ACHIEVED BY CALCULATING THE HARMONIC MEAN OF ALL FOUR NODES
       double nodal_density0 = nodal_mass[(nn)] / nodal_volumes[(nn)];
+      double nodal_density1 = 0.0;
+      double nodal_density2 = 0.0;
+      double nodal_density3 = 0.0;
       const double density_edge =
           (4.0 * nodal_density0 * nodal_density1 * nodal_density2 *
            nodal_density3) /
           (nodal_density0 + nodal_density1 + nodal_density2 + nodal_density3);
 
       // TODO: CALCULATE THE AREA VECTORS
+      double S_x = 0.0;
+      double S_y = 0.0;
+      double S_z = 0.0;
 
       // Calculate the artificial viscous force term for the edge
       const double t = 0.25 * (GAM + 1.0);
@@ -585,7 +608,7 @@ void calculate_artificial_viscosity(
 void set_timestep(const int ncells, const int* cells_to_nodes,
                   const int* cells_offsets, const double* nodes_x,
                   const double* nodes_y, const double* nodes_z,
-                  const double* nodes_z, const double* energy, double* dt) {
+                  const double* energy, double* dt) {
 
   // TODO: THIS COMPUTATION IS VERY INEFFICIENT, IT REPEAT MANY CALCULATIONS
   // UNNECESSARILY
@@ -603,6 +626,8 @@ void set_timestep(const int ncells, const int* cells_to_nodes,
 
       // TODO: NEED TO FIND A WAY TO STEP THROUGH, FINDING THE EDGES THAT BELONG
       // TO THE CELL...
+      int node_c_index = 0;
+      int node_r_index = 0;
 
       // Find the shortest edge of this cell
       const double x_component =
@@ -716,6 +741,7 @@ void initialise_cell_centroids(const int ncells, const int* cells_offsets,
 
     double cx = 0.0;
     double cy = 0.0;
+    double cz = 0.0;
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int node_index = cells_to_nodes[(cells_off + nn)];
       cx += nodes_x[(node_index)];
@@ -734,7 +760,7 @@ void initialise_sub_cell_centroids(
     const int ncells, const int* cells_offsets, const int* cells_to_nodes,
     const double* nodes_x, const double* nodes_y, const double* nodes_z,
     const double* cell_centroids_x, const double* cell_centroids_y,
-    const double* cell_centoids_z, double* sub_cell_centroids_x,
+    const double* cell_centroids_z, double* sub_cell_centroids_x,
     double* sub_cell_centroids_y, double* sub_cell_centroids_z) {
   // Calculate the cell centroids
   START_PROFILING(&compute_profile);
