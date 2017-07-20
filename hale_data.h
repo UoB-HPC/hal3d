@@ -22,14 +22,19 @@ typedef struct {
   double* pressure1;
   double* velocity_x0;
   double* velocity_y0;
+  double* velocity_z0;
   double* velocity_x1;
   double* velocity_y1;
+  double* velocity_z1;
   double* node_force_x;
   double* node_force_y;
+  double* node_force_z;
   double* node_force_x2;
   double* node_force_y2;
+  double* node_force_z2;
   double* node_visc_x;
   double* node_visc_y;
+  double* node_visc_z;
   double* cell_volumes;
   double* cell_mass;
   double* nodal_mass;
@@ -40,59 +45,70 @@ typedef struct {
   double* sub_cell_mass;
   double* sub_cell_velocity_x;
   double* sub_cell_velocity_y;
+  double* sub_cell_velocity_z;
   double* sub_cell_force_x;
   double* sub_cell_force_y;
+  double* sub_cell_force_z;
   double* sub_cell_volume;
   double* sub_cell_kinetic_energy;
   double* sub_cell_centroids_x;
   double* sub_cell_centroids_y;
+  double* sub_cell_centroids_z;
   double* sub_cell_grad_x;
   double* sub_cell_grad_y;
+  double* sub_cell_grad_z;
   double* rezoned_nodes_x;
   double* rezoned_nodes_y;
+  double* rezoned_nodes_z;
 
   double visc_coeff1;
   double visc_coeff2;
 } HaleData;
 
 // Initialises the shared_data variables for two dimensional applications
-size_t initialise_hale_data_2d(HaleData* hale_data, UnstructuredMesh* umesh);
+size_t initialise_hale_data(HaleData* hale_data, UnstructuredMesh* umesh);
 
 void initialise_mesh_mass(const int ncells, const int* cells_offsets,
                           const double* cell_centroids_x,
                           const double* cell_centroids_y,
+                          const double* cell_centroids_z,
                           const int* cells_to_nodes, const double* density0,
                           const double* nodes_x0, const double* nodes_y0,
-                          double* cell_mass, double* sub_cell_volume,
-                          double* sub_cell_mass);
+                          const double* nodes_z0, double* cell_mass,
+                          double* sub_cell_volume, double* sub_cell_mass);
 
 // Initialises the centroids for each cell
 void initialise_cell_centroids(const int ncells, const int* cells_offsets,
                                const int* cells_to_nodes,
                                const double* nodes_x0, const double* nodes_y0,
-                               double* cell_centroids_x,
-                               double* cell_centroids_y);
+                               const double* nodes_z0, double* cell_centroids_x,
+                               double* cell_centroids_y,
+                               double* cell_centroids_z);
 
 // Initialises the centroids for each cell
 void initialise_sub_cell_centroids(
     const int ncells, const int* cells_offsets, const int* cells_to_nodes,
-    const double* nodes_x0, const double* nodes_y0,
+    const double* nodes_x0, const double* nodes_y0, const double* nodes_z0,
     const double* cell_centroids_x, const double* cell_centroids_y,
-    double* sub_cell_centroids_x, double* sub_cell_centroids_y);
+    const double* cell_centroids_z, double* sub_cell_centroids_x,
+    double* sub_cell_centroids_y, double* sub_cell_centroids_z);
 
 // Stores the rezoned grid specification, in case we aren't going to use a
 // rezoning strategy and want to perform an Eulerian remap
 void store_rezoned_mesh(const int nnodes, const double* nodes_x,
-                        const double* nodes_y, double* rezoned_nodes_x,
-                        double* rezoned_nodes_y);
+                        const double* nodes_y, const double* nodes_z,
+                        double* rezoned_nodes_x, double* rezoned_nodes_y,
+                        double* rezoned_nodes_z);
 
 // Deallocates all of the hale specific data
-void deallocate_hale_data_2d(HaleData* hale_data);
+void deallocate_hale_data(HaleData* hale_data);
 
 // Writes out unstructured triangles to visit
-void write_unstructured_to_visit(const int nnodes, int ncells, const int step,
-                                 double* nodes_x0, double* nodes_y0,
-                                 const int* cells_to_nodes, const double* arr,
-                                 const int nodal, const int quads);
+void write_unstructured_to_visit_3d(const int nnodes, int ncells,
+                                    const int step, double* nodes_x0,
+                                    double* nodes_y0, double* nodes_z0,
+                                    const int* cells_to_nodes,
+                                    const double* arr, const int nodal,
+                                    const int quads);
 
 #endif
