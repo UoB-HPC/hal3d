@@ -121,18 +121,19 @@ void write_unstructured_to_visit_2d(const int nnodes, int ncells,
 
 // Writes out unstructured triangles to visit
 void write_unstructured_to_visit_3d(const int nnodes, int ncells,
-                                    const int step, double* nodes_x0,
-                                    double* nodes_y0, double* nodes_z0,
+                                    const int step, double* nodes_x,
+                                    double* nodes_y, double* nodes_z,
                                     const int* cells_to_nodes,
                                     const double* arr, const int nodal,
                                     const int quads) {
-#if 0
-  // Only triangles
-  double* coords[] = {(double*)nodes_x0, (double*)nodes_y0};
-  int shapesize[] = {(quads ? 4 : 3)};
+
+  double* coords[] = {(double*)nodes_x, (double*)nodes_y, (double*)nodes_z};
+
+  int shapesize[] = {8};
   int shapecounts[] = {ncells};
-  int shapetype[] = {(quads ? DB_ZONETYPE_QUAD : DB_ZONETYPE_TRIANGLE)};
-  int ndims = 2;
+  int shapetype[] = {DB_ZONETYPE_HEX};
+  int nshapetypes = 1;
+  int ndims = 3;
   int nshapes = 1;
 
   char filename[MAX_STR_LEN];
@@ -141,13 +142,17 @@ void write_unstructured_to_visit_3d(const int nnodes, int ncells,
   DBfile* dbfile =
       DBCreate(filename, DB_CLOBBER, DB_LOCAL, "simulation time step", DB_HDF5);
 
+  /* Write out connectivity information. */
   DBPutZonelist2(dbfile, "zonelist", ncells, ndims, cells_to_nodes,
                  ncells * shapesize[0], 0, 0, 0, shapetype, shapesize,
                  shapecounts, nshapes, NULL);
+
+  /* Write an unstructured mesh. */
   DBPutUcdmesh(dbfile, "mesh", ndims, NULL, coords, nnodes, ncells, "zonelist",
                NULL, DB_DOUBLE, NULL);
+
   DBPutUcdvar1(dbfile, "arr", "mesh", arr, (nodal ? nnodes : ncells), NULL, 0,
                DB_DOUBLE, (nodal ? DB_NODECENT : DB_ZONECENT), NULL);
+
   DBClose(dbfile);
-#endif // if 0
 }
