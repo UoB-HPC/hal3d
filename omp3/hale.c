@@ -159,22 +159,33 @@ void solve_unstructured_hydro_2d(
               0.5 * (nodes_z0[(nodes[(nn2)])] + nodes_z0[(nn)]);
 
           // Setup basis on plane of tetrahedron
-          const double a_x = (half_edge_x - face_c_x);
-          const double a_y = (half_edge_y - face_c_y);
-          const double a_z = (half_edge_z - face_c_z);
-          const double b_x = (cell_centroids_x[(cells[cc])] - face_c_x);
-          const double b_y = (cell_centroids_y[(cells[cc])] - face_c_y);
-          const double b_z = (cell_centroids_z[(cells[cc])] - face_c_z);
+          const double a_x = (face_c_x - cell_centroids_x[(cells[cc])]);
+          const double a_y = (face_c_y - cell_centroids_y[(cells[cc])]);
+          const double a_z = (face_c_z - cell_centroids_z[(cells[cc])]);
+          const double b_x = (face_c_x - half_edge_x);
+          const double b_y = (face_c_y - half_edge_y);
+          const double b_z = (face_c_z - half_edge_z);
+          const double ab_x = (half_edge_x - node_c_x);
+          const double ab_y = (half_edge_y - node_c_y);
+          const double ab_z = (half_edge_z - node_c_z);
 
           // Calculate the area vector S using cross product
-          const double S_x = 0.5 * (a_y * b_z - a_z * b_y);
-          const double S_y = -0.5 * (a_x * b_z - a_z * b_x);
-          const double S_z = 0.5 * (a_x * b_y - a_y * b_x);
+          double S_x = 0.5 * (a_y * b_z - a_z * b_y);
+          double S_y = -0.5 * (a_x * b_z - a_z * b_x);
+          double S_z = 0.5 * (a_x * b_y - a_y * b_x);
 
-          double sub_cell_volume =
-              ((half_edge_x - node_c_x) * S_x + (half_edge_y - node_c_y) * S_y +
-               (half_edge_z - node_c_z) * S_z) /
-              3.0;
+          // TODO: I HAVENT WORKED OUT A REASONABLE WAY TO ORDER THE NODES SO
+          // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
+          // CALCULATION
+          double ab_S = (ab_x * S_x + ab_y * S_y + ab_z * S_z);
+          if (ab_S < 0) {
+            S_x *= -1;
+            S_y *= -1;
+            S_z *= -1;
+            ab_S = fabs(ab_S);
+          }
+
+          const double sub_cell_volume = ab_S / 3.0;
 
           nodal_mass[(nn)] += density0[(cells[(cc)])] * sub_cell_volume;
           nodal_soundspeed[(nn)] +=
@@ -189,8 +200,16 @@ void solve_unstructured_hydro_2d(
         }
       }
     }
+
+    printf("nodal mass %d %.4f volume %.4f\n", nn, nodal_mass[(nn)],
+           nodal_volumes[(nn)]);
   }
   STOP_PROFILING(&compute_profile, "calc_nodal_mass_vol");
+
+  write_unstructured_to_visit_3d(nnodes, ncells, 0, nodes_x0, nodes_y0,
+                                 nodes_z0, cells_to_nodes, node_force_x, 0, 0);
+
+  TERMINATE("");
 
 #if 0
   calculate_artificial_viscosity(
@@ -309,11 +328,8 @@ void solve_unstructured_hydro_2d(
     }
 
     energy1[(cc)] = energy0[(cc)] - mesh->dt * cell_force / cell_mass[(cc)];
-    printf("energy1 %.4f\n energy0 %.4f", energy1[(cc)], energy0[(cc)]);
   }
   STOP_PROFILING(&compute_profile, "calc_new_energy");
-
-  TERMINATE("");
 
   // Using the new volume, calculate the predicted density
   START_PROFILING(&compute_profile);
@@ -766,7 +782,9 @@ void initialise_mesh_mass(
   // Calculate the predicted energy
   START_PROFILING(&compute_profile);
   double total_mass = 0.0;
+#if 0
 #pragma omp parallel for reduction(+ : total_mass)
+#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
@@ -824,8 +842,7 @@ void initialise_mesh_mass(
 
         // TODO: WE MULTIPLY BY 2 HERE BECAUSE WE ARE ADDING THE VOLUME TO BOTH
         // THE CURRENT AND NEXT NODE, OTHERWISE WE ONLY ACCOUNT FOR HALF OF THE
-        // 'HALF' TETRAHEDRONS - THE FABS IS PROBABLY REMOVABLE IF I MANAGE TO
-        // WORK OUT THE CORRECT ORDERING FOR THE CALCULATION OF A_X AND A_B
+        // 'HALF' TETRAHEDRONS
         double sub_cell_volume =
             fabs(2.0 * ((half_edge_x - nodes_x[(current_node)]) * S_x +
                         (half_edge_y - nodes_y[(current_node)]) * S_y +
@@ -833,9 +850,10 @@ void initialise_mesh_mass(
                  3.0);
 
         cell_mass[(cc)] += sub_cell_volume;
-        total_mass += cell_mass[(cc)];
       }
     }
+
+    total_mass += cell_mass[(cc)];
   }
   STOP_PROFILING(&compute_profile, __func__);
 
