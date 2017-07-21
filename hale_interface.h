@@ -45,7 +45,8 @@ void solve_unstructured_hydro_2d(
     double* sub_cell_centroids_z, double* sub_cell_grad_x,
     double* sub_cell_grad_y, double* sub_cell_grad_z,
     int* nodes_to_faces_offsets, int* nodes_to_faces, int* faces_to_nodes,
-    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1);
+    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
+    int* cells_to_faces_offsets, int* cells_to_faces);
 
 // Controls the timestep for the simulation
 void set_timestep(const int ncells, const int* cells_to_nodes,

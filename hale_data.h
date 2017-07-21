@@ -68,14 +68,14 @@ typedef struct {
 // Initialises the shared_data variables for two dimensional applications
 size_t initialise_hale_data(HaleData* hale_data, UnstructuredMesh* umesh);
 
-void initialise_mesh_mass(const int ncells, const int* cells_offsets,
-                          const double* cell_centroids_x,
-                          const double* cell_centroids_y,
-                          const double* cell_centroids_z,
-                          const int* cells_to_nodes, const double* density0,
-                          const double* nodes_x0, const double* nodes_y0,
-                          const double* nodes_z0, double* cell_mass,
-                          double* sub_cell_volume, double* sub_cell_mass);
+// Initialises the cell mass, sub-cell mass and sub-cell volume
+void initialise_mesh_mass(
+    const int ncells, const int* cells_offsets, const double* cell_centroids_x,
+    const double* cell_centroids_y, const double* cell_centroids_z,
+    const int* cells_to_nodes, const double* density, const double* nodes_x,
+    const double* nodes_y, const double* nodes_z, double* cell_mass,
+    double* sub_cell_volume, double* sub_cell_mass, int* cells_to_faces_offsets,
+    int* cells_to_faces, int* faces_to_nodes_offsets, int* faces_to_nodes);
 
 // Initialises the centroids for each cell
 void initialise_cell_centroids(const int ncells, const int* cells_offsets,
