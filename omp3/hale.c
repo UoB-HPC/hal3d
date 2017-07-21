@@ -239,7 +239,8 @@ void solve_unstructured_hydro_2d(
   STOP_PROFILING(&compute_profile, "move_nodes");
 
   set_timestep(ncells, cells_to_nodes, cells_offsets, nodes_x1, nodes_y1,
-               nodes_z1, energy0, &mesh->dt);
+               nodes_z1, energy0, &mesh->dt, cells_to_faces_offsets,
+               cells_to_faces, faces_to_nodes_offsets, faces_to_nodes);
 
   // Calculate the predicted energy
   START_PROFILING(&compute_profile);
@@ -499,7 +500,8 @@ void solve_unstructured_hydro_2d(
                             cell_centroids_y, cell_centroids_z);
 
   set_timestep(ncells, cells_to_nodes, cells_offsets, nodes_x0, nodes_y0,
-               nodes_z0, energy1, &mesh->dt);
+               nodes_z0, energy1, &mesh->dt, cells_to_faces_offsets,
+               cells_to_faces, faces_to_nodes_offsets, faces_to_nodes);
 
   // Calculate the final energy
   START_PROFILING(&compute_profile);
@@ -671,38 +673,52 @@ void calculate_artificial_viscosity(
 void set_timestep(const int ncells, const int* cells_to_nodes,
                   const int* cells_offsets, const double* nodes_x,
                   const double* nodes_y, const double* nodes_z,
-                  const double* energy, double* dt) {
+                  const double* energy, double* dt, int* cells_to_faces_offsets,
+                  int* cells_to_faces, int* faces_to_nodes_offsets,
+                  int* faces_to_nodes) {
 
-  // TODO: THIS COMPUTATION IS VERY INEFFICIENT, IT REPEAT MANY CALCULATIONS
-  // UNNECESSARILY
+  // TODO: THIS IS A GOOD EXAMPLE OF WHERE WE SHOULD MARRY FACES TO EDGES
+  // RATHER THAN DIRECTLY TO NODES.... WE ARE CURRENTLY PERFORMING TWICE
+  // AS MANY CALCULATIONS AS WE NEED TO
 
   // Calculate the timestep based on the computational mesh and CFL condition
   double local_dt = DBL_MAX;
   START_PROFILING(&compute_profile);
 #pragma omp parallel for reduction(min : local_dt)
   for (int cc = 0; cc < ncells; ++cc) {
-    const int cells_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cells_off;
+    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
+    const int nfaces_by_cell =
+        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
 
     double shortest_edge = DBL_MAX;
-    for (int nn = 0; nn < nnodes_by_cell; ++nn) {
 
-      // TODO: NEED TO FIND A WAY TO STEP THROUGH, FINDING THE EDGES THAT
-      // BELONG
-      // TO THE CELL...
-      int node_c_index = 0;
-      int node_r_index = 0;
+    // Look at all of the faces attached to the cell
+    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
+      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
+      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+      const int nnodes_by_face =
+          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
 
-      // Find the shortest edge of this cell
-      const double x_component =
-          nodes_x[(node_c_index)] - nodes_x[(node_r_index)];
-      const double y_component =
-          nodes_y[(node_c_index)] - nodes_y[(node_r_index)];
-      const double z_component =
-          nodes_z[(node_c_index)] - nodes_z[(node_r_index)];
-      shortest_edge = min(shortest_edge, sqrt(x_component * x_component +
-                                              y_component * y_component +
-                                              z_component * z_component));
+      for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
+        // Fetch the nodes attached to our current node on the current face
+        const int current_node = faces_to_nodes[(face_to_nodes_off + nn2)];
+
+        const int next_node =
+            (nn2 + 1 < nnodes_by_face)
+                ? faces_to_nodes[(face_to_nodes_off + nn2 + 1)]
+                : faces_to_nodes[(face_to_nodes_off)];
+        const double x_component =
+            nodes_x[(current_node)] - nodes_x[(next_node)];
+        const double y_component =
+            nodes_y[(current_node)] - nodes_y[(next_node)];
+        const double z_component =
+            nodes_z[(current_node)] - nodes_z[(next_node)];
+
+        // Find the shortest edge of this cell
+        shortest_edge = min(shortest_edge, sqrt(x_component * x_component +
+                                                y_component * y_component +
+                                                z_component * z_component));
+      }
     }
 
     const double soundspeed = sqrt(GAM * (GAM - 1.0) * energy[(cc)]);

@@ -52,14 +52,24 @@ int main(int argc, char** argv) {
   UnstructuredMesh umesh = {0};
   HaleData hale_data = {0};
 
-  double** cell_variables[2] = {&hale_data.density0, &hale_data.energy0};
   if (read_umesh) {
     umesh.node_filename = get_parameter("node_file", hale_params);
     umesh.ele_filename = get_parameter("ele_file", hale_params);
 
+    double** cell_variables[2] = {&hale_data.density0, &hale_data.energy0};
     allocated += read_unstructured_mesh(&umesh, cell_variables, 2);
   } else {
-    allocated += convert_mesh_to_umesh_3d(&umesh, &mesh, cell_variables, 2);
+    SharedData shared_data;
+    initialise_shared_data_3d(mesh.global_nx, mesh.global_ny, mesh.global_nz,
+                              mesh.local_nx, mesh.local_ny, mesh.local_nz,
+                              mesh.pad, mesh.x_off, mesh.y_off, mesh.z_off,
+                              mesh.width, mesh.height, mesh.depth, hale_params,
+                              mesh.edgex, mesh.edgey, mesh.edgez, &shared_data);
+
+    allocated += convert_mesh_to_umesh_3d(&umesh, &mesh);
+
+    hale_data.density0 = shared_data.rho;
+    hale_data.energy0 = shared_data.e;
   }
 
   // Initialise the hale-specific data arrays
@@ -91,7 +101,9 @@ int main(int argc, char** argv) {
 
   set_timestep(umesh.ncells, umesh.cells_to_nodes, umesh.cells_offsets,
                umesh.nodes_x0, umesh.nodes_y0, umesh.nodes_z0,
-               hale_data.energy0, &mesh.dt);
+               hale_data.energy0, &mesh.dt, umesh.cells_to_faces_offsets,
+               umesh.cells_to_faces, umesh.faces_to_nodes_offsets,
+               umesh.faces_to_nodes);
 
   // Main timestep loop
   int tt;
