@@ -129,7 +129,10 @@ int main(int argc, char** argv) {
         hale_data.sub_cell_kinetic_energy, hale_data.sub_cell_centroids_x,
         hale_data.sub_cell_centroids_y, hale_data.sub_cell_centroids_z,
         hale_data.sub_cell_grad_x, hale_data.sub_cell_grad_y,
-        hale_data.sub_cell_grad_z);
+        hale_data.sub_cell_grad_z, umesh.nodes_to_faces_offsets,
+        umesh.nodes_to_faces, umesh.faces_to_nodes,
+        umesh.faces_to_nodes_offsets, umesh.faces_to_cells0,
+        umesh.faces_to_cells1);
 
     wallclock += omp_get_wtime() - w0;
     elapsed_sim_time += mesh.dt;

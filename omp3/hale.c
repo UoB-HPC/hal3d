@@ -40,7 +40,9 @@ void solve_unstructured_hydro_2d(
     double* sub_cell_velocity_z, double* sub_cell_kinetic_energy,
     double* sub_cell_centroids_x, double* sub_cell_centroids_y,
     double* sub_cell_centroids_z, double* sub_cell_grad_x,
-    double* sub_cell_grad_y, double* sub_cell_grad_z) {
+    double* sub_cell_grad_y, double* sub_cell_grad_z,
+    int* nodes_to_faces_offsets, int* nodes_to_faces, int* faces_to_nodes,
+    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1) {
 
   double total_mass = 0.0;
   for (int cc = 0; cc < ncells; ++cc) {
@@ -73,34 +75,102 @@ void solve_unstructured_hydro_2d(
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for (int nn = 0; nn < nnodes; ++nn) {
-    const int nodes_off = nodes_offsets[(nn)];
-    const int ncells_by_node = nodes_offsets[(nn + 1)] - nodes_off;
-    for (int cc = 0; cc < ncells_by_node; ++cc) {
-      const int cell_index = nodes_to_cells[(nodes_off + cc)];
-      const int cell_offset = cells_offsets[(cell_index)];
-      const int nnodes_by_cell = cells_offsets[(cell_index + 1)] - cell_offset;
+    const int node_to_faces_off = nodes_to_faces_offsets[(nn)];
+    const int nfaces_by_node =
+        nodes_to_faces_offsets[(nn + 1)] - node_to_faces_off;
+    const double node_c_x = nodes_x0[(nn)];
+    const double node_c_y = nodes_x0[(nn)];
+    const double node_c_z = nodes_x0[(nn)];
 
-      // Annoying search to find the relevant node in cell list
-      int nn2;
-      for (nn2 = 0; nn2 < nnodes_by_cell; ++nn2) {
-        if (cells_to_nodes[(cell_offset + nn2)] == nn) {
-          break;
+    // Consider all faces attached to node
+    for (int ff = 0; ff < nfaces_by_node; ++ff) {
+      const int face_index = nodes_to_faces[(node_to_faces_off + ff)];
+      if (face_index == -1) {
+        continue;
+      }
+
+      // Determine the offset into the list of nodes
+      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+      const int nnodes_by_face =
+          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+
+      // Find node center and location of current node on face
+      int node_in_face_c;
+      double face_c_x = 0.0;
+      double face_c_y = 0.0;
+      double face_c_z = 0.0;
+      for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
+        const int node_index = faces_to_nodes[(face_to_nodes_off + nn2)];
+        face_c_x += nodes_x0[(node_index)] / nnodes_by_face;
+        face_c_y += nodes_y0[(node_index)] / nnodes_by_face;
+        face_c_z += nodes_z0[(node_index)] / nnodes_by_face;
+
+        // Choose the node in the list of nodes attached to the face
+        if (nn == node_index) {
+          node_in_face_c = nn2;
         }
       }
 
-      // Fetch the centroid of the cell
-      const double cell_c_x = cell_centroids_x[(cell_index)];
-      const double cell_c_y = cell_centroids_y[(cell_index)];
-      const double cell_c_z = cell_centroids_z[(cell_index)];
+      // Fetch the nodes attached to our current node on the current face
+      const int node_in_face_l =
+          (node_in_face_c - 1 >= 0)
+              ? faces_to_nodes[(face_to_nodes_off + node_in_face_c - 1)]
+              : faces_to_nodes[(face_to_nodes_off + nnodes_by_face - 1)];
+      const int node_in_face_r =
+          (node_in_face_c + 1 < nnodes_by_face)
+              ? faces_to_nodes[(face_to_nodes_off + node_in_face_c + 1)]
+              : faces_to_nodes[(face_to_nodes_off)];
 
-      // TODO: Determine the sub-cell face area vectors
+      // Get the halfway point on the left edge
+      const double half_edge_l_x =
+          0.5 * (nodes_x0[(node_in_face_l)] + nodes_x0[(nn)]);
+      const double half_edge_l_y =
+          0.5 * (nodes_y0[(node_in_face_l)] + nodes_y0[(nn)]);
+      const double half_edge_l_z =
+          0.5 * (nodes_z0[(node_in_face_l)] + nodes_z0[(nn)]);
 
-      // Calculate the sub-cell volume
+      // Get the halfway point on the right edge
+      const double half_edge_r_x =
+          0.5 * (nodes_x0[(node_in_face_r)] + nodes_x0[(nn)]);
+      const double half_edge_r_y =
+          0.5 * (nodes_y0[(node_in_face_r)] + nodes_y0[(nn)]);
+      const double half_edge_r_z =
+          0.5 * (nodes_z0[(node_in_face_r)] + nodes_z0[(nn)]);
+
+      // Fetch the faces attached to the cell
+      const int cell0 = faces_to_cells0[(face_index)];
+      const double cell0_c_x = cell_centroids_x[(cell0)];
+      const double cell0_c_y = cell_centroids_y[(cell0)];
+      const double cell0_c_z = cell_centroids_z[(cell0)];
+
+      // Setup basis on plane of tetrahedron
+      const double a_x = (half_edge_l_x - face_c_x);
+      const double a_y = (half_edge_l_y - face_c_y);
+      const double a_z = (half_edge_l_z - face_c_z);
+      const double b_x = (cell0_c_x - face_c_x);
+      const double b_y = (cell0_c_y - face_c_y);
+      const double b_z = (cell0_c_z - face_c_z);
+
+      // Calculate the area vector S
+      const double S_x = 0.5 * (a_y * b_z - a_z * b_y);
+      const double S_y = 0.5 * (a_x * b_z - a_z * b_x);
+      const double S_z = 0.5 * (a_x * b_y - a_y * b_x);
+
+      printf("%.6f %.6f %.6f\n", S_x, S_y, S_z);
+
+#if 0
+      const int cell1 = faces_to_cells1[(face_index)];
+      const double cell1_c_x = cell_centroids_x[(cell1)];
+      const double cell1_c_y = cell_centroids_y[(cell1)];
+      const double cell1_c_z = cell_centroids_z[(cell1)];
+
       const double sub_cell_volume = 0.0;
 
-      // TODO: this should be updated to fix the issues with hourglassing...
+      // TODO: this should be updated to fix the issues with
+      // hourglassing...
       if (sub_cell_volume <= 0.0) {
-        TERMINATE("Encountered cell with unphysical volume %.12f in cell %d.",
+        TERMINATE("Encountered cell with unphysical volume %.12f in "
+                  "cell %d.",
                   sub_cell_volume, cc);
       }
 
@@ -110,9 +180,12 @@ void solve_unstructured_hydro_2d(
       nodal_soundspeed[(nn)] +=
           sqrt(GAM * (GAM - 1.0) * energy0[(cell_index)]) * sub_cell_volume;
       nodal_volumes[(nn)] += sub_cell_volume;
+#endif // if 0
     }
   }
   STOP_PROFILING(&compute_profile, "calc_nodal_mass_vol");
+
+  TERMINATE("");
 
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
