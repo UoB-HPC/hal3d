@@ -821,11 +821,16 @@ void initialise_mesh_mass(
         const double S_x = 0.5 * (a_y * b_z - a_z * b_y);
         const double S_y = -0.5 * (a_x * b_z - a_z * b_x);
         const double S_z = 0.5 * (a_x * b_y - a_y * b_x);
+
+        // TODO: WE MULTIPLY BY 2 HERE BECAUSE WE ARE ADDING THE VOLUME TO BOTH
+        // THE CURRENT AND NEXT NODE, OTHERWISE WE ONLY ACCOUNT FOR HALF OF THE
+        // 'HALF' TETRAHEDRONS - THE FABS IS PROBABLY REMOVABLE IF I MANAGE TO
+        // WORK OUT THE CORRECT ORDERING FOR THE CALCULATION OF A_X AND A_B
         double sub_cell_volume =
-            ((half_edge_x - nodes_x[(current_node)]) * S_x +
-             (half_edge_y - nodes_y[(current_node)]) * S_y +
-             (half_edge_z - nodes_z[(current_node)]) * S_z) /
-            3.0;
+            fabs(2.0 * ((half_edge_x - nodes_x[(current_node)]) * S_x +
+                        (half_edge_y - nodes_y[(current_node)]) * S_y +
+                        (half_edge_z - nodes_z[(current_node)]) * S_z) /
+                 3.0);
 
         cell_mass[(cc)] += sub_cell_volume;
         total_mass += cell_mass[(cc)];
