@@ -52,14 +52,14 @@ int main(int argc, char** argv) {
   UnstructuredMesh umesh = {0};
   HaleData hale_data = {0};
 
+  double** cell_variables[2] = {&hale_data.density0, &hale_data.energy0};
   if (read_umesh) {
     umesh.node_filename = get_parameter("node_file", hale_params);
     umesh.ele_filename = get_parameter("ele_file", hale_params);
 
-    double** cell_variables[2] = {&hale_data.density0, &hale_data.energy0};
     allocated += read_unstructured_mesh(&umesh, cell_variables, 2);
   } else {
-    allocated += convert_mesh_to_umesh_3d(&umesh, &mesh);
+    allocated += convert_mesh_to_umesh_3d(&umesh, &mesh, cell_variables, 2);
   }
 
   // Initialise the hale-specific data arrays

@@ -73,14 +73,16 @@ void solve_unstructured_hydro_2d(
 
   // Calculate the nodal mass
   START_PROFILING(&compute_profile);
+#if 0
 #pragma omp parallel for
+#endif // if 0
   for (int nn = 0; nn < nnodes; ++nn) {
     const int node_to_faces_off = nodes_to_faces_offsets[(nn)];
     const int nfaces_by_node =
         nodes_to_faces_offsets[(nn + 1)] - node_to_faces_off;
     const double node_c_x = nodes_x0[(nn)];
-    const double node_c_y = nodes_x0[(nn)];
-    const double node_c_z = nodes_x0[(nn)];
+    const double node_c_y = nodes_y0[(nn)];
+    const double node_c_z = nodes_z0[(nn)];
 
     // Consider all faces attached to node
     for (int ff = 0; ff < nfaces_by_node; ++ff) {
@@ -112,51 +114,61 @@ void solve_unstructured_hydro_2d(
       }
 
       // Fetch the nodes attached to our current node on the current face
-      const int node_in_face_l =
-          (node_in_face_c - 1 >= 0)
-              ? faces_to_nodes[(face_to_nodes_off + node_in_face_c - 1)]
-              : faces_to_nodes[(face_to_nodes_off + nnodes_by_face - 1)];
-      const int node_in_face_r =
-          (node_in_face_c + 1 < nnodes_by_face)
-              ? faces_to_nodes[(face_to_nodes_off + node_in_face_c + 1)]
-              : faces_to_nodes[(face_to_nodes_off)];
+      int nodes[2];
+      nodes[0] = (node_in_face_c - 1 >= 0)
+                     ? faces_to_nodes[(face_to_nodes_off + node_in_face_c - 1)]
+                     : faces_to_nodes[(face_to_nodes_off + nnodes_by_face - 1)];
+      nodes[1] = (node_in_face_c + 1 < nnodes_by_face)
+                     ? faces_to_nodes[(face_to_nodes_off + node_in_face_c + 1)]
+                     : faces_to_nodes[(face_to_nodes_off)];
 
-      // Get the halfway point on the left edge
-      const double half_edge_l_x =
-          0.5 * (nodes_x0[(node_in_face_l)] + nodes_x0[(nn)]);
-      const double half_edge_l_y =
-          0.5 * (nodes_y0[(node_in_face_l)] + nodes_y0[(nn)]);
-      const double half_edge_l_z =
-          0.5 * (nodes_z0[(node_in_face_l)] + nodes_z0[(nn)]);
+      // Fetch the cells attached to our current face
+      int cells[2];
+      cells[0] = faces_to_cells0[(face_index)];
+      cells[1] = faces_to_cells1[(face_index)];
 
-      // Get the halfway point on the right edge
-      const double half_edge_r_x =
-          0.5 * (nodes_x0[(node_in_face_r)] + nodes_x0[(nn)]);
-      const double half_edge_r_y =
-          0.5 * (nodes_y0[(node_in_face_r)] + nodes_y0[(nn)]);
-      const double half_edge_r_z =
-          0.5 * (nodes_z0[(node_in_face_r)] + nodes_z0[(nn)]);
+      // Add contributions from all of the cells attached to the face
+      for (int cc = 0; cc < 2; ++cc) {
+        if (cells[(cc)] == -1) {
+          continue;
+        }
 
-      // Fetch the faces attached to the cell
-      const int cell0 = faces_to_cells0[(face_index)];
-      const double cell0_c_x = cell_centroids_x[(cell0)];
-      const double cell0_c_y = cell_centroids_y[(cell0)];
-      const double cell0_c_z = cell_centroids_z[(cell0)];
+        // Add contributions for both edges attached to our current node
+        for (int nn2 = 0; nn2 < 2; ++nn2) {
+          // Get the halfway point on the right edge
+          const double half_edge_x =
+              0.5 * (nodes_x0[(nodes[(nn2)])] + nodes_x0[(nn)]);
+          const double half_edge_y =
+              0.5 * (nodes_y0[(nodes[(nn2)])] + nodes_y0[(nn)]);
+          const double half_edge_z =
+              0.5 * (nodes_z0[(nodes[(nn2)])] + nodes_z0[(nn)]);
 
-      // Setup basis on plane of tetrahedron
-      const double a_x = (half_edge_l_x - face_c_x);
-      const double a_y = (half_edge_l_y - face_c_y);
-      const double a_z = (half_edge_l_z - face_c_z);
-      const double b_x = (cell0_c_x - face_c_x);
-      const double b_y = (cell0_c_y - face_c_y);
-      const double b_z = (cell0_c_z - face_c_z);
+          // Setup basis on plane of tetrahedron
+          const double a_x = (half_edge_x - face_c_x);
+          const double a_y = (half_edge_y - face_c_y);
+          const double a_z = (half_edge_z - face_c_z);
+          const double b_x = (cell_centroids_x[(cells[cc])] - face_c_x);
+          const double b_y = (cell_centroids_y[(cells[cc])] - face_c_y);
+          const double b_z = (cell_centroids_z[(cells[cc])] - face_c_z);
 
-      // Calculate the area vector S
-      const double S_x = 0.5 * (a_y * b_z - a_z * b_y);
-      const double S_y = 0.5 * (a_x * b_z - a_z * b_x);
-      const double S_z = 0.5 * (a_x * b_y - a_y * b_x);
+          // Calculate the area vector S using cross product
+          const double S_x = 0.5 * (a_y * b_z - a_z * b_y);
+          const double S_y = -0.5 * (a_x * b_z - a_z * b_x);
+          const double S_z = 0.5 * (a_x * b_y - a_y * b_x);
 
-      printf("%.6f %.6f %.6f\n", S_x, S_y, S_z);
+          double A = (half_edge_x - node_c_x) * S_x +
+                     (half_edge_y - node_c_y) * S_y +
+                     (half_edge_z - node_c_z) * S_z / 3.0;
+
+          printf("hex %.6f hey %.6f hez %.6f a_x %.6f a_y %.6f a_z %.6f b_x "
+                 "%.6f b_y %.6f b_z %.6f\n",
+                 half_edge_x, half_edge_y, half_edge_z, a_x, a_y, a_z, b_x, b_y,
+                 b_z);
+          printf("cell %d node %d anchor node %d S_x %.6f S_y %.6f S_z %.6f A "
+                 "%.6f\n",
+                 cells[cc], nodes[(nn2)], nn, S_x, S_y, S_z, A);
+        }
+      }
 
 #if 0
       const int cell1 = faces_to_cells1[(face_index)];
@@ -170,15 +182,15 @@ void solve_unstructured_hydro_2d(
       // hourglassing...
       if (sub_cell_volume <= 0.0) {
         TERMINATE("Encountered cell with unphysical volume %.12f in "
-                  "cell %d.",
-                  sub_cell_volume, cc);
+            "cell %d.",
+            sub_cell_volume, cc);
       }
 
       nodal_mass[(nn)] += density0[(cell_index)] * sub_cell_volume;
 
       // Calculate the volume and soundspeed at the node
       nodal_soundspeed[(nn)] +=
-          sqrt(GAM * (GAM - 1.0) * energy0[(cell_index)]) * sub_cell_volume;
+        sqrt(GAM * (GAM - 1.0) * energy0[(cell_index)]) * sub_cell_volume;
       nodal_volumes[(nn)] += sub_cell_volume;
 #endif // if 0
     }
@@ -821,6 +833,7 @@ void initialise_cell_centroids(const int ncells, const int* cells_offsets,
       cy += nodes_y[(node_index)];
       cz += nodes_z[(node_index)];
     }
+
     cell_centroids_x[(cc)] = cx / (double)nnodes_by_cell;
     cell_centroids_y[(cc)] = cy / (double)nnodes_by_cell;
     cell_centroids_z[(cc)] = cz / (double)nnodes_by_cell;
