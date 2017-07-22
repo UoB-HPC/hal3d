@@ -196,10 +196,9 @@ void solve_unstructured_hydro_2d(
   }
   STOP_PROFILING(&compute_profile, "calc_nodal_mass_vol");
 
-  write_unstructured_to_visit_3d(nnodes, ncells, 0, nodes_x0, nodes_y0,
+  static int t = 0;
+  write_unstructured_to_visit_3d(nnodes, ncells, t++, nodes_x0, nodes_y0,
                                  nodes_z0, cells_to_nodes, nodal_mass, 1, 1);
-
-  TERMINATE("");
 
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
