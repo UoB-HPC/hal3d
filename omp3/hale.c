@@ -56,34 +56,27 @@ void solve_unstructured_hydro_2d(
    */
 
   START_PROFILING(&compute_profile);
-#pragma omp parallel for simd
+#pragma omp parallel for
   for (int nn = 0; nn < nnodes; ++nn) {
     nodal_mass[(nn)] = 0.0;
     nodal_volumes[(nn)] = 0.0;
     nodal_soundspeed[(nn)] = 0.0;
-  }
-  STOP_PROFILING(&compute_profile, "zero_nodal_arrays");
-
-  // Calculate the pressure using the ideal gas equation of state
-  START_PROFILING(&compute_profile);
-#pragma omp parallel for
-  for (int cc = 0; cc < ncells; ++cc) {
-    pressure0[(cc)] = (GAM - 1.0) * energy0[(cc)] * density0[(cc)];
-  }
-  STOP_PROFILING(&compute_profile, "equation_of_state");
-
-  START_PROFILING(&compute_profile);
-#pragma omp parallel for
-  for (int nn = 0; nn < nnodes; ++nn) {
     node_force_x[(nn)] = 0.0;
     node_force_y[(nn)] = 0.0;
     node_force_z[(nn)] = 0.0;
     node_force_x2[(nn)] = 0.0;
     node_force_y2[(nn)] = 0.0;
     node_force_z2[(nn)] = 0.0;
-    nodal_soundspeed[(nn)] /= nodal_volumes[(nn)];
   }
-  STOP_PROFILING(&compute_profile, "calc_soundspeed");
+  STOP_PROFILING(&compute_profile, "zero_node_data");
+
+  // Equation of state, ideal gas law
+  START_PROFILING(&compute_profile);
+#pragma omp parallel for
+  for (int cc = 0; cc < ncells; ++cc) {
+    pressure0[(cc)] = (GAM - 1.0) * energy0[(cc)] * density0[(cc)];
+  }
+  STOP_PROFILING(&compute_profile, "equation_of_state");
 
   // TODO: SOOO MUCH POTENTIAL FOR OPTIMISATION HERE...!
   // Calculate the nodal mass
@@ -176,16 +169,18 @@ void solve_unstructured_hydro_2d(
           // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
           // CALCULATION
           double ab_S = (ab_x * S_x + ab_y * S_y + ab_z * S_z);
-          if (ab_S < 0) {
-            S_x *= -1;
-            S_y *= -1;
-            S_z *= -1;
+          if (ab_S < 0.0) {
+            S_x *= -1.0;
+            S_y *= -1.0;
+            S_z *= -1.0;
             ab_S = fabs(ab_S);
           }
 
           const double sub_cell_volume = ab_S / 3.0;
 
           nodal_mass[(nn)] += density0[(cells[(cc)])] * sub_cell_volume;
+          printf("%d %d %.4f %.4f\n", nn, cells[cc], density0[(cells[cc])],
+                 sub_cell_volume);
           nodal_soundspeed[(nn)] +=
               sqrt(GAM * (GAM - 1.0) * energy0[(cells[(cc)])]) *
               sub_cell_volume;
@@ -200,6 +195,18 @@ void solve_unstructured_hydro_2d(
     }
   }
   STOP_PROFILING(&compute_profile, "calc_nodal_mass_vol");
+
+  write_unstructured_to_visit_3d(nnodes, ncells, 0, nodes_x0, nodes_y0,
+                                 nodes_z0, cells_to_nodes, nodal_mass, 1, 1);
+
+  TERMINATE("");
+
+  START_PROFILING(&compute_profile);
+#pragma omp parallel for
+  for (int nn = 0; nn < nnodes; ++nn) {
+    nodal_soundspeed[(nn)] /= nodal_volumes[(nn)];
+  }
+  STOP_PROFILING(&compute_profile, "scale_soundspeed");
 
 #if 0
   calculate_artificial_viscosity(
@@ -319,9 +326,9 @@ void solve_unstructured_hydro_2d(
         // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
         // CALCULATION
         if ((ab_x * S_x + ab_y * S_y + ab_z * S_z) < 0) {
-          S_x *= -1;
-          S_y *= -1;
-          S_z *= -1;
+          S_x *= -1.0;
+          S_y *= -1.0;
+          S_z *= -1.0;
         }
 
         cell_force += (velocity_x1[(current_node)] * pressure0[(cc)] * S_x +
@@ -538,10 +545,10 @@ void solve_unstructured_hydro_2d(
           // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
           // CALCULATION
           double ab_S = (ab_x * S_x + ab_y * S_y + ab_z * S_z);
-          if (ab_S < 0) {
-            S_x *= -1;
-            S_y *= -1;
-            S_z *= -1;
+          if (ab_S < 0.0) {
+            S_x *= -1.0;
+            S_y *= -1.0;
+            S_z *= -1.0;
             ab_S = fabs(ab_S);
           }
 
@@ -685,9 +692,9 @@ void solve_unstructured_hydro_2d(
         // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
         // CALCULATION
         if ((ab_x * S_x + ab_y * S_y + ab_z * S_z) < 0) {
-          S_x *= -1;
-          S_y *= -1;
-          S_z *= -1;
+          S_x *= -1.0;
+          S_y *= -1.0;
+          S_z *= -1.0;
         }
 
         cell_force += (velocity_x0[(current_node)] * pressure1[(cc)] * S_x +
@@ -723,9 +730,9 @@ void solve_unstructured_hydro_2d(
       double face_c_z = 0.0;
       for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
         const int node_index = faces_to_nodes[(face_to_nodes_off + nn2)];
-        face_c_x += nodes_x1[(node_index)] / nnodes_by_face;
-        face_c_y += nodes_y1[(node_index)] / nnodes_by_face;
-        face_c_z += nodes_z1[(node_index)] / nnodes_by_face;
+        face_c_x += nodes_x0[(node_index)] / nnodes_by_face;
+        face_c_y += nodes_y0[(node_index)] / nnodes_by_face;
+        face_c_z += nodes_z0[(node_index)] / nnodes_by_face;
       }
 
       // Now we will sum the contributions at each of the nodes
@@ -741,11 +748,11 @@ void solve_unstructured_hydro_2d(
 
         // Get the halfway point on the right edge
         const double half_edge_x =
-            0.5 * (nodes_x1[(current_node)] + nodes_x1[(next_node)]);
+            0.5 * (nodes_x0[(current_node)] + nodes_x1[(next_node)]);
         const double half_edge_y =
-            0.5 * (nodes_y1[(current_node)] + nodes_y1[(next_node)]);
+            0.5 * (nodes_y0[(current_node)] + nodes_y1[(next_node)]);
         const double half_edge_z =
-            0.5 * (nodes_z1[(current_node)] + nodes_z1[(next_node)]);
+            0.5 * (nodes_z0[(current_node)] + nodes_z1[(next_node)]);
 
         // Setup basis on plane of tetrahedron
         const double a_x = (half_edge_x - face_c_x);
@@ -764,9 +771,9 @@ void solve_unstructured_hydro_2d(
         // THE CURRENT AND NEXT NODE, OTHERWISE WE ONLY ACCOUNT FOR HALF OF THE
         // 'HALF' TETRAHEDRONS
         cell_volume +=
-            fabs(2.0 * ((half_edge_x - nodes_x1[(current_node)]) * S_x +
-                        (half_edge_y - nodes_y1[(current_node)]) * S_y +
-                        (half_edge_z - nodes_z1[(current_node)]) * S_z) /
+            fabs(2.0 * ((half_edge_x - nodes_x0[(current_node)]) * S_x +
+                        (half_edge_y - nodes_y0[(current_node)]) * S_y +
+                        (half_edge_z - nodes_z0[(current_node)]) * S_z) /
                  3.0);
       }
     }
@@ -850,9 +857,7 @@ void initialise_mesh_mass(
   // Calculate the predicted energy
   START_PROFILING(&compute_profile);
   double total_mass = 0.0;
-#if 0
 #pragma omp parallel for reduction(+ : total_mass)
-#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =

@@ -14,7 +14,7 @@ CFLAGS_INTEL     	 = -O3 -qopenmp -no-prec-div -std=gnu99 -DINTEL \
 
 CFLAGS_INTEL_KNL 	 = -O3 -qopenmp -no-prec-div -std=gnu99 -DINTEL \
 								 	   -xMIC-AVX512 -Wall -qopt-report=5
-CFLAGS_GCC       	 = -O3 -march=native -fopenmp -std=gnu99
+CFLAGS_GCC       	 = -O3 -march=native -std=gnu99 -fopenmp
 CFLAGS_GCC_KNL   	 = -O3 -fopenmp -std=gnu99 \
 										 -mavx512f -mavx512cd -mavx512er -mavx512pf #-fopt-info-vec-all
 CFLAGS_GCC_POWER   = -O3 -mcpu=power8 -mtune=power8 -fopenmp -std=gnu99
