@@ -195,13 +195,6 @@ void solve_unstructured_hydro_2d(
   }
   STOP_PROFILING(&compute_profile, "calc_nodal_mass_vol");
 
-#if 0
-  write_unstructured_to_visit_3d(nnodes, ncells, 1000, nodes_x0, nodes_y0,
-                                 nodes_z0, cells_to_nodes, node_force_x, 1, 1);
-
-  TERMINATE("");
-#endif // if 0
-
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for (int nn = 0; nn < nnodes; ++nn) {
@@ -342,6 +335,10 @@ void solve_unstructured_hydro_2d(
   }
   STOP_PROFILING(&compute_profile, "calc_new_energy");
 
+  initialise_cell_centroids(ncells, cells_offsets, cells_to_nodes, nodes_x1,
+                            nodes_y1, nodes_z1, cell_centroids_x,
+                            cell_centroids_y, cell_centroids_z);
+
   // Using the new volume, calculate the predicted density
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
@@ -451,10 +448,6 @@ void solve_unstructured_hydro_2d(
   /*
    *    CORRECTOR
    */
-
-  initialise_cell_centroids(ncells, cells_offsets, cells_to_nodes, nodes_x1,
-                            nodes_y1, nodes_z1, cell_centroids_x,
-                            cell_centroids_y, cell_centroids_z);
 
   // Calculate the new nodal soundspeed and volumes
   START_PROFILING(&compute_profile);
@@ -620,10 +613,6 @@ void solve_unstructured_hydro_2d(
   }
   STOP_PROFILING(&compute_profile, "move_nodes");
 
-  initialise_cell_centroids(ncells, cells_offsets, cells_to_nodes, nodes_x0,
-                            nodes_y0, nodes_z0, cell_centroids_x,
-                            cell_centroids_y, cell_centroids_z);
-
   set_timestep(ncells, cells_to_nodes, cells_offsets, nodes_x0, nodes_y0,
                nodes_z0, energy1, &mesh->dt, cells_to_faces_offsets,
                cells_to_faces, faces_to_nodes_offsets, faces_to_nodes);
@@ -676,9 +665,9 @@ void solve_unstructured_hydro_2d(
             0.5 * (nodes_z1[(current_node)] + nodes_z1[(next_node)]);
 
         // Setup basis on plane of tetrahedron
-        const double a_x = (face_c_x - nodes_x0[(current_node)]);
-        const double a_y = (face_c_y - nodes_y0[(current_node)]);
-        const double a_z = (face_c_z - nodes_z0[(current_node)]);
+        const double a_x = (face_c_x - nodes_x1[(current_node)]);
+        const double a_y = (face_c_y - nodes_y1[(current_node)]);
+        const double a_z = (face_c_z - nodes_z1[(current_node)]);
         const double b_x = (face_c_x - half_edge_x);
         const double b_y = (face_c_y - half_edge_y);
         const double b_z = (face_c_z - half_edge_z);
@@ -709,6 +698,10 @@ void solve_unstructured_hydro_2d(
     energy0[(cc)] -= mesh->dt * cell_force / cell_mass[(cc)];
   }
   STOP_PROFILING(&compute_profile, "calc_new_energy");
+
+  initialise_cell_centroids(ncells, cells_offsets, cells_to_nodes, nodes_x0,
+                            nodes_y0, nodes_z0, cell_centroids_x,
+                            cell_centroids_y, cell_centroids_z);
 
   // Using the new corrected volume, calculate the density
   START_PROFILING(&compute_profile);
@@ -751,11 +744,11 @@ void solve_unstructured_hydro_2d(
 
         // Get the halfway point on the right edge
         const double half_edge_x =
-            0.5 * (nodes_x0[(current_node)] + nodes_x1[(next_node)]);
+            0.5 * (nodes_x0[(current_node)] + nodes_x0[(next_node)]);
         const double half_edge_y =
-            0.5 * (nodes_y0[(current_node)] + nodes_y1[(next_node)]);
+            0.5 * (nodes_y0[(current_node)] + nodes_y0[(next_node)]);
         const double half_edge_z =
-            0.5 * (nodes_z0[(current_node)] + nodes_z1[(next_node)]);
+            0.5 * (nodes_z0[(current_node)] + nodes_z0[(next_node)]);
 
         // Setup basis on plane of tetrahedron
         const double a_x = (half_edge_x - face_c_x);
