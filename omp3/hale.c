@@ -168,32 +168,107 @@ void solve_unstructured_hydro_2d(
           // TODO: I HAVENT WORKED OUT A REASONABLE WAY TO ORDER THE NODES SO
           // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
           // CALCULATION
-          double ab_S = (ab_x * A_x + ab_y * A_y + ab_z * A_z);
-          if (ab_S < 0.0) {
-            ab_S = fabs(ab_S);
+          double ab_A = (ab_x * A_x + ab_y * A_y + ab_z * A_z);
+          if (ab_A < 0.0) {
+            ab_A = fabs(ab_A);
           } else {
             A_x *= -1.0;
             A_y *= -1.0;
             A_z *= -1.0;
           }
 
-          const double sub_cell_volume = ab_S / 3.0;
+          const double sub_cell_volume = ab_A / 3.0;
 
           nodal_mass[(nn)] += density0[(cells[(cc)])] * sub_cell_volume;
           nodal_soundspeed[(nn)] +=
               sqrt(GAM * (GAM - 1.0) * energy0[(cells[(cc)])]) *
               sub_cell_volume;
           nodal_volumes[(nn)] += sub_cell_volume;
-
-          // Calculate the force vector due to pressure at the node
-          node_force_x[(nn)] += pressure0[(cells[(cc)])] * A_x;
-          node_force_y[(nn)] += pressure0[(cells[(cc)])] * A_y;
-          node_force_z[(nn)] += pressure0[(cells[(cc)])] * A_z;
         }
       }
     }
   }
   STOP_PROFILING(&compute_profile, "calc_nodal_mass_vol");
+
+  // Calculate the pressure gradients
+  START_PROFILING(&compute_profile);
+#pragma omp parallel for
+  for (int cc = 0; cc < ncells; ++cc) {
+    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
+    const int nfaces_by_cell =
+        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
+
+    double cell_force = 0.0;
+
+    // Look at all of the faces attached to the cell
+    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
+      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
+      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+      const int nnodes_by_face =
+          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+
+      // Calculate the face center... SHOULD WE PRECOMPUTE?
+      double face_c_x = 0.0;
+      double face_c_y = 0.0;
+      double face_c_z = 0.0;
+      for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
+        const int node_index = faces_to_nodes[(face_to_nodes_off + nn2)];
+        face_c_x += nodes_x0[(node_index)] / nnodes_by_face;
+        face_c_y += nodes_y0[(node_index)] / nnodes_by_face;
+        face_c_z += nodes_z0[(node_index)] / nnodes_by_face;
+      }
+
+      // Now we will sum the contributions at each of the nodes
+      // TODO: THERE IS SOME SYMMETRY HERE THAT MEANS WE MIGHT BE ABLE TO
+      // OPTIMISE
+      for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
+        // Fetch the nodes attached to our current node on the current face
+        const int current_node = faces_to_nodes[(face_to_nodes_off + nn2)];
+        const int next_node =
+            (nn2 + 1 < nnodes_by_face)
+                ? faces_to_nodes[(face_to_nodes_off + nn2 + 1)]
+                : faces_to_nodes[(face_to_nodes_off)];
+
+        // Get the halfway point on the right edge
+        const double half_edge_x =
+            0.5 * (nodes_x0[(current_node)] + nodes_x0[(next_node)]);
+        const double half_edge_y =
+            0.5 * (nodes_y0[(current_node)] + nodes_y0[(next_node)]);
+        const double half_edge_z =
+            0.5 * (nodes_z0[(current_node)] + nodes_z0[(next_node)]);
+
+        // Setup basis on plane of tetrahedron
+        const double a_x = (face_c_x - nodes_x0[(current_node)]);
+        const double a_y = (face_c_y - nodes_y0[(current_node)]);
+        const double a_z = (face_c_z - nodes_z0[(current_node)]);
+        const double b_x = (face_c_x - half_edge_x);
+        const double b_y = (face_c_y - half_edge_y);
+        const double b_z = (face_c_z - half_edge_z);
+        const double ab_x = (cell_centroids_x[(cc)] - face_c_x);
+        const double ab_y = (cell_centroids_y[(cc)] - face_c_y);
+        const double ab_z = (cell_centroids_z[(cc)] - face_c_z);
+
+        // Calculate the area vector S using cross product
+        double A_x = 0.5 * (a_y * b_z - a_z * b_y);
+        double A_y = -0.5 * (a_x * b_z - a_z * b_x);
+        double A_z = 0.5 * (a_x * b_y - a_y * b_x);
+
+        // TODO: I HAVENT WORKED OUT A REASONABLE WAY TO ORDER THE NODES SO
+        // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
+        // CALCULATION
+        if ((ab_x * A_x + ab_y * A_y + ab_z * A_z) > 0.0) {
+          A_x *= -1.0;
+          A_y *= -1.0;
+          A_z *= -1.0;
+        }
+
+        node_force_x[(cell_to_nodes_off +)] = pressure0[(cc)] * A_x;
+        node_force_x[(cell_to_nodes_off +)] = pressure0[(cc)] * A_y;
+        node_force_x[(cell_to_nodes_off +)] = pressure0[(cc)] * A_z;
+      }
+    }
+  }
+  STOP_PROFILING(&compute_profile, "node_force_from_pressure");
 
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
@@ -202,15 +277,14 @@ void solve_unstructured_hydro_2d(
   }
   STOP_PROFILING(&compute_profile, "scale_soundspeed");
 
-#if 0
   calculate_artificial_viscosity(
       nnodes, visc_coeff1, visc_coeff2, cells_offsets, cells_to_nodes,
       nodes_offsets, nodes_to_cells, nodes_x0, nodes_y0, nodes_z0,
       cell_centroids_x, cell_centroids_y, cell_centroids_z, velocity_x0,
       velocity_y0, velocity_z0, nodal_soundspeed, nodal_mass, nodal_volumes,
       limiter, node_force_x, node_force_y, node_force_z, node_force_x2,
-      node_force_y2, node_force_z2);
-#endif // if 0
+      node_force_y2, node_force_z2, nodes_to_faces_offsets, nodes_to_faces,
+      faces_to_nodes_offsets, faces_to_nodes, faces_to_cells0, faces_to_cells1);
 
   // Calculate the time centered evolved velocities, by first calculating the
   // predicted values at the new timestep and then averaging with current
@@ -538,16 +612,16 @@ void solve_unstructured_hydro_2d(
           // TODO: I HAVENT WORKED OUT A REASONABLE WAY TO ORDER THE NODES SO
           // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
           // CALCULATION
-          double ab_S = (ab_x * A_x + ab_y * A_y + ab_z * A_z);
-          if (ab_S < 0.0) {
-            ab_S = fabs(ab_S);
+          double ab_A = (ab_x * A_x + ab_y * A_y + ab_z * A_z);
+          if (ab_A < 0.0) {
+            ab_A = fabs(ab_A);
           } else {
             A_x *= -1.0;
             A_y *= -1.0;
             A_z *= -1.0;
           }
 
-          const double sub_cell_volume = ab_S / 3.0;
+          const double sub_cell_volume = ab_A / 3.0;
 
           nodal_soundspeed[(nn)] +=
               sqrt(GAM * (GAM - 1.0) * energy1[(cells[(cc)])]) *
@@ -572,15 +646,14 @@ void solve_unstructured_hydro_2d(
   }
   STOP_PROFILING(&compute_profile, "calc_nodal_soundspeed");
 
-#if 0
   calculate_artificial_viscosity(
       nnodes, visc_coeff1, visc_coeff2, cells_offsets, cells_to_nodes,
       nodes_offsets, nodes_to_cells, nodes_x1, nodes_y1, nodes_z1,
       cell_centroids_x, cell_centroids_y, cell_centroids_z, velocity_x1,
       velocity_y1, velocity_z1, nodal_soundspeed, nodal_mass, nodal_volumes,
       limiter, node_force_x, node_force_y, node_force_z, node_force_x2,
-      node_force_y2, node_force_z2);
-#endif // if 0
+      node_force_y2, node_force_z2, nodes_to_faces_offsets, nodes_to_faces,
+      faces_to_nodes_offsets, faces_to_nodes, faces_to_cells0, faces_to_cells1);
 
   // Calculate the corrected time centered velocities
   START_PROFILING(&compute_profile);
@@ -1016,117 +1089,330 @@ void calculate_artificial_viscosity(
     const double* nodal_soundspeed, const double* nodal_mass,
     const double* nodal_volumes, const double* limiter, double* node_force_x,
     double* node_force_y, double* node_force_z, double* node_force_x2,
-    double* node_force_y2, double* node_force_z2) {
+    double* node_force_y2, double* node_force_z2, int* nodes_to_faces_offsets,
+    int* nodes_to_faces, int* faces_to_nodes_offsets, int* faces_to_nodes,
+    int* faces_to_cells0, int* faces_to_cells1) {
+
+  // Calculate the predicted energy
+  START_PROFILING(&compute_profile);
+#pragma omp parallel for
+  for (int cc = 0; cc < ncells; ++cc) {
+    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
+    const int nfaces_by_cell =
+        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
+    const int cell_to_nodes_off = cells_to_nodes_offsets[(cc)];
+    const int nnodes_by_cell = cells_to_nodes_offsets[(cc)] - cell_to_nodes_off;
+
+    double cell_force = 0.0;
+
+    // Look at all of the faces attached to the cell
+    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
+      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
+      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+      const int nnodes_by_face =
+          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+
+      // Calculate the face center... SHOULD WE PRECOMPUTE?
+      double face_c_x = 0.0;
+      double face_c_y = 0.0;
+      double face_c_z = 0.0;
+      for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
+        const int node_index = faces_to_nodes[(face_to_nodes_off + nn2)];
+        face_c_x += nodes_x[(node_index)] / nnodes_by_face;
+        face_c_y += nodes_y[(node_index)] / nnodes_by_face;
+        face_c_z += nodes_z[(node_index)] / nnodes_by_face;
+      }
+
+      // Now we will sum the contributions at each of the nodes
+      // TODO: THERE IS SOME SYMMETRY HERE THAT MEANS WE MIGHT BE ABLE TO
+      // OPTIMISE
+      for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
+        // Fetch the nodes attached to our current node on the current face
+        const int current_node = faces_to_nodes[(face_to_nodes_off + nn2)];
+        const int next_node =
+            (nn2 + 1 < nnodes_by_face)
+                ? faces_to_nodes[(face_to_nodes_off + nn2 + 1)]
+                : faces_to_nodes[(face_to_nodes_off)];
+
+        // Get the halfway point on the right edge
+        const double half_edge_x =
+            0.5 * (nodes_x[(current_node)] + nodes_x[(next_node)]);
+        const double half_edge_y =
+            0.5 * (nodes_y[(current_node)] + nodes_y[(next_node)]);
+        const double half_edge_z =
+            0.5 * (nodes_z[(current_node)] + nodes_z[(next_node)]);
+
+        // Setup basis on plane of tetrahedron
+        const double a_x = (face_c_x - node_c_x);
+        const double a_y = (face_c_y - node_c_y);
+        const double a_z = (face_c_z - node_c_z);
+        const double b_x = (face_c_x - cell_centroids_x[(cells[cc])]);
+        const double b_y = (face_c_y - cell_centroids_y[(cells[cc])]);
+        const double b_z = (face_c_z - cell_centroids_z[(cells[cc])]);
+        const double ab_x = (node_c_x - half_edge_x);
+        const double ab_y = (node_c_y - half_edge_y);
+        const double ab_z = (node_c_z - half_edge_z);
+
+        // Calculate the area vector S using cross product
+        double S_x = 0.5 * (a_y * b_z - a_z * b_y);
+        double S_y = -0.5 * (a_x * b_z - a_z * b_x);
+        double S_z = 0.5 * (a_x * b_y - a_y * b_x);
+
+        // TODO: I HAVENT WORKED OUT A REASONABLE WAY TO ORDER THE NODES SO
+        // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
+        // CALCULATION
+        double ab_S = (ab_x * S_x + ab_y * S_y + ab_z * S_z);
+        if (ab_S < 0.0) {
+          ab_S = fabs(ab_S);
+        } else {
+          S_x *= -1.0;
+          S_y *= -1.0;
+          S_z *= -1.0;
+        }
+
+        // Calculate the velocity gradients
+        const double dvel_x = velocity_x[(nodes[(nn2)])] - velocity_x[(nn)];
+        const double dvel_y = velocity_y[(nodes[(nn2)])] - velocity_y[(nn)];
+        const double dvel_z = velocity_z[(nodes[(nn2)])] - velocity_z[(nn)];
+        const double dvel_mag =
+            sqrt(dvel_x * dvel_x + dvel_y * dvel_y + dvel_z * dvel_z);
+
+        // Calculate the unit vectors of the velocity gradients
+        const double dvel_unit_x = (dvel_mag != 0.0) ? dvel_x / dvel_mag : 0.0;
+        const double dvel_unit_y = (dvel_mag != 0.0) ? dvel_y / dvel_mag : 0.0;
+        const double dvel_unit_z = (dvel_mag != 0.0) ? dvel_z / dvel_mag : 0.0;
+
+        // Get the edge-centered density
+        double nodal_density0 = nodal_mass[(nn)] / nodal_volumes[(nn)];
+        double nodal_density1 =
+            nodal_mass[(nodes[(nn2)])] / nodal_volumes[(nodes[(nn2)])];
+        const double density_edge = (2.0 * nodal_density0 * nodal_density1) /
+                                    (nodal_density0 + nodal_density1);
+
+        // Calculate the artificial viscous force term for the edge
+        const double t = 0.25 * (GAM + 1.0);
+        double expansion_term = (dvel_x * S_x + dvel_y * S_y + dvel_z * S_z);
+
+        // Calculate the minimum soundspeed
+        const double cs =
+            min(nodal_soundspeed[(nn)], nodal_soundspeed[(nodes[(nn2)])]);
+
+        // If the cell is compressing, calculate the edge forces and add their
+        // contributions to the node forces
+        if (expansion_term <= 0.0) {
+          const double edge_visc_force_x =
+              density_edge *
+              (visc_coeff2 * t * fabs(dvel_x) +
+               sqrt(visc_coeff2 * visc_coeff2 * t * t * dvel_x * dvel_x +
+                    visc_coeff1 * visc_coeff1 * cs * cs)) *
+              (1.0 - limiter[(nn)]) * expansion_term * dvel_unit_x;
+          const double edge_visc_force_y =
+              density_edge *
+              (visc_coeff2 * t * fabs(dvel_y) +
+               sqrt(visc_coeff2 * visc_coeff2 * t * t * dvel_y * dvel_y +
+                    visc_coeff1 * visc_coeff1 * cs * cs)) *
+              (1.0 - limiter[(nn)]) * expansion_term * dvel_unit_y;
+          const double edge_visc_force_z =
+              density_edge *
+              (visc_coeff2 * t * fabs(dvel_z) +
+               sqrt(visc_coeff2 * visc_coeff2 * t * t * dvel_z * dvel_z +
+                    visc_coeff1 * visc_coeff1 * cs * cs)) *
+              (1.0 - limiter[(nn)]) * expansion_term * dvel_unit_z;
+
+          // TODO: I HATE SEARCHES LIKE THIS... CAN WE FIND SOME BETTER CLOSED
+          // FORM SOLUTION?
+          int node_off;
+          for (node_off = 0; node_off < nnodes_by_cell; ++node_off) {
+            if (cells_to_nodes[(cell_to_nodes_off + node_off)] ==
+                current_node) {
+              break;
+            }
+          }
+
+          const int next_node_off =
+              (node_off + 1 == nnodes_by_cell) ? 0 : nodes_off + 1;
+
+          // Add the contributions of the edge based artifical viscous terms
+          // to the main force terms
+          node_force_x[(cell_to_nodes_off + node_off)] -= edge_visc_force_x;
+          node_force_y[(cell_to_nodes_off + node_off)] -= edge_visc_force_y;
+          node_force_z[(cell_to_nodes_off + node_off)] -= edge_visc_force_z;
+          node_force_x[(cell_to_nodes_off + next_node_off)] +=
+              edge_visc_force_x;
+          node_force_y[(cell_to_nodes_off + next_node_off)] +=
+              edge_visc_force_y;
+          node_force_z[(cell_to_nodes_off + next_node_off)] +=
+              edge_visc_force_z;
+        }
+      }
+    }
+    STOP_PROFILING(&compute_profile, "calc_new_energy");
+
+#if 0
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for (int nn = 0; nn < nnodes; ++nn) {
-    const int nodes_off = nodes_offsets[(nn)];
-    const int ncells_by_node = nodes_offsets[(nn + 1)] - nodes_off;
-    for (int cc = 0; cc < ncells_by_node; ++cc) {
-      const int cell_index = nodes_to_cells[(nodes_off + cc)];
-      const int cell_offset = cells_offsets[(cell_index)];
-      const int nnodes_by_cell = cells_offsets[(cell_index + 1)] - cell_offset;
+    const int node_to_faces_off = nodes_to_faces_offsets[(nn)];
+    const int nfaces_by_node =
+        nodes_to_faces_offsets[(nn + 1)] - node_to_faces_off;
+    const double node_c_x = nodes_x[(nn)];
+    const double node_c_y = nodes_y[(nn)];
+    const double node_c_z = nodes_z[(nn)];
 
-      // Annoying search to find the relevant node in cell list
-      int nn2;
-      for (nn2 = 0; nn2 < nnodes_by_cell; ++nn2) {
-        if (cells_to_nodes[(cell_offset + nn2)] == nn) {
-          break;
+    // Consider all faces attached to node
+    for (int ff = 0; ff < nfaces_by_node; ++ff) {
+      const int face_index = nodes_to_faces[(node_to_faces_off + ff)];
+      if (face_index == -1) {
+        continue;
+      }
+
+      // Determine the offset into the list of nodes
+      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+      const int nnodes_by_face =
+          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+
+      // Find node center and location of current node on face
+      int node_in_face_c;
+      double face_c_x = 0.0;
+      double face_c_y = 0.0;
+      double face_c_z = 0.0;
+      for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
+        const int node_index = faces_to_nodes[(face_to_nodes_off + nn2)];
+        face_c_x += nodes_x[(node_index)] / nnodes_by_face;
+        face_c_y += nodes_y[(node_index)] / nnodes_by_face;
+        face_c_z += nodes_z[(node_index)] / nnodes_by_face;
+
+        // Choose the node in the list of nodes attached to the face
+        if (nn == node_index) {
+          node_in_face_c = nn2;
         }
       }
 
-      // TODO NEED TO CALCULATE THE CORRECT NODES THAT WE NEED TO BE LOOKING
-      // AT
-      // HERE??? LOOK BACK AT THE PAPER...
-      int node_r_index = 0;
+      // Fetch the nodes attached to our current node on the current face
+      int nodes[2];
+      nodes[0] = (node_in_face_c - 1 >= 0)
+                     ? faces_to_nodes[(face_to_nodes_off + node_in_face_c - 1)]
+                     : faces_to_nodes[(face_to_nodes_off + nnodes_by_face - 1)];
+      nodes[1] = (node_in_face_c + 1 < nnodes_by_face)
+                     ? faces_to_nodes[(face_to_nodes_off + node_in_face_c + 1)]
+                     : faces_to_nodes[(face_to_nodes_off)];
 
-      // Calculate the velocity gradients
-      const double grad_velocity_x =
-          velocity_x[(node_r_index)] - velocity_x[(nn)];
-      const double grad_velocity_y =
-          velocity_y[(node_r_index)] - velocity_y[(nn)];
-      const double grad_velocity_z =
-          velocity_z[(node_r_index)] - velocity_z[(nn)];
-      const double grad_velocity_mag = sqrt(grad_velocity_x * grad_velocity_x +
-                                            grad_velocity_y * grad_velocity_y +
-                                            grad_velocity_z * grad_velocity_z);
+      // Fetch the cells attached to our current face
+      int cells[2];
+      cells[0] = faces_to_cells0[(face_index)];
+      cells[1] = faces_to_cells1[(face_index)];
 
-      // Calculate the unit vectors of the velocity gradients
-      const double grad_velocity_unit_x =
-          (grad_velocity_x != 0.0) ? grad_velocity_x / grad_velocity_mag : 0.0;
-      const double grad_velocity_unit_y =
-          (grad_velocity_y != 0.0) ? grad_velocity_y / grad_velocity_mag : 0.0;
-      const double grad_velocity_unit_z =
-          (grad_velocity_z != 0.0) ? grad_velocity_z / grad_velocity_mag : 0.0;
+      // Add contributions from all of the cells attached to the face
+      for (int cc = 0; cc < 2; ++cc) {
+        if (cells[(cc)] == -1) {
+          continue;
+        }
 
-      // TODO: WE NEED TO CALCULATE THE FACE CENTERED DENSITY HERE, WHICH IS
-      // PROBABLY ACHIEVED BY CALCULATING THE HARMONIC MEAN OF ALL FOUR NODES
-      double nodal_density0 = nodal_mass[(nn)] / nodal_volumes[(nn)];
-      double nodal_density1 = 0.0;
-      double nodal_density2 = 0.0;
-      double nodal_density3 = 0.0;
-      const double density_edge =
-          (4.0 * nodal_density0 * nodal_density1 * nodal_density2 *
-           nodal_density3) /
-          (nodal_density0 + nodal_density1 + nodal_density2 + nodal_density3);
+        // Add contributions for both edges attached to our current node
+        for (int nn2 = 0; nn2 < 2; ++nn2) {
+          // Get the halfway point on the right edge
+          const double half_edge_x =
+              0.5 * (nodes_x[(nodes[(nn2)])] + nodes_x[(nn)]);
+          const double half_edge_y =
+              0.5 * (nodes_y[(nodes[(nn2)])] + nodes_y[(nn)]);
+          const double half_edge_z =
+              0.5 * (nodes_z[(nodes[(nn2)])] + nodes_z[(nn)]);
 
-      // TODO: CALCULATE THE AREA VECTORS
-      double S_x = 0.0;
-      double S_y = 0.0;
-      double S_z = 0.0;
+          // Setup basis on plane of tetrahedron
+          const double a_x = (face_c_x - node_c_x);
+          const double a_y = (face_c_y - node_c_y);
+          const double a_z = (face_c_z - node_c_z);
+          const double b_x = (face_c_x - cell_centroids_x[(cells[cc])]);
+          const double b_y = (face_c_y - cell_centroids_y[(cells[cc])]);
+          const double b_z = (face_c_z - cell_centroids_z[(cells[cc])]);
+          const double ab_x = (node_c_x - half_edge_x);
+          const double ab_y = (node_c_y - half_edge_y);
+          const double ab_z = (node_c_z - half_edge_z);
 
-      // Calculate the artificial viscous force term for the edge
-      const double t = 0.25 * (GAM + 1.0);
-      double expansion_term = (grad_velocity_x * S_x + grad_velocity_y * S_y +
-                               grad_velocity_z * S_z);
+          // Calculate the area vector S using cross product
+          double S_x = 0.5 * (a_y * b_z - a_z * b_y);
+          double S_y = -0.5 * (a_x * b_z - a_z * b_x);
+          double S_z = 0.5 * (a_x * b_y - a_y * b_x);
 
-      // Calculate the minimum soundspeed
-      const double cs =
-          min(nodal_soundspeed[(nn)], nodal_soundspeed[(node_r_index)]);
+          // TODO: I HAVENT WORKED OUT A REASONABLE WAY TO ORDER THE NODES SO
+          // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
+          // CALCULATION
+          double ab_S = (ab_x * S_x + ab_y * S_y + ab_z * S_z);
+          if (ab_S < 0.0) {
+            ab_S = fabs(ab_S);
+          } else {
+            S_x *= -1.0;
+            S_y *= -1.0;
+            S_z *= -1.0;
+          }
 
-      // If the cell is compressing, calculate the edge forces and add their
-      // contributions to the node forces
-      if (expansion_term <= 0.0) {
-        const double edge_visc_force_x =
-            density_edge * (visc_coeff2 * t * fabs(grad_velocity_x) +
-                            sqrt(visc_coeff2 * visc_coeff2 * t * t *
-                                     grad_velocity_x * grad_velocity_x +
-                                 visc_coeff1 * visc_coeff1 * cs * cs)) *
-            (1.0 - limiter[(nn)]) * (grad_velocity_x * S_x) *
-            grad_velocity_unit_x;
-        const double edge_visc_force_y =
-            density_edge * (visc_coeff2 * t * fabs(grad_velocity_y) +
-                            sqrt(visc_coeff2 * visc_coeff2 * t * t *
-                                     grad_velocity_y * grad_velocity_y +
-                                 visc_coeff1 * visc_coeff1 * cs * cs)) *
-            (1.0 - limiter[(nn)]) * (grad_velocity_y * S_y) *
-            grad_velocity_unit_y;
-        const double edge_visc_force_z =
-            density_edge * (visc_coeff2 * t * fabs(grad_velocity_z) +
-                            sqrt(visc_coeff2 * visc_coeff2 * t * t *
-                                     grad_velocity_z * grad_velocity_z +
-                                 visc_coeff1 * visc_coeff1 * cs * cs)) *
-            (1.0 - limiter[(nn)]) * (grad_velocity_z * S_y) *
-            grad_velocity_unit_z;
+          // Calculate the velocity gradients
+          const double dvel_x = velocity_x[(nodes[(nn2)])] - velocity_x[(nn)];
+          const double dvel_y = velocity_y[(nodes[(nn2)])] - velocity_y[(nn)];
+          const double dvel_z = velocity_z[(nodes[(nn2)])] - velocity_z[(nn)];
+          const double dvel_mag =
+              sqrt(dvel_x * dvel_x + dvel_y * dvel_y + dvel_z * dvel_z);
 
-        // Add the contributions of the edge based artifical viscous terms
-        // to the main force terms
-        node_force_x[(nn)] -= edge_visc_force_x;
-        node_force_y[(nn)] -= edge_visc_force_y;
-        node_force_z[(nn)] -= edge_visc_force_z;
+          // Calculate the unit vectors of the velocity gradients
+          const double dvel_unit_x =
+              (dvel_mag != 0.0) ? dvel_x / dvel_mag : 0.0;
+          const double dvel_unit_y =
+              (dvel_mag != 0.0) ? dvel_y / dvel_mag : 0.0;
+          const double dvel_unit_z =
+              (dvel_mag != 0.0) ? dvel_z / dvel_mag : 0.0;
 
-        //
-        //
-        //
-        //
-        //
-        // TODO : There is a race condition here...
-        node_force_x[(node_r_index)] += edge_visc_force_x;
-        node_force_y[(node_r_index)] += edge_visc_force_y;
-        node_force_z[(node_r_index)] += edge_visc_force_z;
+          // Get the edge-centered density
+          double nodal_density0 = nodal_mass[(nn)] / nodal_volumes[(nn)];
+          double nodal_density1 =
+              nodal_mass[(nodes[(nn2)])] / nodal_volumes[(nodes[(nn2)])];
+          const double density_edge = (2.0 * nodal_density0 * nodal_density1) /
+                                      (nodal_density0 + nodal_density1);
+
+          // Calculate the artificial viscous force term for the edge
+          const double t = 0.25 * (GAM + 1.0);
+          double expansion_term = (dvel_x * S_x + dvel_y * S_y + dvel_z * S_z);
+
+          // Calculate the minimum soundspeed
+          const double cs =
+              min(nodal_soundspeed[(nn)], nodal_soundspeed[(nodes[(nn2)])]);
+
+          // If the cell is compressing, calculate the edge forces and add their
+          // contributions to the node forces
+          if (expansion_term <= 0.0) {
+            const double edge_visc_force_x =
+                density_edge *
+                (visc_coeff2 * t * fabs(dvel_x) +
+                 sqrt(visc_coeff2 * visc_coeff2 * t * t * dvel_x * dvel_x +
+                      visc_coeff1 * visc_coeff1 * cs * cs)) *
+                (1.0 - limiter[(nn)]) * expansion_term * dvel_unit_x;
+            const double edge_visc_force_y =
+                density_edge *
+                (visc_coeff2 * t * fabs(dvel_y) +
+                 sqrt(visc_coeff2 * visc_coeff2 * t * t * dvel_y * dvel_y +
+                      visc_coeff1 * visc_coeff1 * cs * cs)) *
+                (1.0 - limiter[(nn)]) * expansion_term * dvel_unit_y;
+            const double edge_visc_force_z =
+                density_edge *
+                (visc_coeff2 * t * fabs(dvel_z) +
+                 sqrt(visc_coeff2 * visc_coeff2 * t * t * dvel_z * dvel_z +
+                      visc_coeff1 * visc_coeff1 * cs * cs)) *
+                (1.0 - limiter[(nn)]) * expansion_term * dvel_unit_z;
+
+            // Add the contributions of the edge based artifical viscous terms
+            // to the main force terms
+            node_force_x[(nn)] -= edge_visc_force_x;
+            node_force_y[(nn)] -= edge_visc_force_y;
+            node_force_z[(nn)] -= edge_visc_force_z;
+
+            // TODO : There is a race condition here...
+            node_force_x[(nodes[(nn2)])] += edge_visc_force_x;
+            node_force_y[(nodes[(nn2)])] += edge_visc_force_y;
+            node_force_z[(nodes[(nn2)])] += edge_visc_force_z;
+          }
+        }
       }
     }
   }
-
   STOP_PROFILING(&compute_profile, "artificial_viscosity");
-}
+#endif // if 0
+  }

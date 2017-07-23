@@ -19,12 +19,6 @@ size_t initialise_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
   allocated += allocate_data(&hale_data->velocity_x1, umesh->nnodes);
   allocated += allocate_data(&hale_data->velocity_y1, umesh->nnodes);
   allocated += allocate_data(&hale_data->velocity_z1, umesh->nnodes);
-  allocated += allocate_data(&hale_data->node_force_x, umesh->nnodes);
-  allocated += allocate_data(&hale_data->node_force_y, umesh->nnodes);
-  allocated += allocate_data(&hale_data->node_force_z, umesh->nnodes);
-  allocated += allocate_data(&hale_data->node_force_x2, umesh->nnodes);
-  allocated += allocate_data(&hale_data->node_force_y2, umesh->nnodes);
-  allocated += allocate_data(&hale_data->node_force_z2, umesh->nnodes);
   allocated += allocate_data(&hale_data->cell_mass, umesh->ncells);
   allocated += allocate_data(&hale_data->nodal_mass, umesh->nnodes);
   allocated += allocate_data(&hale_data->nodal_volumes, umesh->nnodes);
@@ -58,6 +52,18 @@ size_t initialise_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
   allocated += allocate_data(&hale_data->sub_cell_grad_y,
                              umesh->ncells * umesh->nnodes_by_cell);
   allocated += allocate_data(&hale_data->sub_cell_grad_z,
+                             umesh->ncells * umesh->nnodes_by_cell);
+  allocated += allocate_data(&hale_data->node_force_x,
+                             umesh->ncells * umesh->nnodes_by_cell);
+  allocated += allocate_data(&hale_data->node_force_y,
+                             umesh->ncells * umesh->nnodes_by_cell);
+  allocated += allocate_data(&hale_data->node_force_z,
+                             umesh->ncells * umesh->nnodes_by_cell);
+  allocated += allocate_data(&hale_data->node_force_x2,
+                             umesh->ncells * umesh->nnodes_by_cell);
+  allocated += allocate_data(&hale_data->node_force_y2,
+                             umesh->ncells * umesh->nnodes_by_cell);
+  allocated += allocate_data(&hale_data->node_force_z2,
                              umesh->ncells * umesh->nnodes_by_cell);
 
   // In hale, the fundamental principle is that the mass at the cell and
