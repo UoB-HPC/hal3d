@@ -132,7 +132,6 @@ void write_unstructured_to_visit_3d(const int nnodes, int ncells,
   int shapesize[] = {8};
   int shapecounts[] = {ncells};
   int shapetype[] = {DB_ZONETYPE_HEX};
-  int nshapetypes = 1;
   int ndims = 3;
   int nshapes = 1;
 

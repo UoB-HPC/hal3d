@@ -9,9 +9,9 @@ iterations    100
 visit_dump    1
 node_file     problems/tri.1.node
 ele_file      problems/tri.1.ele
-nx            10
-ny            10
-nz            10
+nx            64
+ny            64
+nz            64
 
 # READING UMESH IS NOT YET SUPPORTED IN 3D
 read_umesh    0

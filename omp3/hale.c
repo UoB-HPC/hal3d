@@ -170,17 +170,16 @@ void solve_unstructured_hydro_2d(
           // CALCULATION
           double ab_S = (ab_x * S_x + ab_y * S_y + ab_z * S_z);
           if (ab_S < 0.0) {
+            ab_S = fabs(ab_S);
+          } else {
             S_x *= -1.0;
             S_y *= -1.0;
             S_z *= -1.0;
-            ab_S = fabs(ab_S);
           }
 
           const double sub_cell_volume = ab_S / 3.0;
 
           nodal_mass[(nn)] += density0[(cells[(cc)])] * sub_cell_volume;
-          printf("%d %d %.4f %.4f\n", nn, cells[cc], density0[(cells[cc])],
-                 sub_cell_volume);
           nodal_soundspeed[(nn)] +=
               sqrt(GAM * (GAM - 1.0) * energy0[(cells[(cc)])]) *
               sub_cell_volume;
@@ -195,10 +194,6 @@ void solve_unstructured_hydro_2d(
     }
   }
   STOP_PROFILING(&compute_profile, "calc_nodal_mass_vol");
-
-  static int t = 0;
-  write_unstructured_to_visit_3d(nnodes, ncells, t++, nodes_x0, nodes_y0,
-                                 nodes_z0, cells_to_nodes, nodal_mass, 1, 1);
 
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
@@ -324,7 +319,7 @@ void solve_unstructured_hydro_2d(
         // TODO: I HAVENT WORKED OUT A REASONABLE WAY TO ORDER THE NODES SO
         // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
         // CALCULATION
-        if ((ab_x * S_x + ab_y * S_y + ab_z * S_z) < 0) {
+        if ((ab_x * S_x + ab_y * S_y + ab_z * S_z) > 0.0) {
           S_x *= -1.0;
           S_y *= -1.0;
           S_z *= -1.0;
@@ -544,7 +539,7 @@ void solve_unstructured_hydro_2d(
           // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
           // CALCULATION
           double ab_S = (ab_x * S_x + ab_y * S_y + ab_z * S_z);
-          if (ab_S < 0.0) {
+          if (ab_S > 0.0) {
             S_x *= -1.0;
             S_y *= -1.0;
             S_z *= -1.0;
@@ -556,6 +551,7 @@ void solve_unstructured_hydro_2d(
           nodal_soundspeed[(nn)] +=
               sqrt(GAM * (GAM - 1.0) * energy1[(cells[(cc)])]) *
               sub_cell_volume;
+
           // Calculate the volume at the node
           nodal_volumes[(nn)] += sub_cell_volume;
 
@@ -690,7 +686,7 @@ void solve_unstructured_hydro_2d(
         // TODO: I HAVENT WORKED OUT A REASONABLE WAY TO ORDER THE NODES SO
         // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
         // CALCULATION
-        if ((ab_x * S_x + ab_y * S_y + ab_z * S_z) < 0) {
+        if ((ab_x * S_x + ab_y * S_y + ab_z * S_z) > 0.0) {
           S_x *= -1.0;
           S_y *= -1.0;
           S_z *= -1.0;
@@ -813,14 +809,13 @@ void set_timestep(const int ncells, const int* cells_to_nodes,
       const int nnodes_by_face =
           faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
 
-      for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
+      for (int nn = 0; nn < nnodes_by_face; ++nn) {
         // Fetch the nodes attached to our current node on the current face
-        const int current_node = faces_to_nodes[(face_to_nodes_off + nn2)];
+        const int current_node = faces_to_nodes[(face_to_nodes_off + nn)];
 
-        const int next_node =
-            (nn2 + 1 < nnodes_by_face)
-                ? faces_to_nodes[(face_to_nodes_off + nn2 + 1)]
-                : faces_to_nodes[(face_to_nodes_off)];
+        const int next_node = (nn + 1 < nnodes_by_face)
+                                  ? faces_to_nodes[(face_to_nodes_off + nn + 1)]
+                                  : faces_to_nodes[(face_to_nodes_off)];
         const double x_component =
             nodes_x[(current_node)] - nodes_x[(next_node)];
         const double y_component =
