@@ -150,31 +150,31 @@ void solve_unstructured_hydro_2d(
               0.5 * (nodes_z0[(nodes[(nn2)])] + nodes_z0[(nn)]);
 
           // Setup basis on plane of tetrahedron
-          const double a_x = (face_c_x - cell_centroids_x[(cells[cc])]);
-          const double a_y = (face_c_y - cell_centroids_y[(cells[cc])]);
-          const double a_z = (face_c_z - cell_centroids_z[(cells[cc])]);
+          const double a_x = (face_c_x - node_c_x);
+          const double a_y = (face_c_y - node_c_y);
+          const double a_z = (face_c_z - node_c_z);
           const double b_x = (face_c_x - half_edge_x);
           const double b_y = (face_c_y - half_edge_y);
           const double b_z = (face_c_z - half_edge_z);
-          const double ab_x = (half_edge_x - node_c_x);
-          const double ab_y = (half_edge_y - node_c_y);
-          const double ab_z = (half_edge_z - node_c_z);
+          const double ab_x = (cell_centroids_x[(cells[cc])] - face_c_x);
+          const double ab_y = (cell_centroids_y[(cells[cc])] - face_c_y);
+          const double ab_z = (cell_centroids_z[(cells[cc])] - face_c_z);
 
           // Calculate the area vector S using cross product
-          double S_x = 0.5 * (a_y * b_z - a_z * b_y);
-          double S_y = -0.5 * (a_x * b_z - a_z * b_x);
-          double S_z = 0.5 * (a_x * b_y - a_y * b_x);
+          double A_x = 0.5 * (a_y * b_z - a_z * b_y);
+          double A_y = -0.5 * (a_x * b_z - a_z * b_x);
+          double A_z = 0.5 * (a_x * b_y - a_y * b_x);
 
           // TODO: I HAVENT WORKED OUT A REASONABLE WAY TO ORDER THE NODES SO
           // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
           // CALCULATION
-          double ab_S = (ab_x * S_x + ab_y * S_y + ab_z * S_z);
+          double ab_S = (ab_x * A_x + ab_y * A_y + ab_z * A_z);
           if (ab_S < 0.0) {
             ab_S = fabs(ab_S);
           } else {
-            S_x *= -1.0;
-            S_y *= -1.0;
-            S_z *= -1.0;
+            A_x *= -1.0;
+            A_y *= -1.0;
+            A_z *= -1.0;
           }
 
           const double sub_cell_volume = ab_S / 3.0;
@@ -186,14 +186,21 @@ void solve_unstructured_hydro_2d(
           nodal_volumes[(nn)] += sub_cell_volume;
 
           // Calculate the force vector due to pressure at the node
-          node_force_x[(nn)] += pressure0[(cells[(cc)])] * S_x;
-          node_force_y[(nn)] += pressure0[(cells[(cc)])] * S_y;
-          node_force_z[(nn)] += pressure0[(cells[(cc)])] * S_z;
+          node_force_x[(nn)] += pressure0[(cells[(cc)])] * A_x;
+          node_force_y[(nn)] += pressure0[(cells[(cc)])] * A_y;
+          node_force_z[(nn)] += pressure0[(cells[(cc)])] * A_z;
         }
       }
     }
   }
   STOP_PROFILING(&compute_profile, "calc_nodal_mass_vol");
+
+#if 0
+  write_unstructured_to_visit_3d(nnodes, ncells, 1000, nodes_x0, nodes_y0,
+                                 nodes_z0, cells_to_nodes, node_force_x, 1, 1);
+
+  TERMINATE("");
+#endif // if 0
 
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
@@ -301,33 +308,33 @@ void solve_unstructured_hydro_2d(
             0.5 * (nodes_z0[(current_node)] + nodes_z0[(next_node)]);
 
         // Setup basis on plane of tetrahedron
-        const double a_x = (half_edge_x - face_c_x);
-        const double a_y = (half_edge_y - face_c_y);
-        const double a_z = (half_edge_z - face_c_z);
-        const double b_x = (cell_centroids_x[(cc)] - face_c_x);
-        const double b_y = (cell_centroids_y[(cc)] - face_c_y);
-        const double b_z = (cell_centroids_z[(cc)] - face_c_z);
+        const double a_x = (face_c_x - nodes_x0[(current_node)]);
+        const double a_y = (face_c_y - nodes_y0[(current_node)]);
+        const double a_z = (face_c_z - nodes_z0[(current_node)]);
+        const double b_x = (face_c_x - half_edge_x);
+        const double b_y = (face_c_y - half_edge_y);
+        const double b_z = (face_c_z - half_edge_z);
+        const double ab_x = (cell_centroids_x[(cc)] - face_c_x);
+        const double ab_y = (cell_centroids_y[(cc)] - face_c_y);
+        const double ab_z = (cell_centroids_z[(cc)] - face_c_z);
 
         // Calculate the area vector S using cross product
-        double S_x = 0.5 * (a_y * b_z - a_z * b_y);
-        double S_y = -0.5 * (a_x * b_z - a_z * b_x);
-        double S_z = 0.5 * (a_x * b_y - a_y * b_x);
-        const double ab_x = (half_edge_x - nodes_x0[(current_node)]);
-        const double ab_y = (half_edge_y - nodes_y0[(current_node)]);
-        const double ab_z = (half_edge_z - nodes_z0[(current_node)]);
+        double A_x = 0.5 * (a_y * b_z - a_z * b_y);
+        double A_y = -0.5 * (a_x * b_z - a_z * b_x);
+        double A_z = 0.5 * (a_x * b_y - a_y * b_x);
 
         // TODO: I HAVENT WORKED OUT A REASONABLE WAY TO ORDER THE NODES SO
         // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
         // CALCULATION
-        if ((ab_x * S_x + ab_y * S_y + ab_z * S_z) > 0.0) {
-          S_x *= -1.0;
-          S_y *= -1.0;
-          S_z *= -1.0;
+        if ((ab_x * A_x + ab_y * A_y + ab_z * A_z) > 0.0) {
+          A_x *= -1.0;
+          A_y *= -1.0;
+          A_z *= -1.0;
         }
 
-        cell_force += (velocity_x1[(current_node)] * pressure0[(cc)] * S_x +
-                       velocity_y1[(current_node)] * pressure0[(cc)] * S_y +
-                       velocity_z1[(current_node)] * pressure0[(cc)] * S_z);
+        cell_force += (velocity_x1[(current_node)] * pressure0[(cc)] * A_x +
+                       velocity_y1[(current_node)] * pressure0[(cc)] * A_y +
+                       velocity_z1[(current_node)] * pressure0[(cc)] * A_z);
       }
     }
 
@@ -520,30 +527,31 @@ void solve_unstructured_hydro_2d(
               0.5 * (nodes_z1[(nodes[(nn2)])] + nodes_z1[(nn)]);
 
           // Setup basis on plane of tetrahedron
-          const double a_x = (face_c_x - cell_centroids_x[(cells[cc])]);
-          const double a_y = (face_c_y - cell_centroids_y[(cells[cc])]);
-          const double a_z = (face_c_z - cell_centroids_z[(cells[cc])]);
+          const double a_x = (face_c_x - node_c_x);
+          const double a_y = (face_c_y - node_c_y);
+          const double a_z = (face_c_z - node_c_z);
           const double b_x = (face_c_x - half_edge_x);
           const double b_y = (face_c_y - half_edge_y);
           const double b_z = (face_c_z - half_edge_z);
-          const double ab_x = (half_edge_x - node_c_x);
-          const double ab_y = (half_edge_y - node_c_y);
-          const double ab_z = (half_edge_z - node_c_z);
+          const double ab_x = (cell_centroids_x[(cells[cc])] - face_c_x);
+          const double ab_y = (cell_centroids_y[(cells[cc])] - face_c_y);
+          const double ab_z = (cell_centroids_z[(cells[cc])] - face_c_z);
 
           // Calculate the area vector S using cross product
-          double S_x = 0.5 * (a_y * b_z - a_z * b_y);
-          double S_y = -0.5 * (a_x * b_z - a_z * b_x);
-          double S_z = 0.5 * (a_x * b_y - a_y * b_x);
+          double A_x = 0.5 * (a_y * b_z - a_z * b_y);
+          double A_y = -0.5 * (a_x * b_z - a_z * b_x);
+          double A_z = 0.5 * (a_x * b_y - a_y * b_x);
 
           // TODO: I HAVENT WORKED OUT A REASONABLE WAY TO ORDER THE NODES SO
           // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
           // CALCULATION
-          double ab_S = (ab_x * S_x + ab_y * S_y + ab_z * S_z);
-          if (ab_S > 0.0) {
-            S_x *= -1.0;
-            S_y *= -1.0;
-            S_z *= -1.0;
+          double ab_S = (ab_x * A_x + ab_y * A_y + ab_z * A_z);
+          if (ab_S < 0.0) {
             ab_S = fabs(ab_S);
+          } else {
+            A_x *= -1.0;
+            A_y *= -1.0;
+            A_z *= -1.0;
           }
 
           const double sub_cell_volume = ab_S / 3.0;
@@ -555,9 +563,9 @@ void solve_unstructured_hydro_2d(
           // Calculate the volume at the node
           nodal_volumes[(nn)] += sub_cell_volume;
 
-          node_force_x[(nn)] += pressure1[(cells[(cc)])] * S_x;
-          node_force_y[(nn)] += pressure1[(cells[(cc)])] * S_y;
-          node_force_z[(nn)] += pressure1[(cells[(cc)])] * S_z;
+          node_force_x[(nn)] += pressure1[(cells[(cc)])] * A_x;
+          node_force_y[(nn)] += pressure1[(cells[(cc)])] * A_y;
+          node_force_z[(nn)] += pressure1[(cells[(cc)])] * A_z;
         }
       }
     }
@@ -668,33 +676,33 @@ void solve_unstructured_hydro_2d(
             0.5 * (nodes_z1[(current_node)] + nodes_z1[(next_node)]);
 
         // Setup basis on plane of tetrahedron
-        const double a_x = (half_edge_x - face_c_x);
-        const double a_y = (half_edge_y - face_c_y);
-        const double a_z = (half_edge_z - face_c_z);
-        const double b_x = (cell_centroids_x[(cc)] - face_c_x);
-        const double b_y = (cell_centroids_y[(cc)] - face_c_y);
-        const double b_z = (cell_centroids_z[(cc)] - face_c_z);
+        const double a_x = (face_c_x - nodes_x0[(current_node)]);
+        const double a_y = (face_c_y - nodes_y0[(current_node)]);
+        const double a_z = (face_c_z - nodes_z0[(current_node)]);
+        const double b_x = (face_c_x - half_edge_x);
+        const double b_y = (face_c_y - half_edge_y);
+        const double b_z = (face_c_z - half_edge_z);
+        const double ab_x = (cell_centroids_x[(cc)] - face_c_x);
+        const double ab_y = (cell_centroids_y[(cc)] - face_c_y);
+        const double ab_z = (cell_centroids_z[(cc)] - face_c_z);
 
         // Calculate the area vector S using cross product
-        double S_x = 0.5 * (a_y * b_z - a_z * b_y);
-        double S_y = -0.5 * (a_x * b_z - a_z * b_x);
-        double S_z = 0.5 * (a_x * b_y - a_y * b_x);
-        const double ab_x = (half_edge_x - nodes_x1[(current_node)]);
-        const double ab_y = (half_edge_y - nodes_y1[(current_node)]);
-        const double ab_z = (half_edge_z - nodes_z1[(current_node)]);
+        double A_x = 0.5 * (a_y * b_z - a_z * b_y);
+        double A_y = -0.5 * (a_x * b_z - a_z * b_x);
+        double A_z = 0.5 * (a_x * b_y - a_y * b_x);
 
         // TODO: I HAVENT WORKED OUT A REASONABLE WAY TO ORDER THE NODES SO
         // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
         // CALCULATION
-        if ((ab_x * S_x + ab_y * S_y + ab_z * S_z) > 0.0) {
-          S_x *= -1.0;
-          S_y *= -1.0;
-          S_z *= -1.0;
+        if ((ab_x * A_x + ab_y * A_y + ab_z * A_z) > 0.0) {
+          A_x *= -1.0;
+          A_y *= -1.0;
+          A_z *= -1.0;
         }
 
-        cell_force += (velocity_x0[(current_node)] * pressure1[(cc)] * S_x +
-                       velocity_y0[(current_node)] * pressure1[(cc)] * S_y +
-                       velocity_z0[(current_node)] * pressure1[(cc)] * S_z);
+        cell_force += (velocity_x0[(current_node)] * pressure1[(cc)] * A_x +
+                       velocity_y0[(current_node)] * pressure1[(cc)] * A_y +
+                       velocity_z0[(current_node)] * pressure1[(cc)] * A_z);
       }
     }
 
