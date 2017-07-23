@@ -282,7 +282,6 @@ void solve_unstructured_hydro_2d(
   }
   STOP_PROFILING(&compute_profile, "scale_soundspeed");
 
-#if 0
   calculate_artificial_viscosity(
       ncells, nnodes, visc_coeff1, visc_coeff2, cells_offsets, cells_to_nodes,
       nodes_offsets, nodes_to_cells, nodes_x0, nodes_y0, nodes_z0,
@@ -292,7 +291,6 @@ void solve_unstructured_hydro_2d(
       node_force_y2, node_force_z2, nodes_to_faces_offsets, nodes_to_faces,
       faces_to_nodes_offsets, faces_to_nodes, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
-#endif // if 0
 
   // Calculate the time centered evolved velocities, by first calculating the
   // predicted values at the new timestep and then averaging with current
@@ -314,16 +312,16 @@ void solve_unstructured_hydro_2d(
           cells_offsets[(cell_index + 1)] - cell_to_nodes_off;
 
       // ARRGHHHH
-      int nn2;
-      for (nn2 = 0; nn2 < nnodes_by_cell; ++nn2) {
-        if (cells_to_nodes[(cell_to_nodes_off + nn2)] == nn) {
+      int node_off;
+      for (node_off = 0; node_off < nnodes_by_cell; ++node_off) {
+        if (cells_to_nodes[(cell_to_nodes_off + node_off)] == nn) {
           break;
         }
       }
 
-      node_force_x0 += node_force_x[(cell_to_nodes_off + nn2)];
-      node_force_y0 += node_force_y[(cell_to_nodes_off + nn2)];
-      node_force_z0 += node_force_z[(cell_to_nodes_off + nn2)];
+      node_force_x0 += node_force_x[(cell_to_nodes_off + node_off)];
+      node_force_y0 += node_force_y[(cell_to_nodes_off + node_off)];
+      node_force_z0 += node_force_z[(cell_to_nodes_off + node_off)];
     }
 
     // Determine the predicted velocity
@@ -703,7 +701,6 @@ void solve_unstructured_hydro_2d(
   }
   STOP_PROFILING(&compute_profile, "node_force_from_pressure");
 
-#if 0
   calculate_artificial_viscosity(
       ncells, nnodes, visc_coeff1, visc_coeff2, cells_offsets, cells_to_nodes,
       nodes_offsets, nodes_to_cells, nodes_x1, nodes_y1, nodes_z1,
@@ -713,7 +710,6 @@ void solve_unstructured_hydro_2d(
       node_force_y2, node_force_z2, nodes_to_faces_offsets, nodes_to_faces,
       faces_to_nodes_offsets, faces_to_nodes, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
-#endif // if 0
 
   START_PROFILING(&compute_profile);
 #pragma omp parallel for simd
@@ -1190,11 +1186,11 @@ void calculate_artificial_viscosity(
 
         // Calculate the velocity gradients
         const double dvel_x =
-            velocity_x[(current_node)] - velocity_x[(next_node)];
+            velocity_x[(next_node)] - velocity_x[(current_node)];
         const double dvel_y =
-            velocity_y[(current_node)] - velocity_y[(next_node)];
+            velocity_y[(next_node)] - velocity_y[(current_node)];
         const double dvel_z =
-            velocity_z[(current_node)] - velocity_z[(next_node)];
+            velocity_z[(next_node)] - velocity_z[(current_node)];
         const double dvel_mag =
             sqrt(dvel_x * dvel_x + dvel_y * dvel_y + dvel_z * dvel_z);
 
@@ -1212,16 +1208,15 @@ void calculate_artificial_viscosity(
                                     (nodal_density0 + nodal_density1);
 
         // Calculate the artificial viscous force term for the edge
-        const double t = 0.25 * (GAM + 1.0);
         double expansion_term = (dvel_x * S_x + dvel_y * S_y + dvel_z * S_z);
-
-        // Calculate the minimum soundspeed
-        const double cs = min(nodal_soundspeed[(current_node)],
-                              nodal_soundspeed[(next_node)]);
 
         // If the cell is compressing, calculate the edge forces and add their
         // contributions to the node forces
         if (expansion_term <= 0.0) {
+          // Calculate the minimum soundspeed
+          const double cs = min(nodal_soundspeed[(current_node)],
+                                nodal_soundspeed[(next_node)]);
+          const double t = 0.25 * (GAM + 1.0);
           const double edge_visc_force_x =
               density_edge *
               (visc_coeff2 * t * fabs(dvel_x) +
@@ -1244,15 +1239,14 @@ void calculate_artificial_viscosity(
           // TODO: I HATE SEARCHES LIKE THIS... CAN WE FIND SOME BETTER CLOSED
           // FORM SOLUTION?
           int node_off;
-          for (node_off = 0; node_off < nnodes_by_cell; ++node_off) {
-            if (cells_to_nodes[(cell_to_nodes_off + node_off)] ==
-                current_node) {
-              break;
+          int next_node_off;
+          for (int nn3 = 0; nn3 < nnodes_by_cell; ++nn3) {
+            if (cells_to_nodes[(cell_to_nodes_off + nn3)] == current_node) {
+              node_off = nn3;
+            } else if (cells_to_nodes[(cell_to_nodes_off + nn3)] == next_node) {
+              next_node_off = nn3;
             }
           }
-
-          const int next_node_off =
-              (node_off + 1 == nnodes_by_cell) ? 0 : node_off + 1;
 
           // Add the contributions of the edge based artifical viscous terms
           // to the main force terms
