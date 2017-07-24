@@ -250,25 +250,33 @@ void solve_unstructured_hydro_2d(
         double A_y = -0.5 * (a_x * b_z - a_z * b_x);
         double A_z = 0.5 * (a_x * b_y - a_y * b_x);
 
+        // TODO: I HATE SEARCHES LIKE THIS... CAN WE FIND SOME BETTER CLOSED
+        // FORM SOLUTION?
+        int node_off;
+        int next_node_off;
+        for (int nn3 = 0; nn3 < nnodes_by_cell; ++nn3) {
+          if (cells_to_nodes[(cell_to_nodes_off + nn3)] == current_node) {
+            node_off = nn3;
+          } else if (cells_to_nodes[(cell_to_nodes_off + nn3)] == next_node) {
+            next_node_off = nn3;
+          }
+        }
+
         // TODO: I HAVENT WORKED OUT A REASONABLE WAY TO ORDER THE NODES SO
         // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
         // CALCULATION
         const int flip = (ab_x * A_x + ab_y * A_y + ab_z * A_z > 0.0);
-
-        // TODO: I HATE SEARCHES LIKE THIS... CAN WE FIND SOME BETTER CLOSED
-        // FORM SOLUTION?
-        int node_off;
-        for (node_off = 0; node_off < nnodes_by_cell; ++node_off) {
-          if (cells_to_nodes[(cell_to_nodes_off + node_off)] == current_node) {
-            break;
-          }
-        }
-
         node_force_x[(cell_to_nodes_off + node_off)] +=
             pressure0[(cc)] * ((flip) ? -A_x : A_x);
         node_force_y[(cell_to_nodes_off + node_off)] +=
             pressure0[(cc)] * ((flip) ? -A_y : A_y);
         node_force_z[(cell_to_nodes_off + node_off)] +=
+            pressure0[(cc)] * ((flip) ? -A_z : A_z);
+        node_force_x[(cell_to_nodes_off + next_node_off)] +=
+            pressure0[(cc)] * ((flip) ? -A_x : A_x);
+        node_force_y[(cell_to_nodes_off + next_node_off)] +=
+            pressure0[(cc)] * ((flip) ? -A_y : A_y);
+        node_force_z[(cell_to_nodes_off + next_node_off)] +=
             pressure0[(cc)] * ((flip) ? -A_z : A_z);
       }
     }
@@ -482,17 +490,6 @@ void solve_unstructured_hydro_2d(
   }
   STOP_PROFILING(&compute_profile, "move_nodes2");
 
-  // TODO: REMOVOOOVOEOE
-  for (int cc = 0; cc < ncells; ++cc) {
-    density0[(cc)] = density1[(cc)];
-    energy0[(cc)] = energy1[(cc)];
-  }
-  for (int nn = 0; nn < nnodes; ++nn) {
-    nodes_x0[(nn)] = nodes_x1[(nn)];
-    nodes_y0[(nn)] = nodes_y1[(nn)];
-    nodes_z0[(nn)] = nodes_z1[(nn)];
-  }
-
 /*
  *    CORRECTOR
  */
@@ -680,9 +677,12 @@ void solve_unstructured_hydro_2d(
         // TODO: I HATE SEARCHES LIKE THIS... CAN WE FIND SOME BETTER CLOSED
         // FORM SOLUTION?
         int node_off;
-        for (node_off = 0; node_off < nnodes_by_cell; ++node_off) {
-          if (cells_to_nodes[(cell_to_nodes_off + node_off)] == current_node) {
-            break;
+        int next_node_off;
+        for (int nn3 = 0; nn3 < nnodes_by_cell; ++nn3) {
+          if (cells_to_nodes[(cell_to_nodes_off + nn3)] == current_node) {
+            node_off = nn3;
+          } else if (cells_to_nodes[(cell_to_nodes_off + nn3)] == next_node) {
+            next_node_off = nn3;
           }
         }
 
@@ -691,11 +691,17 @@ void solve_unstructured_hydro_2d(
         // CALCULATION
         const int flip = (ab_x * A_x + ab_y * A_y + ab_z * A_z > 0.0);
         node_force_x[(cell_to_nodes_off + node_off)] +=
-            pressure1[(cc)] * (flip) ? -A_x : A_x;
+            pressure1[(cc)] * ((flip) ? -A_x : A_x);
         node_force_y[(cell_to_nodes_off + node_off)] +=
-            pressure1[(cc)] * (flip) ? -A_y : A_y;
+            pressure1[(cc)] * ((flip) ? -A_y : A_y);
         node_force_z[(cell_to_nodes_off + node_off)] +=
-            pressure1[(cc)] * (flip) ? -A_z : A_z;
+            pressure1[(cc)] * ((flip) ? -A_z : A_z);
+        node_force_x[(cell_to_nodes_off + next_node_off)] +=
+            pressure1[(cc)] * ((flip) ? -A_x : A_x);
+        node_force_y[(cell_to_nodes_off + next_node_off)] +=
+            pressure1[(cc)] * ((flip) ? -A_y : A_y);
+        node_force_z[(cell_to_nodes_off + next_node_off)] +=
+            pressure1[(cc)] * ((flip) ? -A_z : A_z);
       }
     }
   }
@@ -727,16 +733,16 @@ void solve_unstructured_hydro_2d(
       const int nnodes_by_cell =
           cells_offsets[(cell_index + 1)] - cell_to_nodes_off;
 
-      int node_off;
-      for (node_off = 0; node_off < nnodes_by_cell; ++node_off) {
-        if (cells_to_nodes[(cell_to_nodes_off + node_off)] == nn) {
+      int nn2;
+      for (nn2 = 0; nn2 < nnodes_by_cell; ++nn2) {
+        if (cells_to_nodes[(cell_to_nodes_off + nn2)] == nn) {
           break;
         }
       }
 
-      node_force_x0 += node_force_x[(cell_to_nodes_off + node_off)];
-      node_force_y0 += node_force_y[(cell_to_nodes_off + node_off)];
-      node_force_z0 += node_force_z[(cell_to_nodes_off + node_off)];
+      node_force_x0 += node_force_x[(cell_to_nodes_off + nn2)];
+      node_force_y0 += node_force_y[(cell_to_nodes_off + nn2)];
+      node_force_z0 += node_force_z[(cell_to_nodes_off + nn2)];
     }
 
     // Calculate the new velocities
