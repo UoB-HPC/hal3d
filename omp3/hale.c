@@ -50,85 +50,109 @@ void solve_unstructured_hydro_2d(
   }
   printf("total mass %.12f\n", total_mass);
 
-// Calculate the sub-cell velocities
+  for (int nn = 0; nn < nnodes; ++nn) {
+    velocity_x0[(nn)] = 1.0;
+    velocity_y0[(nn)] = 1.0;
+    velocity_z0[(nn)] = 1.0;
+  }
 
-#define N 8 // numbers of nodes
-#define F 6 // number of faces
-  double mn[N] = {2.0, 3.0, 4.0, 1.0, 3.0, 1.0, 4.0, 1.0};
-  int n_to_f[8 * 3] = {0, 1, 2, 0, 2, 3, 2, 3, 5, 1, 2, 5,
-                       0, 1, 4, 0, 3, 4, 3, 4, 5, 1, 4, 5};
-  int f_to_n[4 * 6] = {0, 1, 5, 4, 0, 3, 7, 4, 0, 1, 2, 3,
-                       1, 2, 6, 5, 4, 5, 6, 7, 3, 2, 6, 7};
-  int Nf[F] = {4, 4, 4, 4, 4, 4};
-  int Fn[N] = {3, 3, 3, 3, 3, 3, 3, 3};
-  double u[N] = {2.0, 1.0, 1.0, 2.0, 1.0, 2.0, 4.5, 1.0};
+  for (int cc = 0; cc < ncells; ++cc) {
+    const int cell_to_nodes_off = cells_offsets[(cc)];
+    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
 
-  double mid = 0.0;
-  for (int nn = 0; nn < N; ++nn) {
-    mid += u[nn] / N;
+    for (int nn = 0; nn < nnodes_by_cell; ++nn) {
+      const int node_index = (cells_to_nodes[(cell_to_nodes_off + nn)]);
+      const int node_to_faces_off = nodes_to_faces_offsets[(node_index)];
+      const int nfaces_by_node =
+          nodes_to_faces_offsets[(node_index + 1)] - node_to_faces_off;
+
+      const double mass = sub_cell_mass[(cell_to_nodes_off + nn)];
+      const double Sn = 2.0 * nfaces_by_node;
+      double a_x = 2.5 * velocity_x0[(node_index)];
+      double a_y = 2.5 * velocity_y0[(node_index)];
+      double a_z = 2.5 * velocity_z0[(node_index)];
+
+      for (int ff = 0; ff < nfaces_by_node; ++ff) {
+        const int face_index = nodes_to_faces[(node_to_faces_off + ff)];
+        if (face_index == -1) {
+          continue;
+        }
+        const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+        const int nnodes_by_face =
+            faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+
+        int node;
+        double face_center_x = 0.0;
+        double face_center_y = 0.0;
+        double face_center_z = 0.0;
+        for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
+          const int node_index0 = faces_to_nodes[(face_to_nodes_off + nn2)];
+          if (node_index0 == node_index) {
+            node = nn2;
+          }
+
+          // Calculate the center of the face
+          face_center_x += velocity_x0[(node_index0)] / nnodes_by_face;
+          face_center_y += velocity_y0[(node_index0)] / nnodes_by_face;
+          face_center_z += velocity_z0[(node_index0)] / nnodes_by_face;
+        }
+
+        const int node_l_index =
+            (node == 0)
+                ? faces_to_nodes[(face_to_nodes_off + nnodes_by_face - 1)]
+                : faces_to_nodes[(face_to_nodes_off) + (node - 1)];
+        const int node_r_index =
+            (node == nnodes_by_face - 1)
+                ? faces_to_nodes[(face_to_nodes_off)]
+                : faces_to_nodes[(face_to_nodes_off) + (node + 1)];
+
+        // Add the contributions for the right and left nodes on the face
+        // TODO: COULD THIS DONE WITH node_to_node INSTEAD??
+        a_x += (velocity_x0[(node_l_index)]) / (2.0 * Sn);
+        a_y += (velocity_y0[(node_l_index)]) / (2.0 * Sn);
+        a_z += (velocity_z0[(node_l_index)]) / (2.0 * Sn);
+        a_x += (velocity_x0[(node_r_index)]) / (2.0 * Sn);
+        a_y += (velocity_y0[(node_r_index)]) / (2.0 * Sn);
+        a_z += (velocity_z0[(node_r_index)]) / (2.0 * Sn);
+
+        // Add the face center contributions
+        a_x += (2.0 * face_center_x) / Sn;
+        a_y += (2.0 * face_center_y) / Sn;
+        a_z += (2.0 * face_center_z) / Sn;
+      }
+      printf("(%.5f %.5f %.5f)\n", mass * a_x / cell_mass[(cc)],
+             mass * a_y / cell_mass[(cc)], mass * a_z / cell_mass[(cc)]);
+    }
   }
 
 #if 0
-  double mus = 0.0;
-  for (int nn = 0; nn < N; ++nn) {
-    double us = 0.0;
-    for (int ff = 0; ff < Fn[nn]; ++ff) {
-      int face = n_to_f[nn * 3 + ff];
-      int node;
-      double fc = 0.0;
-      for (int nn2 = 0; nn2 < Nf[face]; ++nn2) {
-        fc += u[f_to_n[face * 4 + nn2]] / Nf[face]; // Get the face center value
-        if (f_to_n[face * 4 + nn2] == nn) {
-          node = nn2;
-        }
-      }
-
-      us += (u[nn] + mid + fc +
-             0.5 * (u[nn] +
-                    u[f_to_n[face * 4 +
-                             ((node == Nf[face] - 1) ? (0) : (node + 1))]]));
-      us += (u[nn] + mid + fc +
-             0.5 * (u[nn] + u[f_to_n[face * 4 + ((node == 0) ? (Nf[face] - 1)
-                                                             : (node - 1))]]));
-    }
-    printf("us %.12f\n", us);
-    mus += mn[nn] * 0.25 * us / (2.0 * Fn[nn]);
-  }
-
-  double exp = 0.0;
-  for (int nn = 0; nn < N; ++nn) {
-    exp += mn[nn] * u[nn];
-  }
-
-  printf("mus : %.12f, exp: %.12f\n", mus, exp);
-#endif // if 0
-
+  double b = 0.0;
+  double g = 0.0;
   double a = 0.0;
   for (int nn = 0; nn < N; ++nn) {
     a += 2.5 * mn[nn] * u[nn];
   }
 
-  double b = 0.0;
-  double g = 0.0;
-  for (int nn = 0; nn < N; ++nn) {
-    double r = 0.0;
-    for (int ff = 0; ff < Fn[nn]; ++ff) {
-      double fc = 0.0;
-      int face = n_to_f[nn * 3 + ff];
-      int node;
-      for (int nn2 = 0; nn2 < Nf[face]; ++nn2) {
-        fc += u[f_to_n[face * 4 + nn2]] / Nf[face]; // Get the face center value
-        if (f_to_n[face * 4 + nn2] == nn) {
-          node = nn2;
-        }
+  double r = 0.0;
+  for (int ff = 0; ff < Fn[nn]; ++ff) {
+    double fc = 0.0;
+    int face = nodes_to_faces[nn * 3 + ff];
+    int node;
+    for (int nn2 = 0; nn2 < Nf[face]; ++nn2) {
+      fc += u[f_to_n[face * 4 + nn2]] / Nf[face]; // Get the face center value
+      if (f_to_n[face * 4 + nn2] == nn) {
+        node = nn2;
       }
-      r += u[f_to_n[face * 4 + ((node == Nf[face] - 1) ? (0) : (node + 1))]];
-      r += u[f_to_n[face * 4 + ((node == 0) ? (Nf[face] - 1) : (node - 1))]];
-      b += (mn[nn] * 2.0 * fc) / (2.0 * Fn[nn]);
     }
-    g += (mn[nn] * r) / (4.0 * Fn[nn]);
+    r += u[f_to_n[face * 4 + ((node == Nf[face] - 1) ? (0) : (node + 1))]];
+    r += u[f_to_n[face * 4 + ((node == 0) ? (Nf[face] - 1) : (node - 1))]];
+    b += (mn[nn] * 2.0 * fc) / (2.0 * Fn[nn]);
   }
+  g += (mn[nn] * r) / (4.0 * Fn[nn]);
+}
+#endif // if 0
 
+#if 0
   double tm = 0.0;
   for (int nn = 0; nn < N; ++nn) {
     tm += mn[nn];
@@ -167,8 +191,8 @@ void solve_unstructured_hydro_2d(
   for (int nn = 0; nn < N; ++nn) {
     exp += u[nn] * mn[nn];
   }
-
   printf("%.12f=%.12f %.12f=%.12f\n", uc, mid, res, exp);
+#endif // if 0
 
   // Construct accurate sub-cell velocities
   // TODO: THIS WONT WORK FOR PRISMS AT THE MOMENT, NEED TO LOOK INTO FIXING
@@ -1479,6 +1503,8 @@ void initialise_mesh_mass(
   double total_mass = 0.0;
 #pragma omp parallel for reduction(+ : total_mass)
   for (int cc = 0; cc < ncells; ++cc) {
+    const int cell_to_nodes_off = cells_offsets[(cc)];
+    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
         cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
@@ -1541,6 +1567,15 @@ void initialise_mesh_mass(
                         (half_edge_y - nodes_y[(current_node)]) * S_y +
                         (half_edge_z - nodes_z[(current_node)]) * S_z) /
                  3.0);
+
+        // TODO: I HATE SEARCHES LIKE THIS... CAN WE FIND SOME BETTER CLOSED
+        // FORM SOLUTION?
+        for (int nn3 = 0; nn3 < nnodes_by_cell; ++nn3) {
+          if (cells_to_nodes[(cell_to_nodes_off + nn3)] == current_node) {
+            sub_cell_mass[(cell_to_nodes_off + nn3)] +=
+                density[(cc)] * sub_cell_volume;
+          }
+        }
 
         cell_mass[(cc)] += density[(cc)] * sub_cell_volume;
       }
