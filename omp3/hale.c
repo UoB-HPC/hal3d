@@ -54,7 +54,7 @@ void solve_unstructured_hydro_2d(
 
 #define N 8 // numbers of nodes
 #define F 6 // number of faces
-  double mn[N] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+  double mn[N] = {2.0, 3.0, 4.0, 1.0, 3.0, 1.0, 4.0, 1.0};
   int n_to_f[8 * 3] = {0, 1, 2, 0, 2, 3, 2, 3, 5, 1, 2, 5,
                        0, 1, 4, 0, 3, 4, 3, 4, 5, 1, 4, 5};
   int f_to_n[4 * 6] = {0, 1, 5, 4, 0, 3, 7, 4, 0, 1, 2, 3,
@@ -109,7 +109,7 @@ void solve_unstructured_hydro_2d(
   }
 
   double b = 0.0;
-  double c = 0.0;
+  double g = 0.0;
   for (int nn = 0; nn < N; ++nn) {
     double r = 0.0;
     for (int ff = 0; ff < Fn[nn]; ++ff) {
@@ -126,16 +126,49 @@ void solve_unstructured_hydro_2d(
       r += u[f_to_n[face * 4 + ((node == 0) ? (Nf[face] - 1) : (node - 1))]];
       b += (mn[nn] * 2.0 * fc) / (2.0 * Fn[nn]);
     }
-    c += (mn[nn] * r) / (4.0 * Fn[nn]);
+    g += (mn[nn] * r) / (4.0 * Fn[nn]);
   }
 
-  double d = 0.0;
+  double tm = 0.0;
   for (int nn = 0; nn < N; ++nn) {
-    d += mn[nn];
+    tm += mn[nn];
   }
 
-  printf("%.6f %.6f %.6f %.6f, %.6f = %.6f\n", a, b, c, d, (a - b - c) / d,
-         mid);
+  double uc = (a - b - g) / tm;
+
+  double ucn[N] = {0.0};
+  for (int nn = 0; nn < N; ++nn) {
+    double r = 0.0;
+    double d = 0.0;
+    for (int ff = 0; ff < Fn[nn]; ++ff) {
+      int face = n_to_f[nn * 3 + ff];
+      int node;
+      double fc = 0.0;
+      for (int nn2 = 0; nn2 < Nf[face]; ++nn2) {
+        fc += u[f_to_n[face * 4 + nn2]] / Nf[face]; // Get the face center value
+        if (f_to_n[face * 4 + nn2] == nn) {
+          node = nn2;
+        }
+      }
+      r += u[f_to_n[face * 4 + ((node == Nf[face] - 1) ? (0) : (node + 1))]];
+      r += u[f_to_n[face * 4 + ((node == 0) ? (Nf[face] - 1) : (node - 1))]];
+      d += (2.0 * fc);
+    }
+    ucn[nn] =
+        0.25 * (1.5 * u[nn] + d / (2.0 * Fn[nn]) + r / (4.0 * Fn[nn]) + uc);
+  }
+
+  double res = 0.0;
+  for (int nn = 0; nn < N; ++nn) {
+    res += mn[nn] * ucn[nn];
+  }
+
+  double exp = 0.0;
+  for (int nn = 0; nn < N; ++nn) {
+    exp += u[nn] * mn[nn];
+  }
+
+  printf("%.12f=%.12f %.12f=%.12f\n", uc, mid, res, exp);
 
   // Construct accurate sub-cell velocities
   // TODO: THIS WONT WORK FOR PRISMS AT THE MOMENT, NEED TO LOOK INTO FIXING
