@@ -12,8 +12,7 @@ void calculate_artificial_viscosity(
     const double* velocity_z, const double* nodal_soundspeed,
     const double* nodal_mass, const double* nodal_volumes,
     const double* limiter, double* node_force_x, double* node_force_y,
-    double* node_force_z, double* node_force_x2, double* node_force_y2,
-    double* node_force_z2, int* nodes_to_faces_offsets, int* nodes_to_faces,
+    double* node_force_z, int* nodes_to_faces_offsets, int* nodes_to_faces,
     int* faces_to_nodes_offsets, int* faces_to_nodes, int* faces_to_cells0,
     int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces);
 

@@ -32,8 +32,7 @@ void solve_unstructured_hydro_2d(
     double* velocity_x1, double* velocity_y1, double* velocity_z1,
     double* sub_cell_force_x, double* sub_cell_force_y,
     double* sub_cell_force_z, double* node_force_x, double* node_force_y,
-    double* node_force_z, double* node_force_x2, double* node_force_y2,
-    double* node_force_z2, double* cell_mass, double* nodal_mass,
+    double* node_force_z, double* cell_mass, double* nodal_mass,
     double* nodal_volumes, double* nodal_soundspeed, double* limiter,
     double* sub_cell_volume, double* sub_cell_energy, double* sub_cell_mass,
     double* sub_cell_velocity_x, double* sub_cell_velocity_y,
@@ -50,6 +49,501 @@ void solve_unstructured_hydro_2d(
     total_mass += cell_mass[(cc)];
   }
   printf("total mass %.12f\n", total_mass);
+
+// Calculate the sub-cell velocities
+
+#define N 8 // numbers of nodes
+#define F 6 // number of faces
+  double mn[N] = {1.0, 2.0, 3.0, 1.0, 3.0, 1.0, 2.0, 1.0};
+  int n_to_f[8 * 3] = {0, 1, 2, 0, 2, 3, 2, 3, 5, 1, 2, 5,
+                       0, 1, 4, 0, 3, 4, 3, 4, 5, 1, 4, 5};
+  int f_to_n[4 * 6] = {0, 1, 5, 4, 0, 3, 7, 4, 0, 1, 2, 3,
+                       1, 2, 6, 5, 4, 5, 6, 7, 3, 2, 6, 7};
+  int Nf[F] = {4, 4, 4, 4, 4, 4};
+  int Fn[N] = {3, 3, 3, 3, 3, 3, 3, 3};
+  double u[N] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+
+  double mid = 0.0;
+  for (int nn = 0; nn < N; ++nn) {
+    mid += u[nn] / N;
+  }
+
+  double mus = 0.0;
+  for (int nn = 0; nn < N; ++nn) {
+    double us = 0.0;
+    for (int ff = 0; ff < Fn[nn]; ++ff) {
+      int face = n_to_f[nn * 3 + ff];
+      int node;
+      double fc = 0.0;
+      for (int nn2 = 0; nn2 < Nf[face]; ++nn2) {
+        fc += u[f_to_n[face * 4 + nn2]] / Nf[face]; // Get the face center value
+        if (f_to_n[face * 4 + nn2] == nn) {
+          node = nn2;
+        }
+      }
+
+      us += (u[nn] + mid + fc +
+             0.5 * (u[nn] +
+                    u[f_to_n[face * 4 +
+                             ((node == Nf[face] - 1) ? (0) : (node + 1))]]));
+      us += (u[nn] + mid + fc +
+             0.5 * (u[nn] + u[f_to_n[face * 4 + ((node == 0) ? (Nf[face] - 1)
+                                                             : (node - 1))]]));
+    }
+    printf("us %.12f\n", us);
+    mus += mn[nn] * 0.25 * us / (2.0 * Fn[nn]);
+  }
+
+  double exp = 0.0;
+  for (int nn = 0; nn < N; ++nn) {
+    exp += mn[nn] * u[nn];
+  }
+
+  printf("mus : %.12f, exp: %.12f\n", mus, exp);
+
+#if 0
+  double a = 0.0;
+  for (int nn = 0; nn < N; ++nn) {
+    a += 2.5 * mn[nn] * u[nn];
+  }
+
+  double b = 0.0;
+  for (int nn = 0; nn < N; ++nn) {
+    double fc = 0.0;
+    for (int ff = 0; ff < Nf[nn]; ++ff) {
+      fc += u[f_to_n[nn * 3 + ff]] / Nf[ff]; // Get the face center value
+    }
+    b += (mn[nn] * fc) / Sn[nn];
+  }
+
+  double c = 0.0;
+  for (int nn = 0; nn < N; ++nn) {
+    double r = 0.0;
+    for (int nn2 = 0; nn2 < Nn[nn]; ++nn2) {
+      r += 2.0 * (u[n_to_n[nn * 3 + nn2]]);
+    }
+
+    c += (mn[nn] * r) / (2.0 * Sn[nn]);
+  }
+  double d = 0.0;
+  for (int nn = 0; nn < N; ++nn) {
+    d += mn[nn];
+  }
+
+  printf("%.6f %.6f %.6f %.6f, %.6f = %.6f\n", a, b, c, d, (a - b - c) / d,
+         mid);
+#endif // if 0
+
+  // Construct accurate sub-cell velocities
+  // TODO: THIS WONT WORK FOR PRISMS AT THE MOMENT, NEED TO LOOK INTO FIXING
+  // THIS ISSUE
+  for (int nn = 0; nn < nnodes; ++nn) {
+  }
+
+#if 0
+  /*
+   * REMAP STEP PROTOTYPE
+   */
+
+  // Calculate the sub-cell energies
+  for (int cc = 0; cc < ncells; ++cc) {
+    const int cells_off = cells_offsets[(cc)];
+    const int nedges = cells_offsets[(cc + 1)] - cells_off;
+    const int nsub_cells = nedges;
+    const int nnodes_by_cell = nedges;
+
+    // Fetch the cell centroids position
+    const double cell_c_x = cell_centroids_x[(cc)];
+    const double cell_c_y = cell_centroids_y[(cc)];
+
+    // TODO: Does this least squares implementation still work if we break
+    // some of the conditions that fall naturally from having even sides
+    // on all of our shapes?
+
+    /* Least squares regression taken from nodes in order to determine
+     * the gradients that exist across the internal energy */
+
+    // Calculate the coefficents to matrix M
+    double MTM[3] = {0.0}; // Describes the three unique quantities in (M^T.M)
+    double MT_del_phi[2] = {0.0};
+
+    // Calculate the coefficients for all edges
+    for (int ee = 0; ee < nedges; ++ee) {
+      const int neighbour_index = cells_to_cells[(cells_off + ee)];
+
+      // TODO: NOT SURE IF THIS IS THE CORRECT THING TO DO WITH BOUNDARY
+      // CONDITION
+      if (neighbour_index == IS_BOUNDARY) {
+        continue;
+      }
+
+      // Calculate the vector pointing between the cell centroids
+      double es_x = (cell_centroids_x[(neighbour_index)] - cell_c_x);
+      double es_y = (cell_centroids_y[(neighbour_index)] - cell_c_y);
+      const double centroid_distance = sqrt(es_x * es_x + es_y * es_y);
+      es_x /= centroid_distance;
+      es_y /= centroid_distance;
+
+      // The edge relating to our current neighbour
+      const int node_c_index = cells_to_nodes[(cells_off + ee)];
+      const int node_l_index =
+          (ee - 1 >= 0) ? cells_to_nodes[(cells_off + ee - 1)]
+                        : cells_to_nodes[(cells_off + nnodes_by_cell - 1)];
+
+      // Calculate the area vector for the face that we are looking at
+      double A_x = (nodes_y0[(node_l_index)] - nodes_y0[(node_c_index)]);
+      double A_y = -(nodes_x0[(node_l_index)] - nodes_x0[(node_c_index)]);
+
+      // Fix the direction that the area vector is pointing in
+      if ((A_x * es_x + A_y * es_y) < 0.0) {
+        A_x = -A_x;
+        A_y = -A_y;
+      }
+
+      // Calculate the gradient matrix
+      const double phi0 = energy0[(cc)];
+      const double phi_ff = energy0[(neighbour_index)];
+      MTM[0] += es_x * es_x;
+      MTM[1] += es_x * es_y;
+      MTM[2] += es_y * es_y;
+      MT_del_phi[0] += es_x * (phi_ff - phi0);
+      MT_del_phi[1] += es_y * (phi_ff - phi0);
+    }
+
+    // Solve the equation for the temperature gradients
+    const double MTM_det = (1.0 / (MTM[0] * MTM[2] - MTM[1] * MTM[1]));
+    const double grad_e_x =
+        MTM_det * (MT_del_phi[0] * MTM[2] - MT_del_phi[1] * MTM[1]);
+    const double grad_e_y =
+        MTM_det * (MT_del_phi[1] * MTM[0] - MT_del_phi[0] * MTM[1]);
+
+    // Calculate the energy density in the cell
+    double energy_density = energy0[(cc)] * density0[(cc)];
+
+    /* Can now determine the sub cell internal energy */
+
+    // Loop over all sub-cells to calculate integrals
+    for (int ss = 0; ss < nsub_cells; ++ss) {
+      // Determine the three point stencil of nodes around anchor node
+      const int node_l_index =
+          (ss == 0) ? cells_to_nodes[(cells_off + nnodes_by_cell - 1)]
+                    : cells_to_nodes[(cells_off) + (ss - 1)];
+      const int node_c_index = cells_to_nodes[(cells_off) + (ss)];
+      const int node_r_index = (ss == nnodes_by_cell - 1)
+                                   ? cells_to_nodes[(cells_off)]
+                                   : cells_to_nodes[(cells_off) + (ss + 1)];
+
+      // TODO: refactor the routines here so that they operate in loops...
+
+      // Get the anchor node position
+      const double node_c_x = nodes_x0[(node_c_index)];
+      const double node_c_y = nodes_y0[(node_c_index)];
+
+      // Get the midpoints between l and r nodes and current node
+      const double node_l_x = 0.5 * (nodes_x0[(node_l_index)] + node_c_x);
+      const double node_l_y = 0.5 * (nodes_y0[(node_l_index)] + node_c_y);
+      const double node_r_x = 0.5 * (node_c_x + nodes_x0[(node_r_index)]);
+      const double node_r_y = 0.5 * (node_c_y + nodes_y0[(node_r_index)]);
+
+      // Calculate the volume integral weighted by x and y
+      const double sub_cell_x_volume =
+          (1.0 / 6.0) *
+          ((node_c_x * node_c_x + node_c_x * node_r_x + node_r_x * node_r_x) *
+               (node_r_y - node_c_y) +
+           (node_r_x * node_r_x + node_r_x * cell_c_x + cell_c_x * cell_c_x) *
+               (cell_c_y - node_r_y) +
+           (cell_c_x * cell_c_x + cell_c_x * node_l_x + node_l_x * node_l_x) *
+               (node_l_y - cell_c_y) +
+           (node_l_x * node_l_x + node_l_x * node_c_x + node_c_x * node_c_x) *
+               (node_c_y - node_l_y));
+      const double sub_cell_y_volume =
+          (1.0 / 6.0) *
+          ((node_c_y * node_c_y + node_c_y * node_r_y + node_r_y * node_r_y) *
+               (node_r_x - node_c_x) +
+           (node_r_y * node_r_y + node_r_y * cell_c_y + cell_c_y * cell_c_y) *
+               (cell_c_x - node_r_x) +
+           (cell_c_y * cell_c_y + cell_c_y * node_l_y + node_l_y * node_l_y) *
+               (node_l_x - cell_c_x) +
+           (node_l_y * node_l_y + node_l_y * node_c_y + node_c_y * node_c_y) *
+               (node_c_x - node_l_x));
+
+      // Calculate the sub cell energy mass
+      double sub_cell_e_mass =
+          energy_density * sub_cell_volume[(cells_off + ss)] +
+          grad_e_x * (sub_cell_x_volume -
+                      sub_cell_volume[(cells_off + ss)] * cell_c_x) +
+          grad_e_y * (sub_cell_y_volume -
+                      sub_cell_volume[(cells_off + ss)] * cell_c_y);
+
+      sub_cell_energy[(cells_off + ss)] = sub_cell_e_mass;
+    }
+  }
+
+  // Calculate the sub-cell velocities and kinetic energy
+  for (int cc = 0; cc < ncells; ++cc) {
+    const int cells_off = cells_offsets[(cc)];
+    const int nsub_cells = cells_offsets[(cc + 1)] - cells_off;
+    const int nnodes_by_cell = nsub_cells;
+
+    double velocities_x[nnodes_by_cell];
+    double velocities_y[nnodes_by_cell];
+    double masses[nsub_cells];
+
+    // Privatise all of the data we will need
+    for (int ss = 0; ss < nsub_cells; ++ss) {
+      const int node_index = cells_to_nodes[(cells_off) + (ss)];
+      velocities_x[(ss)] = velocity_x0[(node_index)];
+      velocities_y[(ss)] = velocity_y0[(node_index)];
+      masses[(ss)] = sub_cell_mass[(cells_off + ss)];
+    }
+
+    // Calculate the constant coefficients for determining the sub-cell
+    // velocities and kinetic energies
+    double vel_coeff_x = 0.0;
+    double vel_coeff_y = 0.0;
+    double ke_coeff = 0.0;
+    for (int ss = 0; ss < nsub_cells; ++ss) {
+      const int p_index = (ss == 0) ? (nsub_cells - 1) : (ss - 1);
+      const int n_index = (ss == nsub_cells - 1) ? (0) : (ss + 1);
+      vel_coeff_x +=
+          velocities_x[(ss)] *
+          (4.0 * masses[(ss)] - masses[(p_index)] - masses[(n_index)]) /
+          (8.0 * cell_mass[(cc)]);
+      vel_coeff_y +=
+          velocities_y[(ss)] *
+          (4.0 * masses[(ss)] - masses[(p_index)] - masses[(n_index)]) /
+          (8.0 * cell_mass[(cc)]);
+      ke_coeff += 0.5 * (velocities_x[(ss)] * velocities_x[(ss)] +
+                         velocities_y[(ss)] * velocities_y[(ss)]) *
+                  (4.0 * masses[(ss)] - masses[(p_index)] - masses[(n_index)]) /
+                  (8.0 * cell_mass[(cc)]);
+    }
+
+    for (int ss = 0; ss < nsub_cells; ++ss) {
+      const int p_index = (ss == 0) ? (nsub_cells - 1) : (ss - 1);
+      const int n_index = (ss == nsub_cells - 1) ? (0) : (ss + 1);
+
+      // Store the sub-cell velocities
+      sub_cell_velocity_x[(cells_off + ss)] =
+          vel_coeff_x +
+          0.25 * (2.0 * velocities_x[(ss)] + 0.5 * velocities_x[(n_index)] +
+                  0.5 * velocities_x[(p_index)]);
+      sub_cell_velocity_y[(cells_off + ss)] =
+          vel_coeff_y +
+          0.25 * (2.0 * velocities_y[(ss)] + 0.5 * velocities_y[(n_index)] +
+                  0.5 * velocities_y[(p_index)]);
+
+      // Calculate the surrounding values of the kinetic energy
+      const double ke_c = 0.5 * (velocities_x[(ss)] * velocities_x[(ss)] +
+                                 velocities_y[(ss)] * velocities_y[(ss)]);
+      const double ke_p =
+          0.5 * (velocities_x[(p_index)] * velocities_x[(p_index)] +
+                 velocities_y[(p_index)] * velocities_y[(p_index)]);
+      const double ke_n =
+          0.5 * (velocities_x[(n_index)] * velocities_x[(n_index)] +
+                 velocities_y[(n_index)] * velocities_y[(n_index)]);
+
+      sub_cell_kinetic_energy[(cells_off + ss)] =
+          ke_coeff + 0.25 * (2.0 * ke_c + 0.5 * ke_n + 0.5 * ke_p);
+    }
+  }
+
+  initialise_sub_cell_centroids(ncells, cells_offsets, cells_to_nodes, nodes_x0,
+                                nodes_y0, cell_centroids_x, cell_centroids_y,
+                                sub_cell_centroids_x, sub_cell_centroids_y);
+
+  // TODO: Need to handle the boundary conditions here... in the other routine
+  // we simply ignore the boundaries in the gradient calculation, still not sure
+  // if this a reasonable approach but it's definitely the easiest
+
+  // Here we calculate the gradient for the quantity in each sub-cell
+  for (int cc = 0; cc < ncells; ++cc) {
+    const int cells_off = cells_offsets[(cc)];
+    const int nsub_cells = cells_offsets[(cc + 1)] - cells_off;
+
+    // Calculate the gradient of the change in density between the sub-cells
+    for (int ss = 0; ss < nsub_cells; ++ss) {
+      const int sub_cell_c_index = (cells_off + ss);
+      const int node_c_index = cells_to_nodes[(cells_off) + (ss)];
+
+      const int nodes_off = nodes_offsets[(node_c_index)];
+      const int ncells_by_node = nodes_offsets[(node_c_index + 1)] - nodes_off;
+
+      // Scan through the cells attached to the sub-cell's external node, to
+      // fetch the two cells that neighbour the sub-cell
+      int out_cell_index[2] = {-1, -1};
+      for (int cc2 = 0; cc2 < ncells_by_node; ++cc2) {
+        const int cell_index = nodes_to_cells[(nodes_off + cc2)];
+        if (cell_index == cc) {
+          // We have found our current cell, so get the neighbours
+          out_cell_index[0] =
+              (cc2 == 0) ? nodes_to_cells[(nodes_off + ncells_by_node - 1)]
+                         : nodes_to_cells[(nodes_off) + (cc2 - 1)];
+          out_cell_index[1] = (cc2 == ncells_by_node - 1)
+                                  ? nodes_to_cells[(nodes_off)]
+                                  : nodes_to_cells[(nodes_off) + (cc2 + 1)];
+          break;
+        }
+      }
+
+      if (out_cell_index[0] == -1 || out_cell_index[1] == -1) {
+        TERMINATE(
+            "We were not able to find the cell neighbouring this sub-cell.");
+      }
+
+      // The indices for sub-cells in neighbourhood of current sub-cell
+      int sub_cell_neighbour_indices[nsub_cell_edges];
+
+      for (int oo = 0; oo < 2; ++oo) {
+        const int out_cells_off = cells_offsets[(out_cell_index[oo])];
+        const int out_nnodes =
+            cells_offsets[(out_cell_index[oo] + 1)] - cells_off;
+
+        for (int nn = 0; nn < out_nnodes; ++nn) {
+          const int out_node_c_index = cells_to_nodes[(out_cells_off + nn)];
+          if (node_c_index == node_c_index) {
+            // We have found the neighbouring sub-cell
+            sub_cell_neighbour_indices[oo] = (out_cells_off + nn);
+            break;
+          }
+        }
+      }
+
+      sub_cell_neighbour_indices[2] =
+          (ss == nsub_cells - 1) ? (cells_off + 0) : (cells_off + ss + 1);
+      sub_cell_neighbour_indices[3] =
+          (ss == 0) ? (cells_off + nsub_cells - 1) : (cells_off + ss - 1);
+
+      // Loop over all of the neighbours
+      double a = 0.0;
+      double b = 0.0;
+      double c = 0.0;
+      double d = 0.0;
+      double e = 0.0;
+
+      // Fetch the density for the sub-cell
+      double sub_cell_c_density = sub_cell_mass[(sub_cell_c_index)] /
+                                  sub_cell_volume[(sub_cell_c_index)];
+
+      for (int nn = 0; nn < nsub_cell_edges; ++nn) {
+        const int sub_cell_n_index = sub_cell_neighbour_indices[(nn)];
+
+        // Fetch the density for the neighbour
+        double sub_cell_n_density = sub_cell_mass[(sub_cell_c_index)] /
+                                    sub_cell_volume[(sub_cell_c_index)];
+
+        // Calculate the differential quantities
+        const double dx = sub_cell_centroids_x[(sub_cell_n_index)] -
+                          sub_cell_centroids_x[(sub_cell_c_index)];
+        const double dy = sub_cell_centroids_y[(sub_cell_n_index)] -
+                          sub_cell_centroids_y[(sub_cell_c_index)];
+        const double drho = sub_cell_n_density - sub_cell_c_density;
+
+        double omega2 = 1.0 / (dx * dx + dy * dy);
+
+        // Calculate the coefficients for the minimisation
+        a += omega2 * dx * dx;
+        b += omega2 * dx * dy;
+        c += omega2 * dy * dy;
+        d += omega2 * drho * dx;
+        e += omega2 * drho * dy;
+      }
+
+      // Solve the minimisation problem to get the gradients for the sub-cell
+      sub_cell_grad_x[(sub_cell_c_index)] = (c * d - b * e) / (a * c - b * b);
+      sub_cell_grad_y[(sub_cell_c_index)] = (a * e - b * d) / (a * c - b * b);
+    }
+  }
+
+  // Here we are going to update the mass using the linear function that we have
+  // now been able to successfully describe for all of the sub-cells
+  for (int cc = 0; cc < ncells; ++cc) {
+    const int cells_off = cells_offsets[(cc)];
+    const int nsub_cells = cells_offsets[(cc + 1)] - cells_off;
+
+    // Store the cell centroids as these are the same for all of the
+    // sub-cells that are within this cell
+    const double cell_c_x = cell_centroids_x[(cell_index)];
+    const double cell_c_y = cell_centroids_y[(cell_index)];
+    const double rezoned_cell_c_x = cell_centroids_x[(cell_index)];
+    const double rezoned_cell_c_y = cell_centroids_y[(cell_index)];
+
+    // Consider all of the sub-cells that are in the new grid, assuming that we
+    // have maintained identical connectivity
+    for (int ss = 0; ss < nsub_cells; ++ss) {
+      const int sub_cell_c_index = (cells_off + ss);
+
+      // Determine the three point stencil of nodes around anchor node
+      const int node_l_index =
+          (ss == 0) ? cells_to_nodes[(cells_off + nnodes_by_cell - 1)]
+                    : cells_to_nodes[(cells_off) + (ss - 1)];
+      const int node_c_index = cells_to_nodes[(cells_off) + (ss)];
+      const int node_r_index = (ss == nnodes_by_cell - 1)
+                                   ? cells_to_nodes[(cells_off)]
+                                   : cells_to_nodes[(cells_off) + (ss + 1)];
+
+      // Calculate the nodes surrounding the sub-cell
+      double sub_cell_nodes_x[nsub_cell_edges];
+      double sub_cell_nodes_y[nsub_cell_edges];
+      double new_sub_cell_nodes_x[nsub_cell_edges];
+      double new_sub_cell_nodes_y[nsub_cell_edges];
+
+      // The sub-cell is surrounded by the anchor node, midpoints on the outer
+      // edges and the center of the cell
+      sub_cell_nodes_x[0] = nodes_x0[(node_c_index)];
+      sub_cell_nodes_y[0] = nodes_y0[(node_c_index)];
+      sub_cell_nodes_x[1] = 0.5 * (node_c_x + nodes_x0[(node_r_index)]);
+      sub_cell_nodes_y[1] = 0.5 * (node_c_y + nodes_y0[(node_r_index)]);
+      sub_cell_nodes_x[2] = cell_c_x;
+      sub_cell_nodes_y[2] = cell_c_y;
+      sub_cell_nodes_x[3] = 0.5 * (nodes_x0[(node_l_index)] + node_c_x);
+      sub_cell_nodes_y[3] = 0.5 * (nodes_y0[(node_l_index)] + node_c_y);
+
+      // Get the same data for the new sub-cell after rezoning
+      new_sub_cell_nodes_x[0] = rezoned_nodes_x0[(node_c_index)];
+      new_sub_cell_nodes_y[0] = rezoned_nodes_y0[(node_c_index)];
+      new_sub_cell_nodes_x[1] =
+          0.5 * (node_c_x + rezoned_nodes_x0[(node_r_index)]);
+      new_sub_cell_nodes_y[1] =
+          0.5 * (node_c_y + rezoned_nodes_y0[(node_r_index)]);
+      new_sub_cell_nodes_x[2] = cell_c_x;
+      new_sub_cell_nodes_y[2] = cell_c_y;
+      new_sub_cell_nodes_x[3] =
+          0.5 * (rezoned_nodes_x0[(node_l_index)] + node_c_x);
+      new_sub_cell_nodes_y[3] =
+          0.5 * (rezoned_nodes_y0[(node_l_index)] + node_c_y);
+
+      for (int ee = 0; ee < nsub_cell_edges; ++ee) {
+        const int node0_off = (cells_off + ss);
+        const int node1_off =
+            (ss == nsub_cells - 1) ? (cells_off) : (cells_off + ss);
+
+        const int node0_index = cells_to_nodes[(node0_off)];
+        const int node1_index = cells_to_nodes[(node1_off)];
+
+        // This ordering of nodes encompasses the swept region for the edge
+        double nodes_x[nsub_cell_indices];
+        double nodes_y[nsub_cell_indices];
+        nodes_x[0] = nodes_x0[(node0_index)];
+        nodes_x[1] = nodes_x0[(node1_index)];
+        nodes_x[2] = rezoned_nodes_x[(node1_index)];
+        nodes_x[3] = rezoned_nodes_x[(node0_index)];
+        nodes_y[0] = nodes_y0[(node0_index)];
+        nodes_y[1] = nodes_y0[(node1_index)];
+        nodes_y[2] = rezoned_nodes_y[(node1_index)];
+        nodes_y[3] = rezoned_nodes_y[(node0_index)];
+
+        // We want to calculate the volume integral
+        double volume = 0.0;
+        for (int nn = 0; nn < nsub_cell_indices; ++nn) {
+          volume += 0.5 * (nodes_x[0] * nodes_x[1]) * (nodes_y[1] - nodes_y[0]);
+        }
+
+        // The sign of the volume determines the donor sub-cell
+      }
+    }
+  }
+#endif // if 0
 
   /*
    *    PREDICTOR
@@ -295,10 +789,9 @@ void solve_unstructured_hydro_2d(
       nodes_offsets, nodes_to_cells, nodes_x0, nodes_y0, nodes_z0,
       cell_centroids_x, cell_centroids_y, cell_centroids_z, velocity_x0,
       velocity_y0, velocity_z0, nodal_soundspeed, nodal_mass, nodal_volumes,
-      limiter, node_force_x, node_force_y, node_force_z, node_force_x2,
-      node_force_y2, node_force_z2, nodes_to_faces_offsets, nodes_to_faces,
-      faces_to_nodes_offsets, faces_to_nodes, faces_to_cells0, faces_to_cells1,
-      cells_to_faces_offsets, cells_to_faces);
+      limiter, node_force_x, node_force_y, node_force_z, nodes_to_faces_offsets,
+      nodes_to_faces, faces_to_nodes_offsets, faces_to_nodes, faces_to_cells0,
+      faces_to_cells1, cells_to_faces_offsets, cells_to_faces);
 
   // Calculate the time centered evolved velocities, by first calculating the
   // predicted values at the new timestep and then averaging with current
@@ -712,10 +1205,9 @@ void solve_unstructured_hydro_2d(
       nodes_offsets, nodes_to_cells, nodes_x1, nodes_y1, nodes_z1,
       cell_centroids_x, cell_centroids_y, cell_centroids_z, velocity_x1,
       velocity_y1, velocity_z1, nodal_soundspeed, nodal_mass, nodal_volumes,
-      limiter, node_force_x, node_force_y, node_force_z, node_force_x2,
-      node_force_y2, node_force_z2, nodes_to_faces_offsets, nodes_to_faces,
-      faces_to_nodes_offsets, faces_to_nodes, faces_to_cells0, faces_to_cells1,
-      cells_to_faces_offsets, cells_to_faces);
+      limiter, node_force_x, node_force_y, node_force_z, nodes_to_faces_offsets,
+      nodes_to_faces, faces_to_nodes_offsets, faces_to_nodes, faces_to_cells0,
+      faces_to_cells1, cells_to_faces_offsets, cells_to_faces);
 
   START_PROFILING(&compute_profile);
 #pragma omp parallel for simd
@@ -1113,8 +1605,7 @@ void calculate_artificial_viscosity(
     const double* velocity_z, const double* nodal_soundspeed,
     const double* nodal_mass, const double* nodal_volumes,
     const double* limiter, double* node_force_x, double* node_force_y,
-    double* node_force_z, double* node_force_x2, double* node_force_y2,
-    double* node_force_z2, int* nodes_to_faces_offsets, int* nodes_to_faces,
+    double* node_force_z, int* nodes_to_faces_offsets, int* nodes_to_faces,
     int* faces_to_nodes_offsets, int* faces_to_nodes, int* faces_to_cells0,
     int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces) {
 
@@ -1269,5 +1760,5 @@ void calculate_artificial_viscosity(
       }
     }
   }
-  STOP_PROFILING(&compute_profile, "calc_new_energy");
+  STOP_PROFILING(&compute_profile, __func__);
 }

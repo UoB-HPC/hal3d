@@ -27,6 +27,7 @@ size_t initialise_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
   allocated += allocate_data(&hale_data->rezoned_nodes_x, umesh->nnodes);
   allocated += allocate_data(&hale_data->rezoned_nodes_y, umesh->nnodes);
   allocated += allocate_data(&hale_data->rezoned_nodes_z, umesh->nnodes);
+#if 0
   allocated += allocate_data(&hale_data->sub_cell_volume,
                              umesh->ncells * umesh->nnodes_by_cell);
   allocated += allocate_data(&hale_data->sub_cell_force_x,
@@ -53,17 +54,12 @@ size_t initialise_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
                              umesh->ncells * umesh->nnodes_by_cell);
   allocated += allocate_data(&hale_data->sub_cell_grad_z,
                              umesh->ncells * umesh->nnodes_by_cell);
+#endif // if 0
   allocated += allocate_data(&hale_data->node_force_x,
                              umesh->ncells * umesh->nnodes_by_cell);
   allocated += allocate_data(&hale_data->node_force_y,
                              umesh->ncells * umesh->nnodes_by_cell);
   allocated += allocate_data(&hale_data->node_force_z,
-                             umesh->ncells * umesh->nnodes_by_cell);
-  allocated += allocate_data(&hale_data->node_force_x2,
-                             umesh->ncells * umesh->nnodes_by_cell);
-  allocated += allocate_data(&hale_data->node_force_y2,
-                             umesh->ncells * umesh->nnodes_by_cell);
-  allocated += allocate_data(&hale_data->node_force_z2,
                              umesh->ncells * umesh->nnodes_by_cell);
 
   // In hale, the fundamental principle is that the mass at the cell and
