@@ -54,20 +54,21 @@ void solve_unstructured_hydro_2d(
 
 #define N 8 // numbers of nodes
 #define F 6 // number of faces
-  double mn[N] = {1.0, 2.0, 3.0, 1.0, 3.0, 1.0, 2.0, 1.0};
+  double mn[N] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
   int n_to_f[8 * 3] = {0, 1, 2, 0, 2, 3, 2, 3, 5, 1, 2, 5,
                        0, 1, 4, 0, 3, 4, 3, 4, 5, 1, 4, 5};
   int f_to_n[4 * 6] = {0, 1, 5, 4, 0, 3, 7, 4, 0, 1, 2, 3,
                        1, 2, 6, 5, 4, 5, 6, 7, 3, 2, 6, 7};
   int Nf[F] = {4, 4, 4, 4, 4, 4};
   int Fn[N] = {3, 3, 3, 3, 3, 3, 3, 3};
-  double u[N] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+  double u[N] = {2.0, 1.0, 1.0, 2.0, 1.0, 2.0, 4.5, 1.0};
 
   double mid = 0.0;
   for (int nn = 0; nn < N; ++nn) {
     mid += u[nn] / N;
   }
 
+#if 0
   double mus = 0.0;
   for (int nn = 0; nn < N; ++nn) {
     double us = 0.0;
@@ -100,31 +101,34 @@ void solve_unstructured_hydro_2d(
   }
 
   printf("mus : %.12f, exp: %.12f\n", mus, exp);
+#endif // if 0
 
-#if 0
   double a = 0.0;
   for (int nn = 0; nn < N; ++nn) {
     a += 2.5 * mn[nn] * u[nn];
   }
 
   double b = 0.0;
-  for (int nn = 0; nn < N; ++nn) {
-    double fc = 0.0;
-    for (int ff = 0; ff < Nf[nn]; ++ff) {
-      fc += u[f_to_n[nn * 3 + ff]] / Nf[ff]; // Get the face center value
-    }
-    b += (mn[nn] * fc) / Sn[nn];
-  }
-
   double c = 0.0;
   for (int nn = 0; nn < N; ++nn) {
     double r = 0.0;
-    for (int nn2 = 0; nn2 < Nn[nn]; ++nn2) {
-      r += 2.0 * (u[n_to_n[nn * 3 + nn2]]);
+    for (int ff = 0; ff < Fn[nn]; ++ff) {
+      double fc = 0.0;
+      int face = n_to_f[nn * 3 + ff];
+      int node;
+      for (int nn2 = 0; nn2 < Nf[face]; ++nn2) {
+        fc += u[f_to_n[face * 4 + nn2]] / Nf[face]; // Get the face center value
+        if (f_to_n[face * 4 + nn2] == nn) {
+          node = nn2;
+        }
+      }
+      r += u[f_to_n[face * 4 + ((node == Nf[face] - 1) ? (0) : (node + 1))]];
+      r += u[f_to_n[face * 4 + ((node == 0) ? (Nf[face] - 1) : (node - 1))]];
+      b += (mn[nn] * 2.0 * fc) / (2.0 * Fn[nn]);
     }
-
-    c += (mn[nn] * r) / (2.0 * Sn[nn]);
+    c += (mn[nn] * r) / (4.0 * Fn[nn]);
   }
+
   double d = 0.0;
   for (int nn = 0; nn < N; ++nn) {
     d += mn[nn];
@@ -132,7 +136,6 @@ void solve_unstructured_hydro_2d(
 
   printf("%.6f %.6f %.6f %.6f, %.6f = %.6f\n", a, b, c, d, (a - b - c) / d,
          mid);
-#endif // if 0
 
   // Construct accurate sub-cell velocities
   // TODO: THIS WONT WORK FOR PRISMS AT THE MOMENT, NEED TO LOOK INTO FIXING
