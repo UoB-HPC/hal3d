@@ -56,6 +56,7 @@ void solve_unstructured_hydro_2d(
     velocity_z0[(nn)] = 1.0;
   }
 
+  // Collect the sub-cell centered velocities
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
@@ -72,10 +73,10 @@ void solve_unstructured_hydro_2d(
 
       const double mass = sub_cell_mass[(cell_to_nodes_off + nn)];
 
+      int Sn = 0;
       double b_x = 0.0;
       double b_y = 0.0;
       double b_z = 0.0;
-      int Sn = 0;
 
       for (int ff = 0; ff < nfaces_by_node; ++ff) {
         const int face_index = nodes_to_faces[(node_to_faces_off + ff)];
@@ -86,7 +87,7 @@ void solve_unstructured_hydro_2d(
         }
 
         // We have encountered a true face
-        Sn++;
+        Sn += 2;
 
         const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
         const int nnodes_by_face =
@@ -119,12 +120,12 @@ void solve_unstructured_hydro_2d(
 
         // Add the contributions for the right and left nodes on the face
         // TODO: COULD THIS DONE WITH node_to_node INSTEAD??
-        b_x += 0.5 * (velocity_x0[(node_l_index)]);
-        b_y += 0.5 * (velocity_y0[(node_l_index)]);
-        b_z += 0.5 * (velocity_z0[(node_l_index)]);
-        b_x += 0.5 * (velocity_x0[(node_r_index)]);
-        b_y += 0.5 * (velocity_y0[(node_r_index)]);
-        b_z += 0.5 * (velocity_z0[(node_r_index)]);
+        b_x += 0.5 * velocity_x0[(node_l_index)];
+        b_y += 0.5 * velocity_y0[(node_l_index)];
+        b_z += 0.5 * velocity_z0[(node_l_index)];
+        b_x += 0.5 * velocity_x0[(node_r_index)];
+        b_y += 0.5 * velocity_y0[(node_r_index)];
+        b_z += 0.5 * velocity_z0[(node_r_index)];
 
         // Add the face center contributions
         b_x += 2.0 * face_center_x;
@@ -132,13 +133,10 @@ void solve_unstructured_hydro_2d(
         b_z += 2.0 * face_center_z;
       }
 
-      a_x += mass * (2.5 * velocity_x0[(node_index)] + b_x / (2.0 * Sn));
-      a_y += mass * (2.5 * velocity_y0[(node_index)] + b_y / (2.0 * Sn));
-      a_z += mass * (2.5 * velocity_z0[(node_index)] + b_z / (2.0 * Sn));
+      a_x += mass * (2.5 * velocity_x0[(node_index)] - b_x / Sn);
+      a_y += mass * (2.5 * velocity_y0[(node_index)] - b_y / Sn);
+      a_z += mass * (2.5 * velocity_z0[(node_index)] - b_z / Sn);
     }
-    printf("(%.5f %.5f %.5f)\n", a_x / cell_mass[(cc)], a_y / cell_mass[(cc)],
-           a_z / cell_mass[(cc)]);
-    printf("(%.5f %.5f %.5f)\n", a_x, a_y, a_z);
   }
 
 #if 0
@@ -209,12 +207,6 @@ void solve_unstructured_hydro_2d(
   }
   printf("%.12f=%.12f %.12f=%.12f\n", uc, mid, res, exp);
 #endif // if 0
-
-  // Construct accurate sub-cell velocities
-  // TODO: THIS WONT WORK FOR PRISMS AT THE MOMENT, NEED TO LOOK INTO FIXING
-  // THIS ISSUE
-  for (int nn = 0; nn < nnodes; ++nn) {
-  }
 
 #if 0
   /*
