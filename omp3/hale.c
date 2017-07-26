@@ -50,12 +50,6 @@ void solve_unstructured_hydro_2d(
   }
   printf("total mass %.12f\n", total_mass);
 
-  for (int nn = 0; nn < nnodes; ++nn) {
-    velocity_x0[(nn)] = 1.2;
-    velocity_y0[(nn)] = 4.2;
-    velocity_z0[(nn)] = 1.2;
-  }
-
   // The idea of the algorithm in 3d is to calculate the face centered and cell
   // centered velocities using the 2d and 3d equations
   //
@@ -84,7 +78,6 @@ void solve_unstructured_hydro_2d(
       double b_x = 0.0;
       double b_y = 0.0;
       double b_z = 0.0;
-      double mass = sub_cell_mass[(cell_to_nodes_off + nn)];
       for (int ff = 0; ff < nfaces_by_node; ++ff) {
         const int face_index = nodes_to_faces[(node_to_faces_off + ff)];
         if ((faces_to_cells0[(face_index)] != cc &&
@@ -102,6 +95,10 @@ void solve_unstructured_hydro_2d(
 
         // Look at all of the nodes around a face
         int node;
+        double f_x = 0.0;
+        double f_y = 0.0;
+        double f_z = 0.0;
+        double face_mass = 0.0;
         for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
           const int node_index0 = faces_to_nodes[(face_to_nodes_off + nn2)];
           const int node_l_index =
@@ -114,16 +111,17 @@ void solve_unstructured_hydro_2d(
                   : faces_to_nodes[(face_to_nodes_off + nn2 + 1)];
 
           // Add the face center contributions
-          b_x += 2.0 * mass * (2.0 * velocity_x0[(node_index0)] -
-                               0.5 * velocity_x0[(node_l_index)] -
-                               0.5 * velocity_x0[(node_r_index)]);
-          b_y += 2.0 * mass * (2.0 * velocity_y0[(node_index0)] -
-                               0.5 * velocity_y0[(node_l_index)] -
-                               0.5 * velocity_y0[(node_r_index)]);
-          b_z += 2.0 * mass * (2.0 * velocity_z0[(node_index0)] -
-                               0.5 * velocity_z0[(node_l_index)] -
-                               0.5 * velocity_z0[(node_r_index)]);
-
+          double mass = sub_cell_mass[(cell_to_nodes_off + nn2)];
+          f_x += mass * (2.0 * velocity_x0[(node_index0)] -
+                         0.5 * velocity_x0[(node_l_index)] -
+                         0.5 * velocity_x0[(node_r_index)]);
+          f_y += mass * (2.0 * velocity_y0[(node_index0)] -
+                         0.5 * velocity_y0[(node_l_index)] -
+                         0.5 * velocity_y0[(node_r_index)]);
+          f_z += mass * (2.0 * velocity_z0[(node_index0)] -
+                         0.5 * velocity_z0[(node_l_index)] -
+                         0.5 * velocity_z0[(node_r_index)]);
+          face_mass += mass;
           if (node_index0 == node_index) {
             node = nn2;
           }
@@ -138,15 +136,16 @@ void solve_unstructured_hydro_2d(
                 ? faces_to_nodes[(face_to_nodes_off)]
                 : faces_to_nodes[(face_to_nodes_off + node + 1)];
 
-        // Add the contributions for the right and left nodes on the face
+        // Add contributions for right, left, and face center
         b_x += 0.5 * velocity_x0[(node_l_index)] +
-               0.5 * velocity_x0[(node_r_index)];
+               0.5 * velocity_x0[(node_r_index)] + 2.0 * f_x / face_mass;
         b_y += 0.5 * velocity_y0[(node_l_index)] +
-               0.5 * velocity_y0[(node_r_index)];
+               0.5 * velocity_y0[(node_r_index)] + 2.0 * f_y / face_mass;
         b_z += 0.5 * velocity_z0[(node_l_index)] +
-               0.5 * velocity_z0[(node_r_index)];
+               0.5 * velocity_z0[(node_r_index)] + 2.0 * f_z / face_mass;
       }
 
+      double mass = sub_cell_mass[(cell_to_nodes_off + nn)];
       uc_x += mass * (2.5 * velocity_x0[(node_index)] - (b_x / Sn)) /
               cell_mass[(cc)];
       uc_y += mass * (2.5 * velocity_y0[(node_index)] - (b_y / Sn)) /
@@ -154,7 +153,6 @@ void solve_unstructured_hydro_2d(
       uc_z += mass * (2.5 * velocity_z0[(node_index)] - (b_z / Sn)) /
               cell_mass[(cc)];
     }
-    printf("%.12f %.12f %.12f\n\n", uc_x, uc_y, uc_z);
 
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int node_index = (cells_to_nodes[(cell_to_nodes_off + nn)]);
@@ -162,11 +160,10 @@ void solve_unstructured_hydro_2d(
       const int nfaces_by_node =
           nodes_to_faces_offsets[(node_index + 1)] - node_to_faces_off;
 
+      int Sn = 0;
       double b_x = 0.0;
       double b_y = 0.0;
       double b_z = 0.0;
-      int Sn = 0;
-
       for (int ff = 0; ff < nfaces_by_node; ++ff) {
         const int face_index = nodes_to_faces[(node_to_faces_off + ff)];
         if ((faces_to_cells0[(face_index)] != cc &&
@@ -183,6 +180,10 @@ void solve_unstructured_hydro_2d(
             faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
 
         int node;
+        double f_x = 0.0;
+        double f_y = 0.0;
+        double f_z = 0.0;
+        double face_mass = 0.0;
         for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
 
           const int node_index0 = faces_to_nodes[(face_to_nodes_off + nn2)];
@@ -197,15 +198,16 @@ void solve_unstructured_hydro_2d(
 
           // Add the face center contributions
           double mass = sub_cell_mass[(cell_to_nodes_off + nn2)];
-          b_x += 2.0 * (mass * (2.0 * velocity_x0[(node_index0)] -
-                                0.5 * velocity_x0[(node_l_index)] -
-                                0.5 * velocity_x0[(node_r_index)]));
-          b_y += 2.0 * (mass * (2.0 * velocity_y0[(node_index0)] -
-                                0.5 * velocity_y0[(node_l_index)] -
-                                0.5 * velocity_y0[(node_r_index)]));
-          b_z += 2.0 * (mass * (2.0 * velocity_z0[(node_index0)] -
-                                0.5 * velocity_z0[(node_l_index)] -
-                                0.5 * velocity_z0[(node_r_index)]));
+          f_x += mass * (2.0 * velocity_x0[(node_index0)] -
+                         0.5 * velocity_x0[(node_l_index)] -
+                         0.5 * velocity_x0[(node_r_index)]);
+          f_y += mass * (2.0 * velocity_y0[(node_index0)] -
+                         0.5 * velocity_y0[(node_l_index)] -
+                         0.5 * velocity_y0[(node_r_index)]);
+          f_z += mass * (2.0 * velocity_z0[(node_index0)] -
+                         0.5 * velocity_z0[(node_l_index)] -
+                         0.5 * velocity_z0[(node_r_index)]);
+          face_mass += mass;
 
           if (node_index0 == node_index) {
             node = nn2;
@@ -222,12 +224,12 @@ void solve_unstructured_hydro_2d(
                 : faces_to_nodes[(face_to_nodes_off + node + 1)];
 
         // Add right and left node contributions
-        b_x +=
-            0.5 * (velocity_x0[(node_l_index)] + velocity_x0[(node_r_index)]);
-        b_y +=
-            0.5 * (velocity_y0[(node_l_index)] + velocity_y0[(node_r_index)]);
-        b_z +=
-            0.5 * (velocity_z0[(node_l_index)] + velocity_z0[(node_r_index)]);
+        b_x += 0.5 * velocity_x0[(node_l_index)] +
+               0.5 * velocity_x0[(node_r_index)] + 2.0 * f_x / face_mass;
+        b_y += 0.5 * velocity_y0[(node_l_index)] +
+               0.5 * velocity_y0[(node_r_index)] + 2.0 * f_y / face_mass;
+        b_z += 0.5 * velocity_z0[(node_l_index)] +
+               0.5 * velocity_z0[(node_r_index)] + 2.0 * f_z / face_mass;
       }
 
       // Calculate the final sub-cell velocities
@@ -240,16 +242,25 @@ void solve_unstructured_hydro_2d(
     }
   }
 
+#if 0
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+    double scv = 0.0;
+    double v = 0.0;
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
       printf("%.12f %.12f %.12f\n",
              sub_cell_velocity_x[(cell_to_nodes_off + nn)],
              sub_cell_velocity_y[(cell_to_nodes_off + nn)],
              sub_cell_velocity_z[(cell_to_nodes_off + nn)]);
+      scv += sub_cell_mass[(cell_to_nodes_off + nn)] *
+             sub_cell_velocity_x[(cell_to_nodes_off + nn)];
+      v += sub_cell_mass[(cell_to_nodes_off + nn)] *
+           velocity_x0[cells_to_nodes[(cell_to_nodes_off + nn)]];
     }
+    printf("%.12f=%.12f\n", scv, v);
   }
+#endif // if 0
 
 #if 0
   double b = 0.0;
