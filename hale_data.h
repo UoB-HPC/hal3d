@@ -13,6 +13,8 @@
 #define HALE_PARAMS "hale.params"
 #define HALE_TESTS "hale.tests"
 
+enum { XYZ, YZX, ZXY };
+
 typedef struct {
   double* energy0;
   double* energy1;
