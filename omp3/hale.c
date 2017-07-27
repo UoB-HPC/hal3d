@@ -290,25 +290,34 @@ void solve_unstructured_hydro_2d(
       double normal[3];
       double omega;
 
+      // Choosing three nodes for calculating the unit normal
+      // We can obviously assume there are at least three nodes
+      const int n0 = faces_to_nodes[(faces_to_nodes_off)];
+      const int n1 = faces_to_nodes[(faces_to_nodes_off + 1)];
+      const int n2 = faces_to_nodes[(faces_to_nodes_off + 2)];
+
       // The orientation determines which order we pass the nodes by axes
       if (orientation == XYZ) {
-        calculate_face_integrals(nnodes_by_face, face_to_nodes_off, nodes_x0,
-                                 nodes_y0, nodes_z0, pi);
-        calculate_normal_vector(nodes_x0, nodes_y0, nodes_z0, normal);
+        calc_face_integrals(nnodes_by_face, face_to_nodes_off, nodes_x0,
+                            nodes_y0, nodes_z0, pi);
+        calc_unit_normal_vector(n0, n1, n2, nodes_x0, nodes_y0, nodes_z0,
+                                normal);
         omega = (normal[0] * nodes_x0[(node_index)] +
                  normal[1] * normal_y0[(node_index)] +
                  normal[2] * normal_z0[(node_index)]);
       } else if (orientation == YZX) {
-        calculate_face_integrals(nnodes_by_face, face_to_nodes_off, nodes_y0,
-                                 nodes_z0, nodes_x0, pi);
-        calculate_normal_vector(nodes_y0, nodes_z0, nodes_x0, normal);
+        calc_face_integrals(nnodes_by_face, face_to_nodes_off, nodes_y0,
+                            nodes_z0, nodes_x0, pi);
+        calc_unit_normal_vector(n0, n1, n2, nodes_y0, nodes_z0, nodes_x0,
+                                normal);
         omega = (normal[0] * nodes_y0[(node_index)] +
                  normal[1] * normal_z0[(node_index)] +
                  normal[2] * normal_x0[(node_index)]);
       } else if (orientation == ZXY) {
-        calculate_face_integrals(nnodes_by_face, face_to_nodes_off, nodes_z0,
-                                 nodes_x0, nodes_y0, pi);
-        calculate_normal_vector(nodes_z0, nodes_x0, nodes_y0, normal);
+        calc_face_integrals(nnodes_by_face, face_to_nodes_off, nodes_z0,
+                            nodes_x0, nodes_y0, pi);
+        calc_unit_normal_vector(n0, n1, n2, nodes_z0, nodes_x0, nodes_y0,
+                                normal);
         omega = (normal[0] * nodes_z0[(node_index)] +
                  normal[1] * normal_x0[(node_index)] +
                  normal[2] * normal_y0[(node_index)]);
@@ -321,14 +330,10 @@ void solve_unstructured_hydro_2d(
 }
 
 // Calculate the normal vector from the provided nodes
-void calculate_normal_vector(const double nnodes_by_face,
-                             const double face_to_nodes_off, double* alpha,
+void calc_unit_normal_vector(const double nnodes_by_face,
+                             const double face_to_nodes_off,
+                             const int* faces_to_nodes, double* alpha,
                              double* beta, double* gamma, double* normal) {
-
-  // We can obviously assume there are at least three nodes
-  const double n0 = faces_to_nodes[(faces_to_nodes_off)];
-  const double n1 = faces_to_nodes[(faces_to_nodes_off + 1)];
-  const double n2 = faces_to_nodes[(faces_to_nodes_off + 2)];
 
   // Get two vectors on the face plane
   double dn0[3];
@@ -355,9 +360,9 @@ void calculate_normal_vector(const double nnodes_by_face,
 
 // Calculates the face integral for the provided face, projected onto
 // the two-dimensional basis
-void calculate_face_integral(const double nnodes_by_face,
-                             const double face_to_nodes_off, double* alpha,
-                             double* beta, double* gamma, double* pi) {
+void calc_face_integral(const double nnodes_by_face,
+                        const double face_to_nodes_off, double* alpha,
+                        double* beta, double* gamma, double* pi) {
   double pi1 = 0.0;
   double pi_alpha = 0.0;
   double pi_alpha2 = 0.0;
@@ -462,7 +467,7 @@ void set_timestep(const int ncells, const int* cells_to_nodes,
 }
 
 // Initialises the cell mass, sub-cell mass and sub-cell volume
-void initialise_mesh_mass(
+void init_mesh_mass(
     const int ncells, const int* cells_offsets, const double* cell_centroids_x,
     const double* cell_centroids_y, const double* cell_centroids_z,
     const int* cells_to_nodes, const double* density, const double* nodes_x,
@@ -563,12 +568,11 @@ void initialise_mesh_mass(
 }
 
 // Initialises the centroids for each cell
-void initialise_cell_centroids(const int ncells, const int* cells_offsets,
-                               const int* cells_to_nodes, const double* nodes_x,
-                               const double* nodes_y, const double* nodes_z,
-                               double* cell_centroids_x,
-                               double* cell_centroids_y,
-                               double* cell_centroids_z) {
+void init_cell_centroids(const int ncells, const int* cells_offsets,
+                         const int* cells_to_nodes, const double* nodes_x,
+                         const double* nodes_y, const double* nodes_z,
+                         double* cell_centroids_x, double* cell_centroids_y,
+                         double* cell_centroids_z) {
   // Calculate the cell centroids
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
@@ -594,7 +598,7 @@ void initialise_cell_centroids(const int ncells, const int* cells_offsets,
 }
 
 // Initialises the centroids for each cell
-void initialise_sub_cell_centroids(
+void init_sub_cell_centroids(
     const int ncells, const int* cells_offsets, const int* cells_to_nodes,
     const double* nodes_x, const double* nodes_y, const double* nodes_z,
     const double* cell_centroids_x, const double* cell_centroids_y,
@@ -639,7 +643,7 @@ void store_rezoned_mesh(const int nnodes, const double* nodes_x,
 }
 
 // Calculates the artificial viscous forces for momentum acceleration
-void calculate_artificial_viscosity(
+void calc_artificial_viscosity(
     const int ncells, const int nnodes, const double visc_coeff1,
     const double visc_coeff2, const int* cells_offsets,
     const int* cells_to_nodes, const int* nodes_offsets,

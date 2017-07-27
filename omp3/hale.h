@@ -1,7 +1,7 @@
 #include "../../mesh.h"
 
 // Calculates the artificial viscous forces for momentum acceleration
-void calculate_artificial_viscosity(
+void calc_artificial_viscosity(
     const int ncells, const int nnodes, const double visc_coeff1,
     const double visc_coeff2, const int* cells_offsets,
     const int* cells_to_nodes, const int* nodes_offsets,
