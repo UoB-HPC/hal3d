@@ -1,4 +1,5 @@
 #include "../../mesh.h"
+#include "../hale_data.h"
 
 // Calculates the artificial viscous forces for momentum acceleration
 void calc_artificial_viscosity(
@@ -23,3 +24,22 @@ void update_velocity(const int nnodes, const double dt,
                      double* velocity_x0, double* velocity_y0,
                      double* velocity_z0, double* velocity_x1,
                      double* velocity_y1, double* velocity_z1);
+
+// Calculate the normal vector from the provided nodes
+void calc_unit_normal(const int n0, const int n1, const int n2,
+                      const double* alpha, const double* beta,
+                      const double* gamma, pnormal_t* normal);
+
+// Calculates the face integral for the provided face, projected onto
+// the two-dimensional basis
+void calc_face_integral(const double nnodes_by_face,
+                        const int face_to_nodes_off, const int* faces_to_nodes,
+                        const double* alpha, const double* beta,
+                        const double* gamma, pi_t* pi);
+
+// Calculates the weighted volume integrals for a provided cell along x-y-z
+void calc_weighted_volume_integrals(
+    const int cell_to_faces_off, const int nfaces_by_cell,
+    const int* cells_to_faces, const int* faces_to_nodes,
+    const int* faces_to_nodes_offsets, const double* nodes_x0,
+    const double* nodes_y0, const double* nodes_z0, vec_t* T);

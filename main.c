@@ -75,7 +75,7 @@ int main(int argc, char** argv) {
   // Initialise the hale-specific data arrays
   hale_data.visc_coeff1 = get_double_parameter("visc_coeff1", hale_params);
   hale_data.visc_coeff2 = get_double_parameter("visc_coeff2", hale_params);
-  allocated += initialise_hale_data(&hale_data, &umesh);
+  allocated += init_hale_data(&hale_data, &umesh);
 
   printf("Allocated %.3fGB bytes of data\n", allocated / (double)GB);
 

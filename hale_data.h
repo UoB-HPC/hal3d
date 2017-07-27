@@ -16,6 +16,27 @@
 enum { XYZ, YZX, ZXY };
 
 typedef struct {
+  double one;
+  double alpha;
+  double alpha2;
+  double beta;
+  double beta2;
+  double alpha_beta;
+} pi_t;
+
+typedef struct {
+  double x;
+  double y;
+  double z;
+} vec_t;
+
+typedef struct {
+  double alpha;
+  double beta;
+  double gamma;
+} pnormal_t;
+
+typedef struct {
   double* energy0;
   double* energy1;
   double* density0;

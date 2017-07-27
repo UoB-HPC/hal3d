@@ -250,127 +250,148 @@ void solve_unstructured_hydro_2d(
 
     // Calculating the volume integrals necessary for the least squares
     // regression
-    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
-      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
-      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-      const int nnodes_by_face =
-          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+    vec_t integrals = {0.0};
+    calc_weighted_volume_integrals(
+        cell_to_faces_off, nfaces_by_cell, cells_to_faces, faces_to_nodes,
+        faces_to_nodes_offsets, nodes_x0, nodes_y0, nodes_z0, &integrals);
+  }
+}
 
-      // Choose the correct orientation of x-y-z
-      // Essentially re-orientating the basis so that the project is maximised
-      // This is done to reduce the amount of numerical error introduced
-      // TODO: IS THERE A FASTER WAY TO ACHIEVE THIS???
-      double AXYZ = 0.0;
-      double AYZX = 0.0;
-      double AZXY = 0.0;
-      for (int nn = 0; nn < nnodes_by_face; ++nn) {
-        const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
-        const int node_r_index =
-            (nn == nnodes_by_face - 1)
-                ? faces_to_nodes[(face_to_nodes_off)]
-                : faces_to_nodes[(face_to_nodes_off + nn + 1)];
+// Calculates the weighted volume integrals for a provided cell along x-y-z
+void calc_weighted_volume_integrals(
+    const int cell_to_faces_off, const int nfaces_by_cell,
+    const int* cells_to_faces, const int* faces_to_nodes,
+    const int* faces_to_nodes_offsets, const double* nodes_x0,
+    const double* nodes_y0, const double* nodes_z0, vec_t* T) {
 
-        // We ignore a single coordinate, projecting the face onto the 2d plane
-        AXYZ += 0.5 * (nodes_x0[(node_index)] + nodes_x0[(node_r_index)]) *
-                (nodes_y0[(node_r_index)] - nodes_y0[(node_index)]);
-        AYZX += 0.5 * (nodes_y0[(node_index)] + nodes_y0[(node_r_index)]) *
-                (nodes_z0[(node_r_index)] - nodes_z0[(node_index)]);
-        AZXY += 0.5 * (nodes_z0[(node_index)] + nodes_z0[(node_r_index)]) *
-                (nodes_x0[(node_r_index)] - nodes_x0[(node_index)]);
-      }
-      // Select the orientation based on the face area
-      int orientation;
-      if (fabs(AXYZ) > fabs(AYZX)) {
-        orientation = (fabs(AXYZ) > fabs(AZXY)) ? XYZ : ZXY;
-      } else {
-        orientation = (fabs(AZXY) > fabs(AYZX)) ? ZXY : YZX;
-      }
+  for (int ff = 0; ff < nfaces_by_cell; ++ff) {
+    const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
+    const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+    const int nnodes_by_face =
+        faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
 
-      double pi[6];
-      double normal[3];
-      double omega;
+    // Choose the correct orientation of x-y-z
+    // Essentially re-orientating the basis so that the project is maximised
+    // This is done to reduce the amount of numerical error introduced
+    // TODO: IS THERE A FASTER WAY TO ACHIEVE THIS???
+    double AXYZ = 0.0;
+    double AYZX = 0.0;
+    double AZXY = 0.0;
+    for (int nn = 0; nn < nnodes_by_face; ++nn) {
+      const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
+      const int node_r_index =
+          (nn == nnodes_by_face - 1)
+              ? faces_to_nodes[(face_to_nodes_off)]
+              : faces_to_nodes[(face_to_nodes_off + nn + 1)];
 
-      // Choosing three nodes for calculating the unit normal
-      // We can obviously assume there are at least three nodes
-      const int n0 = faces_to_nodes[(faces_to_nodes_off)];
-      const int n1 = faces_to_nodes[(faces_to_nodes_off + 1)];
-      const int n2 = faces_to_nodes[(faces_to_nodes_off + 2)];
+      // We ignore a single coordinate, projecting the face onto the 2d plane
+      AXYZ += 0.5 * (nodes_x0[(node_index)] + nodes_x0[(node_r_index)]) *
+              (nodes_y0[(node_r_index)] - nodes_y0[(node_index)]);
+      AYZX += 0.5 * (nodes_y0[(node_index)] + nodes_y0[(node_r_index)]) *
+              (nodes_z0[(node_r_index)] - nodes_z0[(node_index)]);
+      AZXY += 0.5 * (nodes_z0[(node_index)] + nodes_z0[(node_r_index)]) *
+              (nodes_x0[(node_r_index)] - nodes_x0[(node_index)]);
+    }
+    // Select the orientation based on the face area
+    int orientation;
+    if (fabs(AXYZ) > fabs(AYZX)) {
+      orientation = (fabs(AXYZ) > fabs(AZXY)) ? XYZ : ZXY;
+    } else {
+      orientation = (fabs(AZXY) > fabs(AYZX)) ? ZXY : YZX;
+    }
 
-      // The orientation determines which order we pass the nodes by axes
-      if (orientation == XYZ) {
-        calc_face_integrals(nnodes_by_face, face_to_nodes_off, nodes_x0,
-                            nodes_y0, nodes_z0, pi);
-        calc_unit_normal_vector(n0, n1, n2, nodes_x0, nodes_y0, nodes_z0,
-                                normal);
-        omega = (normal[0] * nodes_x0[(node_index)] +
-                 normal[1] * normal_y0[(node_index)] +
-                 normal[2] * normal_z0[(node_index)]);
-      } else if (orientation == YZX) {
-        calc_face_integrals(nnodes_by_face, face_to_nodes_off, nodes_y0,
-                            nodes_z0, nodes_x0, pi);
-        calc_unit_normal_vector(n0, n1, n2, nodes_y0, nodes_z0, nodes_x0,
-                                normal);
-        omega = (normal[0] * nodes_y0[(node_index)] +
-                 normal[1] * normal_z0[(node_index)] +
-                 normal[2] * normal_x0[(node_index)]);
-      } else if (orientation == ZXY) {
-        calc_face_integrals(nnodes_by_face, face_to_nodes_off, nodes_z0,
-                            nodes_x0, nodes_y0, pi);
-        calc_unit_normal_vector(n0, n1, n2, nodes_z0, nodes_x0, nodes_y0,
-                                normal);
-        omega = (normal[0] * nodes_z0[(node_index)] +
-                 normal[1] * normal_x0[(node_index)] +
-                 normal[2] * normal_y0[(node_index)]);
-      }
+    pi_t pi = {0.0};
+    pnormal_t normal = {0.0};
+    double omega;
 
-      printf("%.12f %.12f %.12f orientation %d\n", AXYZ, AYZX, AZXY,
-             orientation);
+    // Choosing three nodes for calculating the unit normal
+    // We can obviously assume there are at least three nodes
+    const int n0 = faces_to_nodes[(face_to_nodes_off + 0)];
+    const int n1 = faces_to_nodes[(face_to_nodes_off + 1)];
+    const int n2 = faces_to_nodes[(face_to_nodes_off + 2)];
+
+    // TODO: I'M NOT YET CLEAR WHETER WE ARE GETTING THE CORRECT NORMALS
+    // IN ALPHA-BETA-GAMMA SPACE YET. SEEMS LIKE A BUG HERE.
+
+    // The orientation determines which order we pass the nodes by axes
+    if (orientation == XYZ) {
+      calc_face_integral(nnodes_by_face, face_to_nodes_off, faces_to_nodes,
+                         nodes_x0, nodes_y0, nodes_z0, &pi);
+      calc_unit_normal(n0, n1, n2, nodes_x0, nodes_y0, nodes_z0, &normal);
+      omega = -(normal.alpha * nodes_x0[(n0)] + normal.beta * nodes_y0[(n0)] +
+                normal.gamma * nodes_z0[(n0)]);
+    } else if (orientation == YZX) {
+      calc_face_integral(nnodes_by_face, face_to_nodes_off, faces_to_nodes,
+                         nodes_y0, nodes_z0, nodes_x0, &pi);
+      calc_unit_normal(n0, n1, n2, nodes_y0, nodes_z0, nodes_x0, &normal);
+      omega = -(normal.alpha * nodes_y0[(n0)] + normal.beta * nodes_z0[(n0)] +
+                normal.gamma * nodes_x0[(n0)]);
+    } else if (orientation == ZXY) {
+      calc_face_integral(nnodes_by_face, face_to_nodes_off, faces_to_nodes,
+                         nodes_z0, nodes_x0, nodes_y0, &pi);
+      calc_unit_normal(n0, n1, n2, nodes_z0, nodes_x0, nodes_y0, &normal);
+      omega = -(normal.alpha * nodes_z0[(n0)] + normal.beta * nodes_x0[(n0)] +
+                normal.gamma * nodes_y0[(n0)]);
+    }
+
+    const double Falpha2 = normal.gamma * pi.alpha2;
+    const double Fbeta2 = normal.gamma * pi.beta2;
+    const double Fgamma2 = 0.0;
+
+    // Store the result in the correct order
+    if (orientation == XYZ) {
+      T->x += 0.5 * normal.alpha * Falpha2;
+      T->y += 0.5 * normal.beta * Fbeta2;
+      T->z += 0.5 * normal.gamma * Fgamma2;
+    } else if (orientation == YZX) {
+      T->x += 0.5 * normal.beta * Fbeta2;
+      T->y += 0.5 * normal.gamma * Fgamma2;
+      T->z += 0.5 * normal.alpha * Falpha2;
+    } else if (orientation == ZXY) {
+      T->x += 0.5 * normal.gamma * Fgamma2;
+      T->y += 0.5 * normal.alpha * Falpha2;
+      T->z += 0.5 * normal.beta * Fbeta2;
     }
   }
 }
 
 // Calculate the normal vector from the provided nodes
-void calc_unit_normal_vector(const double nnodes_by_face,
-                             const double face_to_nodes_off,
-                             const int* faces_to_nodes, double* alpha,
-                             double* beta, double* gamma, double* normal) {
+void calc_unit_normal(const int n0, const int n1, const int n2,
+                      const double* alpha, const double* beta,
+                      const double* gamma, pnormal_t* normal) {
 
   // Get two vectors on the face plane
-  double dn0[3];
-  double dn1[3];
-  const double dn0[0] = alpha[(n0)] - alpha[(n1)];
-  const double dn0[1] = beta[(n0)] - beta[(n1)];
-  const double dn0[2] = gamma[(n0)] - gamma[(n1)];
-  const double dn1[0] = alpha[(n1)] - alpha[(n2)];
-  const double dn1[1] = beta[(n1)] - beta[(n2)];
-  const double dn1[2] = gamma[(n1)] - gamma[(n2)];
+  vec_t dn0 = {0.0};
+  vec_t dn1 = {0.0};
+  dn0.x = alpha[(n0)] - alpha[(n1)];
+  dn0.y = beta[(n0)] - beta[(n1)];
+  dn0.z = gamma[(n0)] - gamma[(n1)];
+  dn1.x = alpha[(n1)] - alpha[(n2)];
+  dn1.y = beta[(n1)] - beta[(n2)];
+  dn1.z = gamma[(n1)] - gamma[(n2)];
 
   // Cross product to get the normal
-  normal[0] = (dn0[1] * dn1[2] - dn1[2] * dn0[1]);
-  normal[1] = (dn0[2] * dn1[0] - dn1[0] * dn0[2]);
-  normal[2] = (dn0[0] * dn1[1] - dn1[1] * dn0[0]);
+  normal->alpha = (dn0.y * dn1.z - dn0.z * dn1.y);
+  normal->beta = (dn0.z * dn1.x - dn0.x * dn1.z);
+  normal->gamma = (dn0.x * dn1.y - dn0.y * dn1.x);
 
-  const double normal_mag = sqrt(normal[0] * normal[0] + normal[1] * normal[1] +
-                                 normal[2] * normal[2]);
+  const double normal_mag =
+      sqrt(normal->alpha * normal->alpha + normal->beta * normal->beta +
+           normal->gamma * normal->gamma);
 
-  normal[0] /= normal_mag;
-  normal[1] /= normal_mag;
-  normal[2] /= normal_mag;
+  // Normalise the vector
+  normal->alpha /= normal_mag;
+  normal->beta /= normal_mag;
+  normal->gamma /= normal_mag;
 }
 
 // Calculates the face integral for the provided face, projected onto
 // the two-dimensional basis
 void calc_face_integral(const double nnodes_by_face,
-                        const double face_to_nodes_off, double* alpha,
-                        double* beta, double* gamma, double* pi) {
-  double pi1 = 0.0;
-  double pi_alpha = 0.0;
-  double pi_alpha2 = 0.0;
-  double pi_beta = 0.0;
-  double pi_beta2 = 0.0;
-  double pi_alpha_beta = 0.0;
-
-  // Performing the integrals on the projected face
+                        const int face_to_nodes_off, const int* faces_to_nodes,
+                        const double* alpha, const double* beta,
+                        const double* gamma, pi_t* pi) {
+  // Calculate the coefficients for the projected face integral
   for (int nn = 0; nn < nnodes_by_face; ++nn) {
     const int n0 = faces_to_nodes[(face_to_nodes_off + nn)];
     const int n1 = (nn == nnodes_by_face - 1)
@@ -388,21 +409,13 @@ void calc_face_integral(const double nnodes_by_face,
 
     const double dalpha = a1 - a0;
     const double dbeta = b1 - b0;
-    pi1 += dbeta * (a1 + a0);
-    pi_alpha += dbeta * Calpha;
-    pi_alpha2 += dbeta * a1 * Calpha + a0 * a0 * a0;
-    pi_beta += dalpha * Cbeta;
-    pi_beta2 += dalpha * b1 * Cbeta + b0 * b0 * b0;
-    pi_alpha_beta += dbeta * (b1 * Calphabeta + b0 * Kalphabeta);
+    pi->one += dbeta * (a1 + a0) / 2.0;
+    pi->alpha += dbeta * Calpha / 6.0;
+    pi->alpha2 += dbeta * a1 * Calpha + a0 * a0 * a0 / 12.0;
+    pi->beta += dalpha * Cbeta / 6.0;
+    pi->beta2 += dalpha * b1 * Cbeta + b0 * b0 * b0 / 12.0;
+    pi->alpha_beta += dbeta * (b1 * Calphabeta + b0 * Kalphabeta) / 24.0;
   }
-
-  // Store the final coefficients
-  pi[0] = pi1 / 2.0;
-  pi[1] = pi_alpha / 6.0;
-  pi[2] = pi_alpha2 / 12.0;
-  pi[3] = pi_beta / 6.0;
-  pi[4] = pi_beta2 / 12.0;
-  pi[5] = pi_alpha_beta / 24.0;
 }
 
 // Controls the timestep for the simulation

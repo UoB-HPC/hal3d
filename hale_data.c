@@ -8,7 +8,7 @@
 #include <stdlib.h>
 
 // Initialises the shared_data variables for two dimensional applications
-size_t initialise_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
+size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
   size_t allocated = allocate_data(&hale_data->pressure0, umesh->ncells);
   allocated += allocate_data(&hale_data->velocity_x0, umesh->nnodes);
   allocated += allocate_data(&hale_data->velocity_y0, umesh->nnodes);
@@ -66,19 +66,18 @@ size_t initialise_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
   // In hale, the fundamental principle is that the mass at the cell and
   // sub-cell are conserved, so we can initialise them from the mesh
   // and then only the remapping step will ever adjust them
-  initialise_cell_centroids(umesh->ncells, umesh->cells_offsets,
-                            umesh->cells_to_nodes, umesh->nodes_x0,
-                            umesh->nodes_y0, umesh->nodes_z0,
-                            umesh->cell_centroids_x, umesh->cell_centroids_y,
-                            umesh->cell_centroids_z);
+  init_cell_centroids(umesh->ncells, umesh->cells_offsets,
+                      umesh->cells_to_nodes, umesh->nodes_x0, umesh->nodes_y0,
+                      umesh->nodes_z0, umesh->cell_centroids_x,
+                      umesh->cell_centroids_y, umesh->cell_centroids_z);
 
-  initialise_mesh_mass(
-      umesh->ncells, umesh->cells_offsets, umesh->cell_centroids_x,
-      umesh->cell_centroids_y, umesh->cell_centroids_z, umesh->cells_to_nodes,
-      hale_data->density0, umesh->nodes_x0, umesh->nodes_y0, umesh->nodes_z0,
-      hale_data->cell_mass, umesh->sub_cell_volume, hale_data->sub_cell_mass,
-      umesh->cells_to_faces_offsets, umesh->cells_to_faces,
-      umesh->faces_to_nodes_offsets, umesh->faces_to_nodes);
+  init_mesh_mass(umesh->ncells, umesh->cells_offsets, umesh->cell_centroids_x,
+                 umesh->cell_centroids_y, umesh->cell_centroids_z,
+                 umesh->cells_to_nodes, hale_data->density0, umesh->nodes_x0,
+                 umesh->nodes_y0, umesh->nodes_z0, hale_data->cell_mass,
+                 umesh->sub_cell_volume, hale_data->sub_cell_mass,
+                 umesh->cells_to_faces_offsets, umesh->cells_to_faces,
+                 umesh->faces_to_nodes_offsets, umesh->faces_to_nodes);
 
   store_rezoned_mesh(umesh->nnodes, umesh->nodes_x0, umesh->nodes_y0,
                      umesh->nodes_z0, hale_data->rezoned_nodes_x,
