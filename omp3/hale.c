@@ -290,21 +290,24 @@ void solve_unstructured_hydro_2d(
       double normal[3];
       double omega;
 
-      // Passing the arrays to calculate_face_integrals here is incorrect...
+      // The orientation determines which order we pass the nodes by axes
       if (orientation == XYZ) {
-        calculate_face_integrals(nodes_x0, nodes_y0, nodes_z0, pi);
+        calculate_face_integrals(nnodes_by_face, face_to_nodes_off, nodes_x0,
+                                 nodes_y0, nodes_z0, pi);
         calculate_normal_vector(nodes_x0, nodes_y0, nodes_z0, normal);
         omega = (normal[0] * nodes_x0[(node_index)] +
                  normal[1] * normal_y0[(node_index)] +
                  normal[2] * normal_z0[(node_index)]);
       } else if (orientation == YZX) {
-        calculate_face_integrals(nodes_y0, nodes_z0, nodes_x0, pi);
+        calculate_face_integrals(nnodes_by_face, face_to_nodes_off, nodes_y0,
+                                 nodes_z0, nodes_x0, pi);
         calculate_normal_vector(nodes_y0, nodes_z0, nodes_x0, normal);
         omega = (normal[0] * nodes_y0[(node_index)] +
                  normal[1] * normal_z0[(node_index)] +
                  normal[2] * normal_x0[(node_index)]);
       } else if (orientation == ZXY) {
-        calculate_face_integrals(nodes_z0, nodes_x0, nodes_y0, pi);
+        calculate_face_integrals(nnodes_by_face, face_to_nodes_off, nodes_z0,
+                                 nodes_x0, nodes_y0, pi);
         calculate_normal_vector(nodes_z0, nodes_x0, nodes_y0, normal);
         omega = (normal[0] * nodes_z0[(node_index)] +
                  normal[1] * normal_x0[(node_index)] +
@@ -318,12 +321,43 @@ void solve_unstructured_hydro_2d(
 }
 
 // Calculate the normal vector from the provided nodes
-void calculate_normal_vector(double* alpha, double* beta, double* gamma) {}
+void calculate_normal_vector(const double nnodes_by_face,
+                             const double face_to_nodes_off, double* alpha,
+                             double* beta, double* gamma, double* normal) {
+
+  // We can obviously assume there are at least three nodes
+  const double n0 = faces_to_nodes[(faces_to_nodes_off)];
+  const double n1 = faces_to_nodes[(faces_to_nodes_off + 1)];
+  const double n2 = faces_to_nodes[(faces_to_nodes_off + 2)];
+
+  // Get two vectors on the face plane
+  double dn0[3];
+  double dn1[3];
+  const double dn0[0] = alpha[(n0)] - alpha[(n1)];
+  const double dn0[1] = beta[(n0)] - beta[(n1)];
+  const double dn0[2] = gamma[(n0)] - gamma[(n1)];
+  const double dn1[0] = alpha[(n1)] - alpha[(n2)];
+  const double dn1[1] = beta[(n1)] - beta[(n2)];
+  const double dn1[2] = gamma[(n1)] - gamma[(n2)];
+
+  // Cross product to get the normal
+  normal[0] = (dn0[1] * dn1[2] - dn1[2] * dn0[1]);
+  normal[1] = (dn0[2] * dn1[0] - dn1[0] * dn0[2]);
+  normal[2] = (dn0[0] * dn1[1] - dn1[1] * dn0[0]);
+
+  const double normal_mag = sqrt(normal[0] * normal[0] + normal[1] * normal[1] +
+                                 normal[2] * normal[2]);
+
+  normal[0] /= normal_mag;
+  normal[1] /= normal_mag;
+  normal[2] /= normal_mag;
+}
 
 // Calculates the face integral for the provided face, projected onto
 // the two-dimensional basis
-void calculate_face_integral(double* alpha, double* beta, double* gamma,
-                             double* pi) {
+void calculate_face_integral(const double nnodes_by_face,
+                             const double face_to_nodes_off, double* alpha,
+                             double* beta, double* gamma, double* pi) {
   double pi1 = 0.0;
   double pi_alpha = 0.0;
   double pi_alpha2 = 0.0;
