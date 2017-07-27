@@ -118,8 +118,18 @@ void solve_unstructured_hydro_2d(
       rhs.z += (2.0 * integrals.z * de / vol);
     }
 
+    // Determine the inverse of the coefficient matrix
     vec_t inv[3];
     calc_3x3_inverse(&coeff, &inv);
+
+    // Solve for the energy gradient
+    vec_t grad_energy;
+    grad_energy.x = inv[0].x * rhs.x + inv[0].y * rhs.y + inv[0].z * rhs.z;
+    grad_energy.y = inv[1].x * rhs.x + inv[1].y * rhs.y + inv[1].z * rhs.z;
+    grad_energy.z = inv[2].x * rhs.x + inv[2].y * rhs.y + inv[2].z * rhs.z;
+
+    printf("grad %.12f %.12f %.12f\n", grad_energy.x, grad_energy.y,
+           grad_energy.z);
   }
 }
 
@@ -131,18 +141,32 @@ void calc_3x3_inverse(vec_t (*a)[3], vec_t (*inv)[3]) {
       (*a)[0].y * ((*a)[1].x * (*a)[2].z - (*a)[1].z * (*a)[2].x) +
       (*a)[0].z * ((*a)[1].x * (*a)[2].y - (*a)[1].y * (*a)[2].x);
 
-  // Perform the simple and fast 3x3 matrix inverstion
-  (*inv)[0].x = ((*a)[1].y * (*a)[2].z - (*a)[1].z * (*a)[2].y) / det;
-  (*inv)[0].y = (-((*a)[0].y * (*a)[2].z - (*a)[0].z * (*a)[2].y)) / det;
-  (*inv)[0].z = ((*a)[0].y * (*a)[1].z - (*a)[0].z * (*a)[1].y) / det;
+  // Check if the matrix is singular
+  if (det == 0.0) {
+    for (int ii = 0; ii < 3; ++ii) {
+      (*inv)[ii].x = 0.0;
+      (*inv)[ii].y = 0.0;
+      (*inv)[ii].z = 0.0;
+    }
+  } else {
+    // Perform the simple and fast 3x3 matrix inverstion
+    (*inv)[0].x = ((*a)[1].y * (*a)[2].z - (*a)[1].z * (*a)[2].y) / det;
+    (*inv)[0].y = (-((*a)[0].y * (*a)[2].z - (*a)[0].z * (*a)[2].y)) / det;
+    (*inv)[0].z = ((*a)[0].y * (*a)[1].z - (*a)[0].z * (*a)[1].y) / det;
 
-  (*inv)[1].x = (-((*a)[1].x * (*a)[2].z - (*a)[1].z * (*a)[2].x)) / det;
-  (*inv)[1].y = ((*a)[0].x * (*a)[2].z - (*a)[0].z * (*a)[2].x) / det;
-  (*inv)[1].z = (-((*a)[0].x * (*a)[1].z - (*a)[0].z * (*a)[1].x)) / det;
+    (*inv)[1].x = (-((*a)[1].x * (*a)[2].z - (*a)[1].z * (*a)[2].x)) / det;
+    (*inv)[1].y = ((*a)[0].x * (*a)[2].z - (*a)[0].z * (*a)[2].x) / det;
+    (*inv)[1].z = (-((*a)[0].x * (*a)[1].z - (*a)[0].z * (*a)[1].x)) / det;
 
-  (*inv)[2].x = ((*a)[1].x * (*a)[2].y - (*a)[1].y * (*a)[2].x) / det;
-  (*inv)[2].y = (-((*a)[0].x * (*a)[2].y - (*a)[0].y * (*a)[2].x)) / det;
-  (*inv)[2].z = ((*a)[0].x * (*a)[1].y - (*a)[0].y * (*a)[1].x) / det;
+    (*inv)[2].x = ((*a)[1].x * (*a)[2].y - (*a)[1].y * (*a)[2].x) / det;
+    (*inv)[2].y = (-((*a)[0].x * (*a)[2].y - (*a)[0].y * (*a)[2].x)) / det;
+    (*inv)[2].z = ((*a)[0].x * (*a)[1].y - (*a)[0].y * (*a)[1].x) / det;
+  }
+#if 0
+    printf("\ninv\n %.12f %.12f %.12f\n", inv[0].x, inv[0].y, inv[0].z);
+    printf("%.12f %.12f %.12f\n", inv[1].x, inv[1].y, inv[1].z);
+    printf("%.12f %.12f %.12f\n\n", inv[2].x, inv[2].y, inv[2].z);
+#endif // if 0
 }
 
 // Calculates the weighted volume integrals for a provided cell along x-y-z
