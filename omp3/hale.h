@@ -43,3 +43,6 @@ void calc_weighted_volume_integrals(
     const int* cells_to_faces, const int* faces_to_nodes,
     const int* faces_to_nodes_offsets, const double* nodes_x0,
     const double* nodes_y0, const double* nodes_z0, vec_t* T, double* vol);
+
+// Calculates the inverse of a 3x3 matrix, out-of-place
+void calc_3x3_inverse(vec_t (*a)[3], vec_t (*inv)[3]);

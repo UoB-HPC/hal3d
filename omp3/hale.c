@@ -118,45 +118,31 @@ void solve_unstructured_hydro_2d(
       rhs.z += (2.0 * integrals.z * de / vol);
     }
 
-    coeff[0].x = 1.0;
-    coeff[0].y = 2.0;
-    coeff[0].z = 2.0;
-    coeff[1].x = 4.0;
-    coeff[1].y = 6.0;
-    coeff[1].z = 8.0;
-    coeff[2].x = 4.0;
-    coeff[2].y = 2.0;
-    coeff[2].z = 1.0;
-
     vec_t inv[3];
     calc_3x3_inverse(&coeff, &inv);
-
-    printf("%.12f %.12f %.12f\n", inv[0].x, inv[0].y, inv[0].z);
-    printf("%.12f %.12f %.12f\n", inv[1].x, inv[1].y, inv[1].z);
-    printf("%.12f %.12f %.12f\n", inv[2].x, inv[2].y, inv[2].z);
   }
 }
 
 // Calculates the inverse of a 3x3 matrix, out-of-place
-void calc_3x3_inverse(vec_t* a[3], vec_t* inv[3]) {
+void calc_3x3_inverse(vec_t (*a)[3], vec_t (*inv)[3]) {
   // Calculate the determinant of the 3x3
-  const double det = a[0]->x * (a[1]->y * a[2]->z - a[1]->z * a[2]->y) -
-                     a[0]->y * (a[1]->x * a[2]->z - a[1]->z * a[2]->x) +
-                     a[0]->z * (a[1]->x * a[2]->y - a[1]->y * a[2]->x);
+  const double det =
+      (*a)[0].x * ((*a)[1].y * (*a)[2].z - (*a)[1].z * (*a)[2].y) -
+      (*a)[0].y * ((*a)[1].x * (*a)[2].z - (*a)[1].z * (*a)[2].x) +
+      (*a)[0].z * ((*a)[1].x * (*a)[2].y - (*a)[1].y * (*a)[2].x);
 
-  // Perform the simple/fast inversion
-  vec_t inv[3];
-  inv[0]->x = (a[1]->y * a[2]->z - a[1]->z * a[2]->y) / det;
-  inv[0]->y = (-(a[0]->y * a[2]->z - a[0]->z * a[2]->y)) / det;
-  inv[0]->z = (a[0]->y * a[1]->z - a[0]->z * a[1]->y) / det;
+  // Perform the simple and fast 3x3 matrix inverstion
+  (*inv)[0].x = ((*a)[1].y * (*a)[2].z - (*a)[1].z * (*a)[2].y) / det;
+  (*inv)[0].y = (-((*a)[0].y * (*a)[2].z - (*a)[0].z * (*a)[2].y)) / det;
+  (*inv)[0].z = ((*a)[0].y * (*a)[1].z - (*a)[0].z * (*a)[1].y) / det;
 
-  inv[1]->x = (-(a[1]->x * a[2]->z - a[1]->z * a[2]->x)) / det;
-  inv[1]->y = (a[0]->x * a[2]->z - a[0]->z * a[2]->x) / det;
-  inv[1]->z = (-(a[0]->x * a[1]->z - a[0]->z * a[1]->x)) / det;
+  (*inv)[1].x = (-((*a)[1].x * (*a)[2].z - (*a)[1].z * (*a)[2].x)) / det;
+  (*inv)[1].y = ((*a)[0].x * (*a)[2].z - (*a)[0].z * (*a)[2].x) / det;
+  (*inv)[1].z = (-((*a)[0].x * (*a)[1].z - (*a)[0].z * (*a)[1].x)) / det;
 
-  inv[2]->x = (a[1]->x * a[2]->y - a[1]->y * a[2]->x) / det;
-  inv[2]->y = (-(a[0]->x * a[2]->y - a[0]->y * a[2]->x)) / det;
-  inv[2]->z = (a[0]->x * a[1]->y - a[0]->y * a[1]->x) / det;
+  (*inv)[2].x = ((*a)[1].x * (*a)[2].y - (*a)[1].y * (*a)[2].x) / det;
+  (*inv)[2].y = (-((*a)[0].x * (*a)[2].y - (*a)[0].y * (*a)[2].x)) / det;
+  (*inv)[2].z = ((*a)[0].x * (*a)[1].y - (*a)[0].y * (*a)[1].x) / det;
 }
 
 // Calculates the weighted volume integrals for a provided cell along x-y-z
