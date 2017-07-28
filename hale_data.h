@@ -55,22 +55,22 @@ typedef struct {
   double* nodal_volumes;
   double* nodal_soundspeed;
   double* limiter;
-  double* sub_cell_energy;
-  double* sub_cell_mass;
-  double* sub_cell_velocity_x;
-  double* sub_cell_velocity_y;
-  double* sub_cell_velocity_z;
-  double* sub_cell_force_x;
-  double* sub_cell_force_y;
-  double* sub_cell_force_z;
-  double* sub_cell_volume;
-  double* sub_cell_kinetic_energy;
-  double* sub_cell_centroids_x;
-  double* sub_cell_centroids_y;
-  double* sub_cell_centroids_z;
-  double* sub_cell_grad_x;
-  double* sub_cell_grad_y;
-  double* sub_cell_grad_z;
+  double* subcell_energy;
+  double* subcell_mass;
+  double* subcell_velocity_x;
+  double* subcell_velocity_y;
+  double* subcell_velocity_z;
+  double* subcell_force_x;
+  double* subcell_force_y;
+  double* subcell_force_z;
+  double* subcell_volume;
+  double* subcell_kinetic_energy;
+  double* subcell_centroids_x;
+  double* subcell_centroids_y;
+  double* subcell_centroids_z;
+  double* subcell_grad_x;
+  double* subcell_grad_y;
+  double* subcell_grad_z;
   double* rezoned_nodes_x;
   double* rezoned_nodes_y;
   double* rezoned_nodes_z;
@@ -88,7 +88,7 @@ void init_mesh_mass(
     const double* cell_centroids_y, const double* cell_centroids_z,
     const int* cells_to_nodes, const double* density, const double* nodes_x,
     const double* nodes_y, const double* nodes_z, double* cell_mass,
-    double* sub_cell_volume, double* sub_cell_mass, int* cells_to_faces_offsets,
+    double* subcell_volume, double* subcell_mass, int* cells_to_faces_offsets,
     int* cells_to_faces, int* faces_to_nodes_offsets, int* faces_to_nodes);
 
 // Initialises the centroids for each cell
@@ -99,12 +99,12 @@ void init_cell_centroids(const int ncells, const int* cells_offsets,
                          double* cell_centroids_z);
 
 // Initialises the centroids for each cell
-void init_sub_cell_centroids(
+void init_subcell_centroids(
     const int ncells, const int* cells_offsets, const int* cells_to_nodes,
     const double* nodes_x0, const double* nodes_y0, const double* nodes_z0,
     const double* cell_centroids_x, const double* cell_centroids_y,
-    const double* cell_centroids_z, double* sub_cell_centroids_x,
-    double* sub_cell_centroids_y, double* sub_cell_centroids_z);
+    const double* cell_centroids_z, double* subcell_centroids_x,
+    double* subcell_centroids_y, double* subcell_centroids_z);
 
 // Stores the rezoned grid specification, in case we aren't going to use a
 // rezoning strategy and want to perform an Eulerian remap

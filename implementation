@@ -6,12 +6,12 @@
     double v = 0.0;
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
       printf("%.12f %.12f %.12f\n",
-             sub_cell_velocity_x[(cell_to_nodes_off + nn)],
-             sub_cell_velocity_y[(cell_to_nodes_off + nn)],
-             sub_cell_velocity_z[(cell_to_nodes_off + nn)]);
-      scv += sub_cell_mass[(cell_to_nodes_off + nn)] *
-             sub_cell_velocity_x[(cell_to_nodes_off + nn)];
-      v += sub_cell_mass[(cell_to_nodes_off + nn)] *
+             subcell_velocity_x[(cell_to_nodes_off + nn)],
+             subcell_velocity_y[(cell_to_nodes_off + nn)],
+             subcell_velocity_z[(cell_to_nodes_off + nn)]);
+      scv += subcell_mass[(cell_to_nodes_off + nn)] *
+             subcell_velocity_x[(cell_to_nodes_off + nn)];
+      v += subcell_mass[(cell_to_nodes_off + nn)] *
            velocity_x0[cells_to_nodes[(cell_to_nodes_off + nn)]];
     }
     printf("%.12f=%.12f\n", scv, v);
@@ -130,14 +130,14 @@
           // SO
           // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
           // CALCULATION
-          const double sub_cell_volume =
+          const double subcell_volume =
               fabs((ab_x * A_x + ab_y * A_y + ab_z * A_z) / 3.0);
 
-          nodal_mass[(nn)] += density0[(cells[(cc)])] * sub_cell_volume;
+          nodal_mass[(nn)] += density0[(cells[(cc)])] * subcell_volume;
           nodal_soundspeed[(nn)] +=
               sqrt(GAM * (GAM - 1.0) * energy0[(cells[(cc)])]) *
-              sub_cell_volume;
-          nodal_volumes[(nn)] += sub_cell_volume;
+              subcell_volume;
+          nodal_volumes[(nn)] += subcell_volume;
         }
       }
     }
@@ -561,13 +561,13 @@
           double A_y = -0.5 * (a_x * b_z - a_z * b_x);
           double A_z = 0.5 * (a_x * b_y - a_y * b_x);
 
-          const double sub_cell_volume =
+          const double subcell_volume =
               fabs((ab_x * A_x + ab_y * A_y + ab_z * A_z) / 3.0);
 
           nodal_soundspeed[(nn)] +=
               sqrt(GAM * (GAM - 1.0) * energy1[(cells[(cc)])]) *
-              sub_cell_volume;
-          nodal_volumes[(nn)] += sub_cell_volume;
+              subcell_volume;
+          nodal_volumes[(nn)] += subcell_volume;
         }
       }
     }
@@ -900,7 +900,7 @@
                   : faces_to_nodes[(face_to_nodes_off + nn2 + 1)];
 
           // Add the face center contributions
-          double mass = sub_cell_mass[(cell_to_nodes_off + nn2)];
+          double mass = subcell_mass[(cell_to_nodes_off + nn2)];
           f_x += mass * (2.0 * velocity_x0[(node_index0)] -
                          0.5 * velocity_x0[(node_l_index)] -
                          0.5 * velocity_x0[(node_r_index)]);
@@ -934,7 +934,7 @@
                0.5 * velocity_z0[(node_r_index)] + 2.0 * f_z / face_mass;
       }
 
-      double mass = sub_cell_mass[(cell_to_nodes_off + nn)];
+      double mass = subcell_mass[(cell_to_nodes_off + nn)];
       uc_x += mass * (2.5 * velocity_x0[(node_index)] - (b_x / Sn)) /
               cell_mass[(cc)];
       uc_y += mass * (2.5 * velocity_y0[(node_index)] - (b_y / Sn)) /
@@ -986,7 +986,7 @@
                   : faces_to_nodes[(face_to_nodes_off + nn2 + 1)];
 
           // Add the face center contributions
-          double mass = sub_cell_mass[(cell_to_nodes_off + nn2)];
+          double mass = subcell_mass[(cell_to_nodes_off + nn2)];
           f_x += mass * (2.0 * velocity_x0[(node_index0)] -
                          0.5 * velocity_x0[(node_l_index)] -
                          0.5 * velocity_x0[(node_r_index)]);
@@ -1022,11 +1022,11 @@
       }
 
       // Calculate the final sub-cell velocities
-      sub_cell_velocity_x[(cell_to_nodes_off + nn)] =
+      subcell_velocity_x[(cell_to_nodes_off + nn)] =
           0.25 * (1.5 * velocity_x0[(node_index)] + uc_x + b_x / Sn);
-      sub_cell_velocity_y[(cell_to_nodes_off + nn)] =
+      subcell_velocity_y[(cell_to_nodes_off + nn)] =
           0.25 * (1.5 * velocity_y0[(node_index)] + uc_y + b_y / Sn);
-      sub_cell_velocity_z[(cell_to_nodes_off + nn)] =
+      subcell_velocity_z[(cell_to_nodes_off + nn)] =
           0.25 * (1.5 * velocity_z0[(node_index)] + uc_z + b_z / Sn);
     }
   }

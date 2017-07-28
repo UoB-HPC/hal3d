@@ -18,7 +18,7 @@
 // Solve a single timestep on the given mesh
 void solve_unstructured_hydro_2d(
     Mesh* mesh, const int ncells, const int nnodes,
-    const int nsub_cell_neighbours, const double visc_coeff1,
+    const int nsubcell_neighbours, const double visc_coeff1,
     const double visc_coeff2, double* cell_centroids_x,
     double* cell_centroids_y, double* cell_centroids_z, int* cells_to_nodes,
     int* cells_offsets, int* nodes_to_cells, int* cells_to_cells,
@@ -31,16 +31,15 @@ void solve_unstructured_hydro_2d(
     double* density0, double* density1, double* pressure0, double* pressure1,
     double* velocity_x0, double* velocity_y0, double* velocity_z0,
     double* velocity_x1, double* velocity_y1, double* velocity_z1,
-    double* sub_cell_force_x, double* sub_cell_force_y,
-    double* sub_cell_force_z, double* node_force_x, double* node_force_y,
-    double* node_force_z, double* cell_mass, double* nodal_mass,
-    double* nodal_volumes, double* nodal_soundspeed, double* limiter,
-    double* sub_cell_volume, double* sub_cell_energy, double* sub_cell_mass,
-    double* sub_cell_velocity_x, double* sub_cell_velocity_y,
-    double* sub_cell_velocity_z, double* sub_cell_kinetic_energy,
-    double* sub_cell_centroids_x, double* sub_cell_centroids_y,
-    double* sub_cell_centroids_z, double* sub_cell_grad_x,
-    double* sub_cell_grad_y, double* sub_cell_grad_z,
+    double* subcell_force_x, double* subcell_force_y, double* subcell_force_z,
+    double* node_force_x, double* node_force_y, double* node_force_z,
+    double* cell_mass, double* nodal_mass, double* nodal_volumes,
+    double* nodal_soundspeed, double* limiter, double* subcell_volume,
+    double* subcell_energy, double* subcell_mass, double* subcell_velocity_x,
+    double* subcell_velocity_y, double* subcell_velocity_z,
+    double* subcell_kinetic_energy, double* subcell_centroids_x,
+    double* subcell_centroids_y, double* subcell_centroids_z,
+    double* subcell_grad_x, double* subcell_grad_y, double* subcell_grad_z,
     int* nodes_to_faces_offsets, int* nodes_to_faces, int* faces_to_nodes,
     int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
     int* cells_to_faces_offsets, int* cells_to_faces) {
@@ -80,7 +79,6 @@ void solve_unstructured_hydro_2d(
     // Determine the weighted volume integrals for neighbouring cells
     for (int ff = 0; ff < nfaces_by_cell; ++ff) {
       const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
-
       const int neighbour_index = (faces_to_cells0[(face_index)] == cc)
                                       ? faces_to_cells1[(face_index)]
                                       : faces_to_cells0[(face_index)];
@@ -465,7 +463,7 @@ void init_mesh_mass(
     const double* cell_centroids_y, const double* cell_centroids_z,
     const int* cells_to_nodes, const double* density, const double* nodes_x,
     const double* nodes_y, const double* nodes_z, double* cell_mass,
-    double* sub_cell_volume, double* sub_cell_mass, int* cells_to_faces_offsets,
+    double* subcell_volume, double* subcell_mass, int* cells_to_faces_offsets,
     int* cells_to_faces, int* faces_to_nodes_offsets, int* faces_to_nodes) {
 
   // Calculate the predicted energy
@@ -534,7 +532,7 @@ void init_mesh_mass(
         // THE CURRENT AND NEXT NODE, OTHERWISE WE ONLY ACCOUNT FOR HALF OF
         // THE
         // 'HALF' TETRAHEDRONS
-        double sub_cell_volume =
+        double subcell_volume =
             fabs(2.0 * ((half_edge_x - nodes_x[(current_node)]) * S_x +
                         (half_edge_y - nodes_y[(current_node)]) * S_y +
                         (half_edge_z - nodes_z[(current_node)]) * S_z) /
@@ -544,12 +542,12 @@ void init_mesh_mass(
         // FORM SOLUTION?
         for (int nn3 = 0; nn3 < nnodes_by_cell; ++nn3) {
           if (cells_to_nodes[(cell_to_nodes_off + nn3)] == current_node) {
-            sub_cell_mass[(cell_to_nodes_off + nn3)] +=
-                density[(cc)] * sub_cell_volume;
+            subcell_mass[(cell_to_nodes_off + nn3)] +=
+                density[(cc)] * subcell_volume;
           }
         }
 
-        cell_mass[(cc)] += density[(cc)] * sub_cell_volume;
+        cell_mass[(cc)] += density[(cc)] * subcell_volume;
       }
     }
 
@@ -591,29 +589,29 @@ void init_cell_centroids(const int ncells, const int* cells_offsets,
 }
 
 // Initialises the centroids for each cell
-void init_sub_cell_centroids(
+void init_subcell_centroids(
     const int ncells, const int* cells_offsets, const int* cells_to_nodes,
     const double* nodes_x, const double* nodes_y, const double* nodes_z,
     const double* cell_centroids_x, const double* cell_centroids_y,
-    const double* cell_centroids_z, double* sub_cell_centroids_x,
-    double* sub_cell_centroids_y, double* sub_cell_centroids_z) {
+    const double* cell_centroids_z, double* subcell_centroids_x,
+    double* subcell_centroids_y, double* subcell_centroids_z) {
   // Calculate the cell centroids
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
     const int cells_off = cells_offsets[(cc)];
-    const int nsub_cells = cells_offsets[(cc + 1)] - cells_off;
+    const int nsubcells = cells_offsets[(cc + 1)] - cells_off;
 
     const double cell_c_x = cell_centroids_x[(cc)];
     const double cell_c_y = cell_centroids_y[(cc)];
     const double cell_c_z = cell_centroids_z[(cc)];
 
-    for (int ss = 0; ss < nsub_cells; ++ss) {
+    for (int ss = 0; ss < nsubcells; ++ss) {
       // TODO: GET THE NODES AROUND A SUB-CELL
 
-      sub_cell_centroids_x[(cc)] = 0.0;
-      sub_cell_centroids_y[(cc)] = 0.0;
-      sub_cell_centroids_z[(cc)] = 0.0;
+      subcell_centroids_x[(cc)] = 0.0;
+      subcell_centroids_y[(cc)] = 0.0;
+      subcell_centroids_z[(cc)] = 0.0;
     }
   }
   STOP_PROFILING(&compute_profile, __func__);
