@@ -228,6 +228,7 @@ void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
                    nodes_alpha, nodes_beta, nodes_gamma, &pi, normal);
   double omega = -(normal.x * nodes_alpha[(n0)] + normal.y * nodes_beta[(n0)] +
                    normal.z * nodes_gamma[(n0)]);
+  printf("omega %.12f\n", omega);
 
   // Finalise the weighted face integrals
   const double Falpha = pi.alpha / normal.z;
@@ -243,11 +244,6 @@ void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
        normal.y * normal.y * pi.beta2 + 2.0 * normal.x * omega * pi.alpha +
        2.0 * normal.y * omega * pi.beta + omega * omega * pi.one) /
       (normal.z * normal.z * normal.z);
-
-#if 0
-  printf("%.12f %.12f %.12f %.12f %.12f\n", Falpha, Fbeta, Fgamma, Falpha2,
-      Fbeta2);
-#endif // if 0
 
   // Accumulate the weighted volume integrals
   if (orientation == XYZ) {
@@ -274,6 +270,7 @@ void calc_projections(const int nnodes_by_face, const int face_to_nodes_off,
                       const int* faces_to_nodes, const double* alpha,
                       const double* beta, const double* gamma, pi_t* pi,
                       vec_t normal) {
+
   // Calculate the coefficients for the projected face integral
   for (int nn = 0; nn < nnodes_by_face; ++nn) {
     const int n0 = faces_to_nodes[(face_to_nodes_off + nn)];
@@ -295,13 +292,14 @@ void calc_projections(const int nnodes_by_face, const int face_to_nodes_off,
 
     // TODO: WORK OUT HOW TO GET PROPER ORDERING OF THE NODES SO WE DON@T HAVE
     // TO FIXUP WITH THE AREA CHECK
+    const double pione = dbeta * (a1 + a0) / 2.0;
     const double flip = (pione > 0.0 ? 1.0 : -1.0);
-    pione += (flip) * (dbeta * (a1 + a0) / 2.0);
-    pialpha += (flip*(dbeta * Calpha / 6.0);
-    pialpha2 += (flip*(dbeta * (a1 * Calpha + a0 * a0 * a0) / 12.0);
-    pibeta += (flip*(-(dalpha * Cbeta / 6.0));
-    pibeta2 += (flip*(-(dalpha * (b1 * Cbeta + b0 * b0 * b0) / 12.0));
-    pialphabeta += (flip*(dbeta * (b1 * Calphabeta + b0 * Kalphabeta) / 24.0);
+    pi->one += flip * pione;
+    pi->alpha += flip * dbeta * (Calpha) / 6.0;
+    pi->alpha2 += flip * dbeta * (a1 * Calpha + a0 * a0 * a0) / 12.0;
+    pi->beta -= flip * dalpha * (Cbeta) / 6.0;
+    pi->beta2 -= flip * dalpha * (b1 * Cbeta + b0 * b0 * b0) / 12.0;
+    pi->alpha_beta += flip * dbeta * (b1 * Calphabeta + b0 * Kalphabeta) / 24.0;
   }
 }
 
