@@ -32,9 +32,20 @@ void calc_unit_normal(const int n0, const int n1, const int n2,
 
 // Calculates the face integral for the provided face, projected onto
 // the two-dimensional basis
-void calc_projections(const double nnodes_by_face, const int face_to_nodes_off,
+void calc_projections(const int nnodes_by_face, const int face_to_nodes_off,
                       const int* faces_to_nodes, const double* alpha,
-                      const double* beta, const double* gamma, pi_t* pi);
+                      const double* beta, const double* gamma, pi_t* pi,
+                      vec_t normal);
+
+// Resolves the volume integrals in alpha-beta-gamma basis
+void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
+                         const int orientation, const int n0,
+                         const int* faces_to_nodes, const double* nodes_alpha,
+                         const double* nodes_beta, const double* nodes_gamma,
+                         vec_t normal, vec_t* T, double* vol);
+
+// Calculates the inverse of a 3x3 matrix, out-of-place
+void calc_3x3_inverse(vec_t (*a)[3], vec_t (*inv)[3]);
 
 // Calculates the weighted volume integrals for a provided cell along x-y-z
 void calc_weighted_volume_integrals(
@@ -43,13 +54,3 @@ void calc_weighted_volume_integrals(
     const int* faces_to_nodes_offsets, const double* nodes_x,
     const double* nodes_y, const double* nodes_z, const vec_t cell_centroid,
     vec_t* T, double* vol);
-
-// Calculates the inverse of a 3x3 matrix, out-of-place
-void calc_3x3_inverse(vec_t (*a)[3], vec_t (*inv)[3]);
-
-// Resolves the volume integrals in alpha-beta-gamma basis
-void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
-                         const int orientation, const int n0,
-                         const int* faces_to_nodes, const double* nodes_x,
-                         const double* nodes_y, const double* nodes_z,
-                         vec_t normal, vec_t* T, double* vol);

@@ -175,8 +175,12 @@ void calc_weighted_volume_integrals(
     int orientation;
     if (fabs(normal.x) > fabs(normal.y)) {
       orientation = (fabs(normal.x) > fabs(normal.z)) ? YZX : XYZ;
+      printf("normal (%.4f %.4f %.4f) orientation %s\n", normal.x, normal.y,
+             normal.z, (orientation == YZX) ? "YZX" : "XYZ");
     } else {
       orientation = (fabs(normal.z) > fabs(normal.y)) ? XYZ : ZXY;
+      printf("normal (%.4f %.4f %.4f) orientation %s\n", normal.x, normal.y,
+             normal.z, (orientation == XYZ) ? "XYZ" : "ZXY");
     }
 
     // The orientation determines which order we pass the nodes by axes
@@ -215,15 +219,15 @@ void calc_weighted_volume_integrals(
 // Resolves the volume integrals in alpha-beta-gamma basis
 void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
                          const int orientation, const int n0,
-                         const int* faces_to_nodes, const double* nodes_x,
-                         const double* nodes_y, const double* nodes_z,
+                         const int* faces_to_nodes, const double* nodes_alpha,
+                         const double* nodes_beta, const double* nodes_gamma,
                          vec_t normal, vec_t* T, double* vol) {
 
   pi_t pi = {0.0};
-  calc_projections(nnodes_by_face, face_to_nodes_off, faces_to_nodes, nodes_x,
-                   nodes_y, nodes_z, &pi);
-  double omega = -(normal.x * nodes_x[(n0)] + normal.y * nodes_y[(n0)] +
-                   normal.z * nodes_z[(n0)]);
+  calc_projections(nnodes_by_face, face_to_nodes_off, faces_to_nodes,
+                   nodes_alpha, nodes_beta, nodes_gamma, &pi, normal);
+  double omega = -(normal.x * nodes_alpha[(n0)] + normal.y * nodes_beta[(n0)] +
+                   normal.z * nodes_gamma[(n0)]);
 
   // Finalise the weighted face integrals
   const double Falpha = pi.alpha / normal.z;
@@ -242,7 +246,7 @@ void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
 
 #if 0
   printf("%.12f %.12f %.12f %.12f %.12f\n", Falpha, Fbeta, Fgamma, Falpha2,
-         Fbeta2);
+      Fbeta2);
 #endif // if 0
 
   // Accumulate the weighted volume integrals
@@ -266,10 +270,10 @@ void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
 
 // Calculates the face integral for the provided face, projected onto
 // the two-dimensional basis
-void calc_projections(const double nnodes_by_face, const int face_to_nodes_off,
+void calc_projections(const int nnodes_by_face, const int face_to_nodes_off,
                       const int* faces_to_nodes, const double* alpha,
-                      const double* beta, const double* gamma, pi_t* pi) {
-
+                      const double* beta, const double* gamma, pi_t* pi,
+                      vec_t normal) {
   // Calculate the coefficients for the projected face integral
   for (int nn = 0; nn < nnodes_by_face; ++nn) {
     const int n0 = faces_to_nodes[(face_to_nodes_off + nn)];
@@ -277,28 +281,27 @@ void calc_projections(const double nnodes_by_face, const int face_to_nodes_off,
                        ? faces_to_nodes[(face_to_nodes_off)]
                        : faces_to_nodes[(face_to_nodes_off + nn + 1)];
 
-    printf("face nodes (%.4f %.4f) (%.4f %.4f)\n", alpha[(n0)], beta[(n0)],
-           alpha[(n1)], beta[(n1)]);
-
     // TODO: REVERSING THIS BRINGS OUT THE CORRECT VOLUMES...
-    const double a0 = alpha[(n1)];
-    const double a1 = alpha[(n0)];
-    const double b0 = beta[(n1)];
-    const double b1 = beta[(n0)];
-
+    const double a0 = alpha[(n0)];
+    const double a1 = alpha[(n1)];
+    const double b0 = beta[(n0)];
+    const double b1 = beta[(n1)];
+    const double dalpha = a1 - a0;
+    const double dbeta = b1 - b0;
     const double Calpha = a1 * (a1 + a0) + a0 * a0;
     const double Cbeta = b1 * b1 + b1 * b0 + b0 * b0;
     const double Calphabeta = 3.0 * a1 * a1 + 2.0 * a1 * a0 + a0 * a0;
     const double Kalphabeta = a1 * a1 + 2.0 * a1 * a0 + 3.0 * a0 * a0;
 
-    const double dalpha = a1 - a0;
-    const double dbeta = b1 - b0;
-    pi->one += dbeta * (a1 + a0) / 2.0;
-    pi->alpha += dbeta * Calpha / 6.0;
-    pi->alpha2 += dbeta * (a1 * Calpha + a0 * a0 * a0) / 12.0;
-    pi->beta += -(dalpha * Cbeta / 6.0);
-    pi->beta2 += -(dalpha * (b1 * Cbeta + b0 * b0 * b0) / 12.0);
-    pi->alpha_beta += dbeta * (b1 * Calphabeta + b0 * Kalphabeta) / 24.0;
+    // TODO: WORK OUT HOW TO GET PROPER ORDERING OF THE NODES SO WE DON@T HAVE
+    // TO FIXUP WITH THE AREA CHECK
+    const double flip = (pione > 0.0 ? 1.0 : -1.0);
+    pione += (flip) * (dbeta * (a1 + a0) / 2.0);
+    pialpha += (flip*(dbeta * Calpha / 6.0);
+    pialpha2 += (flip*(dbeta * (a1 * Calpha + a0 * a0 * a0) / 12.0);
+    pibeta += (flip*(-(dalpha * Cbeta / 6.0));
+    pibeta2 += (flip*(-(dalpha * (b1 * Cbeta + b0 * b0 * b0) / 12.0));
+    pialphabeta += (flip*(dbeta * (b1 * Calphabeta + b0 * Kalphabeta) / 24.0);
   }
 }
 
@@ -369,9 +372,9 @@ void calc_3x3_inverse(vec_t (*a)[3], vec_t (*inv)[3]) {
     (*inv)[2].z = ((*a)[0].x * (*a)[1].y - (*a)[0].y * (*a)[1].x) / det;
   }
 #if 0
-    printf("\ninv\n %.12f %.12f %.12f\n", inv[0].x, inv[0].y, inv[0].z);
-    printf("%.12f %.12f %.12f\n", inv[1].x, inv[1].y, inv[1].z);
-    printf("%.12f %.12f %.12f\n\n", inv[2].x, inv[2].y, inv[2].z);
+  printf("\ninv\n %.12f %.12f %.12f\n", inv[0].x, inv[0].y, inv[0].z);
+  printf("%.12f %.12f %.12f\n", inv[1].x, inv[1].y, inv[1].z);
+  printf("%.12f %.12f %.12f\n\n", inv[2].x, inv[2].y, inv[2].z);
 #endif // if 0
 }
 
