@@ -116,7 +116,7 @@ int main(int argc, char** argv) {
     double w0 = omp_get_wtime();
 
     solve_unstructured_hydro_2d(
-        &mesh, umesh.ncells, umesh.nnodes, umesh.nsub_cell_edges,
+        &mesh, umesh.ncells, umesh.nnodes, hale_data.nsubcell_edges,
         hale_data.visc_coeff1, hale_data.visc_coeff2, umesh.cell_centroids_x,
         umesh.cell_centroids_y, umesh.cell_centroids_z, umesh.cells_to_nodes,
         umesh.cells_offsets, umesh.nodes_to_cells, umesh.cells_to_cells,
@@ -129,22 +129,21 @@ int main(int argc, char** argv) {
         hale_data.density0, hale_data.density1, hale_data.pressure0,
         hale_data.pressure1, hale_data.velocity_x0, hale_data.velocity_y0,
         hale_data.velocity_z0, hale_data.velocity_x1, hale_data.velocity_y1,
-        hale_data.velocity_z1, hale_data.sub_cell_force_x,
-        hale_data.sub_cell_force_y, hale_data.sub_cell_force_z,
+        hale_data.velocity_z1, hale_data.subcell_force_x,
+        hale_data.subcell_force_y, hale_data.subcell_force_z,
         hale_data.node_force_x, hale_data.node_force_y, hale_data.node_force_z,
         hale_data.cell_mass, hale_data.nodal_mass, hale_data.nodal_volumes,
-        hale_data.nodal_soundspeed, hale_data.limiter,
-        hale_data.sub_cell_volume, hale_data.sub_cell_energy,
-        hale_data.sub_cell_mass, hale_data.sub_cell_velocity_x,
-        hale_data.sub_cell_velocity_y, hale_data.sub_cell_velocity_z,
-        hale_data.sub_cell_kinetic_energy, hale_data.sub_cell_centroids_x,
-        hale_data.sub_cell_centroids_y, hale_data.sub_cell_centroids_z,
-        hale_data.sub_cell_grad_x, hale_data.sub_cell_grad_y,
-        hale_data.sub_cell_grad_z, umesh.nodes_to_faces_offsets,
-        umesh.nodes_to_faces, umesh.faces_to_nodes,
-        umesh.faces_to_nodes_offsets, umesh.faces_to_cells0,
-        umesh.faces_to_cells1, umesh.cells_to_faces_offsets,
-        umesh.cells_to_faces);
+        hale_data.nodal_soundspeed, hale_data.limiter, hale_data.subcell_volume,
+        hale_data.subcell_energy, hale_data.subcell_mass,
+        hale_data.subcell_velocity_x, hale_data.subcell_velocity_y,
+        hale_data.subcell_velocity_z, hale_data.subcell_kinetic_energy,
+        hale_data.subcell_centroids_x, hale_data.subcell_centroids_y,
+        hale_data.subcell_centroids_z, hale_data.subcell_grad_x,
+        hale_data.subcell_grad_y, hale_data.subcell_grad_z,
+        umesh.nodes_to_faces_offsets, umesh.nodes_to_faces,
+        umesh.faces_to_nodes, umesh.faces_to_nodes_offsets,
+        umesh.faces_to_cells0, umesh.faces_to_cells1,
+        umesh.cells_to_faces_offsets, umesh.cells_to_faces);
 
     wallclock += omp_get_wtime() - w0;
     elapsed_sim_time += mesh.dt;

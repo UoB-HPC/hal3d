@@ -75,6 +75,8 @@ typedef struct {
   double* rezoned_nodes_y;
   double* rezoned_nodes_z;
 
+  int nsubcell_edges;
+
   double visc_coeff1;
   double visc_coeff2;
 } HaleData;

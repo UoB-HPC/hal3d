@@ -219,9 +219,9 @@ void solve_unstructured_hydro_2d(
           double vol = 0.0;
           vec_t integrals;
           calc_weighted_volume_integrals(
-              0, 4, subcell_to_faces, faces_to_nodes, faces_to_nodes_offsets,
-              subcell_nodes_x, subcell_nodes_y, subcell_nodes_z,
-              subcell_centroid, &integrals, &vol);
+              0, 4, subcell_to_faces, subcell_faces_to_nodes,
+              subcell_faces_to_nodes_offsets, subcell_nodes_x, subcell_nodes_y,
+              subcell_nodes_z, subcell_centroid, &integrals, &vol);
 
           // Determine the subcell energy from the linear function determined
           // at the cell

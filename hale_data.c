@@ -36,6 +36,8 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
                              umesh->ncells * umesh->nnodes_by_cell);
   allocated += allocate_data(&hale_data->subcell_velocity_z,
                              umesh->ncells * umesh->nnodes_by_cell);
+  allocated += allocate_data(&hale_data->subcell_volume,
+                             umesh->ncells * umesh->nnodes_by_cell);
 #if 0
   allocated += allocate_data(&hale_data->subcell_volume,
                              umesh->ncells * umesh->nnodes_by_cell);
@@ -63,6 +65,8 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
   allocated += allocate_data(&hale_data->node_force_z,
                              umesh->ncells * umesh->nnodes_by_cell);
 
+  hale_data->nsubcell_edges = 4;
+
   // In hale, the fundamental principle is that the mass at the cell and
   // sub-cell are conserved, so we can initialise them from the mesh
   // and then only the remapping step will ever adjust them
@@ -75,7 +79,7 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
                  umesh->cell_centroids_y, umesh->cell_centroids_z,
                  umesh->cells_to_nodes, hale_data->density0, umesh->nodes_x0,
                  umesh->nodes_y0, umesh->nodes_z0, hale_data->cell_mass,
-                 umesh->subcell_volume, hale_data->subcell_mass,
+                 hale_data->subcell_volume, hale_data->subcell_mass,
                  umesh->cells_to_faces_offsets, umesh->cells_to_faces,
                  umesh->faces_to_nodes_offsets, umesh->faces_to_nodes);
 
