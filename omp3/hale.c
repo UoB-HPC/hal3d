@@ -4,6 +4,7 @@
 #include "../../shared.h"
 #include "../hale_data.h"
 #include "../hale_interface.h"
+#include <assert.h>
 #include <float.h>
 #include <math.h>
 #include <stdio.h>
@@ -50,18 +51,14 @@ void solve_unstructured_hydro_2d(
   }
   printf("total mass %.12f\n", total_mass);
 
-// The idea of the algorithm in 3d is to calculate the face centered and cell
-// centered velocities using the 2d and 3d equations
-//
-//
-// TODO: Could we just describe the density as a function and then interpolate
-// it?
+  // The idea of the algorithm in 3d is to calculate the face centered and cell
+  // centered velocities using the 2d and 3d equations
+  //
+  //
+  // TODO: Could we just describe the density as a function and then interpolate
+  // it?
 
-// TODO: LOADS OF OPTIMISATIONS HERE
-
-#if 0
-  energy0[(2)] = 4.0;
-#endif // if 0
+  // TODO: LOADS OF OPTIMISATIONS HERE
 
   // Calculate the sub-cell internal energies
   for (int cc = 0; cc < ncells; ++cc) {
@@ -70,6 +67,11 @@ void solve_unstructured_hydro_2d(
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
         cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
+
+    vec_t cell_centroid;
+    cell_centroid.x = cell_centroids_x[(cc)];
+    cell_centroid.y = cell_centroids_y[(cc)];
+    cell_centroid.z = cell_centroids_z[(cc)];
 
     // The coefficients of the 3x3 gradient coefficient matrix
     vec_t coeff[3] = {0.0};
@@ -105,6 +107,11 @@ void solve_unstructured_hydro_2d(
           faces_to_nodes, faces_to_nodes_offsets, nodes_x0, nodes_y0, nodes_z0,
           neighbour_centroid, &integrals, &vol);
 
+      // Complete the integral coefficient as a distance
+      integrals.x -= cell_centroid.x * vol;
+      integrals.y -= cell_centroid.y * vol;
+      integrals.z -= cell_centroid.z * vol;
+
       // Store the neighbouring cell's contribution to the coefficients
       coeff[0].x += (2.0 * integrals.x * integrals.x) / (vol * vol);
       coeff[0].y += (2.0 * integrals.x * integrals.y) / (vol * vol);
@@ -118,6 +125,7 @@ void solve_unstructured_hydro_2d(
       coeff[2].y += (2.0 * integrals.z * integrals.y) / (vol * vol);
       coeff[2].z += (2.0 * integrals.z * integrals.z) / (vol * vol);
 
+      // Prepare the RHS, which includes energy differential
       const double de = (energy0[(neighbour_index)] - energy0[(cc)]);
       rhs.x += (2.0 * integrals.x * de / vol);
       rhs.y += (2.0 * integrals.y * de / vol);
@@ -133,9 +141,6 @@ void solve_unstructured_hydro_2d(
     grad_energy.x = inv[0].x * rhs.x + inv[0].y * rhs.y + inv[0].z * rhs.z;
     grad_energy.y = inv[1].x * rhs.x + inv[1].y * rhs.y + inv[1].z * rhs.z;
     grad_energy.z = inv[2].x * rhs.x + inv[2].y * rhs.y + inv[2].z * rhs.z;
-
-    printf("grad %.12f %.12f %.12f\n", grad_energy.x, grad_energy.y,
-           grad_energy.z);
   }
 }
 
@@ -189,34 +194,20 @@ void calc_weighted_volume_integrals(
       calc_face_integrals(nnodes_by_face, face_to_nodes_off, orientation, n0,
                           faces_to_nodes, nodes_x, nodes_y, nodes_z, normal, T,
                           vol);
-#if 0
-      printf("xyz face %d *vol %.5f normal (%.5f %.5f %.5f)\n", ff, *vol,
-             normal.x, normal.y, normal.z);
-#endif // if 0
-
     } else if (orientation == YZX) {
       dswap(normal.x, normal.y);
       dswap(normal.y, normal.z);
       calc_face_integrals(nnodes_by_face, face_to_nodes_off, orientation, n0,
                           faces_to_nodes, nodes_y, nodes_z, nodes_x, normal, T,
                           vol);
-#if 0
-      printf("yzx face %d *vol %.5f normal (%.5f %.5f %.5f)\n", ff, *vol,
-             normal.x, normal.y, normal.z);
-#endif // if 0
     } else if (orientation == ZXY) {
       dswap(normal.x, normal.y);
       dswap(normal.x, normal.z);
       calc_face_integrals(nnodes_by_face, face_to_nodes_off, orientation, n0,
                           faces_to_nodes, nodes_z, nodes_x, nodes_y, normal, T,
                           vol);
-#if 0
-      printf("zxy face %d *vol %.5f normal (%.5f %.5f %.5f)\n", ff, *vol,
-             normal.x, normal.y, normal.z);
-#endif // if 0
     }
   }
-  printf("vol %.4f\n\n", *vol);
 }
 
 // Resolves the volume integrals in alpha-beta-gamma basis
@@ -230,6 +221,7 @@ void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
   calc_projections(nnodes_by_face, face_to_nodes_off, faces_to_nodes,
                    nodes_alpha, nodes_beta, nodes_gamma, &pi, normal);
 
+  // The projection of the normal vector onto a point on the face
   double omega = -(normal.x * nodes_alpha[(n0)] + normal.y * nodes_beta[(n0)] +
                    normal.z * nodes_gamma[(n0)]);
 
@@ -248,6 +240,27 @@ void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
        2.0 * normal.y * omega * pi.beta + omega * omega * pi.one) /
       (fabs(normal.z) * normal.z * normal.z);
 
+  // TODO: STUPID HACK UNTIL I FIND THE CULPRIT!
+
+  // Accumulate the weighted volume integrals
+  if (orientation == XYZ) {
+    T->y += 0.5 * normal.x * Falpha2;
+    T->x += 0.5 * normal.y * Fbeta2;
+    T->z += 0.5 * normal.z * Fgamma2;
+    *vol += normal.x * Falpha;
+  } else if (orientation == YZX) {
+    T->y += 0.5 * normal.y * Fbeta2;
+    T->x += 0.5 * normal.z * Fgamma2;
+    T->z += 0.5 * normal.x * Falpha2;
+    *vol += normal.y * Fbeta;
+  } else if (orientation == ZXY) {
+    T->y += 0.5 * normal.z * Fgamma2;
+    T->x += 0.5 * normal.x * Falpha2;
+    T->z += 0.5 * normal.y * Fbeta2;
+    *vol += normal.z * Fgamma;
+  }
+
+#if 0
   // Accumulate the weighted volume integrals
   if (orientation == XYZ) {
     T->x += 0.5 * normal.x * Falpha2;
@@ -265,6 +278,7 @@ void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
     T->z += 0.5 * normal.y * Fbeta2;
     *vol += normal.z * Fgamma;
   }
+#endif // if 0
 }
 
 // Calculates the face integral for the provided face, projected onto
@@ -300,9 +314,6 @@ void calc_projections(const int nnodes_by_face, const int face_to_nodes_off,
     const double Calphabeta = 3.0 * a1 * a1 + 2.0 * a1 * a0 + a0 * a0;
     const double Kalphabeta = a1 * a1 + 2.0 * a1 * a0 + 3.0 * a0 * a0;
 
-    // TODO: WORK OUT HOW TO GET PROPER ORDERING OF THE NODES SO WE DON@T HAVE
-    // TO FIXUP WITH THE AREA CHECK
-
     // Accumulate the projection integrals
     pione += dbeta * (a1 + a0) / 2.0;
     pialpha += dbeta * (Calpha) / 6.0;
@@ -312,13 +323,15 @@ void calc_projections(const int nnodes_by_face, const int face_to_nodes_off,
     pialphabeta += dbeta * (b1 * Calphabeta + b0 * Kalphabeta) / 24.0;
   }
 
+  // Store the final coefficients, flipping all results if we went through
+  // in a clockwise order and got a negative area
   const double flip = (pione > 0.0 ? 1.0 : -1.0);
   pi->one += flip * pione;
   pi->alpha += flip * pialpha;
   pi->alpha2 += flip * pialpha2;
   pi->beta += flip * pibeta;
   pi->beta2 += flip * pibeta2;
-  pi->alpha_beta += pialphabeta;
+  pi->alpha_beta += flip * pialphabeta;
 }
 
 // Calculate the normal vector from the provided nodes
@@ -368,30 +381,21 @@ void calc_3x3_inverse(vec_t (*a)[3], vec_t (*inv)[3]) {
 
   // Check if the matrix is singular
   if (det == 0.0) {
-    for (int ii = 0; ii < 3; ++ii) {
-      (*inv)[ii].x = 0.0;
-      (*inv)[ii].y = 0.0;
-      (*inv)[ii].z = 0.0;
-    }
+    TERMINATE("singular coefficient matrix");
   } else {
     // Perform the simple and fast 3x3 matrix inverstion
     (*inv)[0].x = ((*a)[1].y * (*a)[2].z - (*a)[1].z * (*a)[2].y) / det;
-    (*inv)[0].y = (-((*a)[0].y * (*a)[2].z - (*a)[0].z * (*a)[2].y)) / det;
+    (*inv)[0].y = ((*a)[0].z * (*a)[2].y - (*a)[0].y * (*a)[2].z) / det;
     (*inv)[0].z = ((*a)[0].y * (*a)[1].z - (*a)[0].z * (*a)[1].y) / det;
 
-    (*inv)[1].x = (-((*a)[1].x * (*a)[2].z - (*a)[1].z * (*a)[2].x)) / det;
+    (*inv)[1].x = ((*a)[1].z * (*a)[2].x - (*a)[1].x * (*a)[2].z) / det;
     (*inv)[1].y = ((*a)[0].x * (*a)[2].z - (*a)[0].z * (*a)[2].x) / det;
-    (*inv)[1].z = (-((*a)[0].x * (*a)[1].z - (*a)[0].z * (*a)[1].x)) / det;
+    (*inv)[1].z = ((*a)[0].z * (*a)[1].x - (*a)[0].x * (*a)[1].z) / det;
 
     (*inv)[2].x = ((*a)[1].x * (*a)[2].y - (*a)[1].y * (*a)[2].x) / det;
-    (*inv)[2].y = (-((*a)[0].x * (*a)[2].y - (*a)[0].y * (*a)[2].x)) / det;
+    (*inv)[2].y = ((*a)[0].x * (*a)[2].x - (*a)[0].x * (*a)[2].y) / det;
     (*inv)[2].z = ((*a)[0].x * (*a)[1].y - (*a)[0].y * (*a)[1].x) / det;
   }
-#if 0
-  printf("\ninv\n %.12f %.12f %.12f\n", inv[0].x, inv[0].y, inv[0].z);
-  printf("%.12f %.12f %.12f\n", inv[1].x, inv[1].y, inv[1].z);
-  printf("%.12f %.12f %.12f\n\n", inv[2].x, inv[2].y, inv[2].z);
-#endif // if 0
 }
 
 // Controls the timestep for the simulation
