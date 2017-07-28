@@ -32,10 +32,9 @@ void calc_unit_normal(const int n0, const int n1, const int n2,
 
 // Calculates the face integral for the provided face, projected onto
 // the two-dimensional basis
-void calc_face_integral(const double nnodes_by_face,
-                        const int face_to_nodes_off, const int* faces_to_nodes,
-                        const double* alpha, const double* beta,
-                        const double* gamma, pi_t* pi);
+void calc_projections(const double nnodes_by_face, const int face_to_nodes_off,
+                      const int* faces_to_nodes, const double* alpha,
+                      const double* beta, const double* gamma, pi_t* pi);
 
 // Calculates the weighted volume integrals for a provided cell along x-y-z
 void calc_weighted_volume_integrals(
@@ -49,8 +48,8 @@ void calc_weighted_volume_integrals(
 void calc_3x3_inverse(vec_t (*a)[3], vec_t (*inv)[3]);
 
 // Resolves the volume integrals in alpha-beta-gamma basis
-void resolve_integrals(const int nnodes_by_face, const int face_to_nodes_off,
-                       const int orientation, const int n0,
-                       const int* faces_to_nodes, const double* nodes_x,
-                       const double* nodes_y, const double* nodes_z,
-                       vec_t normal, vec_t* T, double* vol);
+void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
+                         const int orientation, const int n0,
+                         const int* faces_to_nodes, const double* nodes_x,
+                         const double* nodes_y, const double* nodes_z,
+                         vec_t normal, vec_t* T, double* vol);
