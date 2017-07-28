@@ -28,7 +28,7 @@ void update_velocity(const int nnodes, const double dt,
 // Calculate the normal vector from the provided nodes
 void calc_unit_normal(const int n0, const int n1, const int n2,
                       const double* alpha, const double* beta,
-                      const double* gamma, pnormal_t* normal);
+                      const double* gamma, vec_t cell_centroid, vec_t* normal);
 
 // Calculates the face integral for the provided face, projected onto
 // the two-dimensional basis
@@ -41,8 +41,16 @@ void calc_face_integral(const double nnodes_by_face,
 void calc_weighted_volume_integrals(
     const int cell_to_faces_off, const int nfaces_by_cell,
     const int* cells_to_faces, const int* faces_to_nodes,
-    const int* faces_to_nodes_offsets, const double* nodes_x0,
-    const double* nodes_y0, const double* nodes_z0, vec_t* T, double* vol);
+    const int* faces_to_nodes_offsets, const double* nodes_x,
+    const double* nodes_y, const double* nodes_z, const vec_t cell_centroid,
+    vec_t* T, double* vol);
 
 // Calculates the inverse of a 3x3 matrix, out-of-place
 void calc_3x3_inverse(vec_t (*a)[3], vec_t (*inv)[3]);
+
+// Resolves the volume integrals in alpha-beta-gamma basis
+void resolve_integrals(const int nnodes_by_face, const int face_to_nodes_off,
+                       const int orientation, const int n0,
+                       const int* faces_to_nodes, const double* nodes_x,
+                       const double* nodes_y, const double* nodes_z,
+                       vec_t normal, vec_t* T, double* vol);

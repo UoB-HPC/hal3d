@@ -31,12 +31,6 @@ typedef struct {
 } vec_t;
 
 typedef struct {
-  double alpha;
-  double beta;
-  double gamma;
-} pnormal_t;
-
-typedef struct {
   double* energy0;
   double* energy1;
   double* density0;
