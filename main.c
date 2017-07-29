@@ -134,7 +134,7 @@ int main(int argc, char** argv) {
         hale_data.node_force_x, hale_data.node_force_y, hale_data.node_force_z,
         hale_data.cell_mass, hale_data.nodal_mass, hale_data.nodal_volumes,
         hale_data.nodal_soundspeed, hale_data.limiter, hale_data.subcell_volume,
-        hale_data.subcell_energy, hale_data.subcell_mass,
+        hale_data.subcell_internal_energy, hale_data.subcell_mass,
         hale_data.subcell_velocity_x, hale_data.subcell_velocity_y,
         hale_data.subcell_velocity_z, hale_data.subcell_kinetic_energy,
         hale_data.subcell_centroids_x, hale_data.subcell_centroids_y,

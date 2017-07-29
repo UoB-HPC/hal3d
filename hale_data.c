@@ -47,8 +47,6 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
                              umesh->ncells * umesh->nnodes_by_cell);
   allocated += allocate_data(&hale_data->subcell_force_z,
                              umesh->ncells * umesh->nnodes_by_cell);
-  allocated += allocate_data(&hale_data->subcell_energy,
-                             umesh->ncells * umesh->nnodes_by_cell);
   allocated += allocate_data(&hale_data->subcell_kinetic_energy,
                              umesh->ncells * umesh->nnodes_by_cell);
   allocated += allocate_data(&hale_data->subcell_grad_x,
@@ -58,6 +56,8 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
   allocated += allocate_data(&hale_data->subcell_grad_z,
                              umesh->ncells * umesh->nnodes_by_cell);
 #endif // if 0
+  allocated += allocate_data(&hale_data->subcell_internal_energy,
+                             umesh->ncells * umesh->nnodes_by_cell);
   allocated += allocate_data(&hale_data->node_force_x,
                              umesh->ncells * umesh->nnodes_by_cell);
   allocated += allocate_data(&hale_data->node_force_y,

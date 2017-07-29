@@ -55,7 +55,7 @@ typedef struct {
   double* nodal_volumes;
   double* nodal_soundspeed;
   double* limiter;
-  double* subcell_energy;
+  double* subcell_internal_energy;
   double* subcell_mass;
   double* subcell_velocity_x;
   double* subcell_velocity_y;

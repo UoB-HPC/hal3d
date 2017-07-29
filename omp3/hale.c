@@ -35,14 +35,14 @@ void solve_unstructured_hydro_2d(
     double* node_force_x, double* node_force_y, double* node_force_z,
     double* cell_mass, double* nodal_mass, double* nodal_volumes,
     double* nodal_soundspeed, double* limiter, double* subcell_volume,
-    double* subcell_energy, double* subcell_mass, double* subcell_velocity_x,
-    double* subcell_velocity_y, double* subcell_velocity_z,
-    double* subcell_kinetic_energy, double* subcell_centroids_x,
-    double* subcell_centroids_y, double* subcell_centroids_z,
-    double* subcell_grad_x, double* subcell_grad_y, double* subcell_grad_z,
-    int* nodes_to_faces_offsets, int* nodes_to_faces, int* faces_to_nodes,
-    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
-    int* cells_to_faces_offsets, int* cells_to_faces) {
+    double* subcell_internal_energy, double* subcell_mass,
+    double* subcell_velocity_x, double* subcell_velocity_y,
+    double* subcell_velocity_z, double* subcell_kinetic_energy,
+    double* subcell_centroids_x, double* subcell_centroids_y,
+    double* subcell_centroids_z, double* subcell_grad_x, double* subcell_grad_y,
+    double* subcell_grad_z, int* nodes_to_faces_offsets, int* nodes_to_faces,
+    int* faces_to_nodes, int* faces_to_nodes_offsets, int* faces_to_cells0,
+    int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces) {
 
   double total_mass = 0.0;
   for (int cc = 0; cc < ncells; ++cc) {
@@ -66,6 +66,8 @@ void solve_unstructured_hydro_2d(
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
         cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
+    const int cell_to_nodes_off = cells_offsets[(cc)];
+    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
 
     vec_t cell_centroid;
     cell_centroid.x = cell_centroids_x[(cc)];
@@ -143,10 +145,11 @@ void solve_unstructured_hydro_2d(
 // Describe the connectivity for a simple tetrahedron, the sub-cell shape
 #define NSUBCELL_FACES 4
 #define NSUBCELL_NODES 4
-    int subcell_faces_to_nodes_offsets[NSUBCELL_NODES + 1] = {0, 3, 6, 9, 12};
-    int subcell_faces_to_nodes[NSUBCELL_FACES * 3] = {0, 1, 2, 0, 1, 3,
-                                                      0, 2, 3, 1, 2, 3};
-    int subcell_to_faces[NSUBCELL_FACES] = {0, 1, 2, 3};
+    const int subcell_faces_to_nodes_offsets[NSUBCELL_NODES + 1] = {0, 3, 6, 9,
+                                                                    12};
+    const int subcell_faces_to_nodes[NSUBCELL_FACES * 3] = {0, 1, 2, 0, 1, 3,
+                                                            0, 2, 3, 1, 2, 3};
+    const int subcell_to_faces[NSUBCELL_FACES] = {0, 1, 2, 3};
     double subcell_nodes_x[NSUBCELL_NODES] = {0.0};
     double subcell_nodes_y[NSUBCELL_NODES] = {0.0};
     double subcell_nodes_z[NSUBCELL_NODES] = {0.0};
@@ -174,8 +177,6 @@ void solve_unstructured_hydro_2d(
         subcell_nodes_y[2] += nodes_y0[(node_index)] / nnodes_by_face;
         subcell_nodes_z[2] += nodes_z0[(node_index)] / nnodes_by_face;
       }
-      printf("face_center %d %.4f %.4f %.4f\n", cc, subcell_nodes_x[2],
-             subcell_nodes_y[2], subcell_nodes_z[2]);
 
       // Each face/node pair has two sub-cells
       for (int nn = 0; nn < nnodes_by_face; ++nn) {
@@ -183,9 +184,9 @@ void solve_unstructured_hydro_2d(
 
         // The left and right nodes on the face for this anchor node
         int nodes_a[2];
-        nodes_a[0] = (nn == 0)
-                         ? faces_to_nodes[(face_to_nodes_off + nnodes_by_face)]
-                         : faces_to_nodes[(face_to_nodes_off + nn - 1)];
+        nodes_a[0] =
+            (nn == 0) ? faces_to_nodes[(face_to_nodes_off + nnodes_by_face - 1)]
+                      : faces_to_nodes[(face_to_nodes_off + nn - 1)];
         nodes_a[1] = (nn == nnodes_by_face - 1)
                          ? faces_to_nodes[(face_to_nodes_off)]
                          : faces_to_nodes[(face_to_nodes_off + nn + 1)];
@@ -211,30 +212,59 @@ void solve_unstructured_hydro_2d(
             subcell_centroid.y += subcell_nodes_y[ii] / NSUBCELL_NODES;
             subcell_centroid.z += subcell_nodes_z[ii] / NSUBCELL_NODES;
           }
+#if 0
+          printf("%.12f %.12f %.12f\n", subcell_centroid.x, subcell_centroid.y,
+                 subcell_centroid.z);
 
-          printf("subcell center %.4f %.4f %.4f\n", subcell_centroid.x,
-                 subcell_centroid.y, subcell_centroid.z);
+          for (int aa = 0; aa < 4; ++aa) {
+            printf("(%.4f %.4f %.4f) ", subcell_nodes_x[aa],
+                   subcell_nodes_y[aa], subcell_nodes_z[aa]);
+          }
+          printf("\n");
+#endif // if 0
 
           // Calculate the weighted volume integral coefficients
           double vol = 0.0;
-          vec_t integrals;
+          vec_t integrals = {0.0};
           calc_weighted_volume_integrals(
-              0, 4, subcell_to_faces, subcell_faces_to_nodes,
+              0, NSUBCELL_FACES, subcell_to_faces, subcell_faces_to_nodes,
               subcell_faces_to_nodes_offsets, subcell_nodes_x, subcell_nodes_y,
               subcell_nodes_z, subcell_centroid, &integrals, &vol);
 
-          // Determine the subcell energy from the linear function determined
-          // at the cell
-          subcell_energy[(ff)] += vol * (density0[(cc)] * energy0[(cc)] -
-                                         (grad_energy.x * cell_centroid.x +
-                                          grad_energy.y * cell_centroid.y +
-                                          grad_energy.z * cell_centroid.z)) +
-                                  grad_energy.x * integrals.x +
-                                  grad_energy.y * integrals.y +
-                                  grad_energy.z * integrals.z;
+#if 0
+          printf("%.12f\n", vol);
+#endif // if 0
+
+          int nn2;
+          for (nn2 = 0; nn2 < nnodes_by_cell; ++nn2) {
+            if (cells_to_nodes[(cell_to_nodes_off + nn2)] == node_index) {
+              break;
+            }
+          }
+
+          // TODO: THIS MIGHT BE A STUPID WAY TO DO THIS.
+          // WE ARE LOOKING AT ALL OF THE SUBCELL TETRAHEDRONS, WHEN WE COULD BE
+          // LOOKING AT A SINGLE CORNER SUBCELL PER NODE
+          //
+          // Determine subcell energy from linear function determined at cell
+          subcell_internal_energy[(cell_to_nodes_off + nn2)] +=
+              vol * (density0[(cc)] * energy0[(cc)] -
+                     (grad_energy.x * cell_centroid.x +
+                      grad_energy.y * cell_centroid.y +
+                      grad_energy.z * cell_centroid.z)) +
+              grad_energy.x * integrals.x + grad_energy.y * integrals.y +
+              grad_energy.z * integrals.z;
         }
       }
     }
+
+#if 0
+    printf("subcell ie ");
+    for (int nn = 0; nn < 8; ++nn) {
+      printf("%.12f ", subcell_internal_energy[(cell_to_nodes_off + nn)]);
+    }
+    printf("\n");
+#endif // if 0
   }
 }
 
@@ -251,6 +281,13 @@ void calc_weighted_volume_integrals(
   T->y = 0.0;
   T->z = 0.0;
   *vol = 0.0;
+
+#if 0
+  printf(
+      "(%.4f %.4f %.4f) (%.4f %.4f %.4f) (%.4f %.4f %.4f) (%.4f %.4f %.4f)\n",
+      nodes_x[0], nodes_y[0], nodes_z[0], nodes_x[1], nodes_y[1], nodes_z[1],
+      nodes_x[2], nodes_y[2], nodes_z[2], nodes_x[3], nodes_y[3], nodes_z[3]);
+#endif // if 0
 
   // The weighted volume integrals are calculated over the polyhedral faces
   for (int ff = 0; ff < nfaces_by_cell; ++ff) {
@@ -269,6 +306,10 @@ void calc_weighted_volume_integrals(
     vec_t normal = {0.0};
     calc_unit_normal(n0, n1, n2, nodes_x, nodes_y, nodes_z, cell_centroid,
                      &normal);
+
+#if 0
+    printf("normal %.12f %.12f %.12f\n", normal.x, normal.y, normal.z);
+#endif // if 0
 
     // Select the orientation based on the face area
     int orientation;
