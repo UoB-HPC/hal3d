@@ -3,14 +3,14 @@ KERNELS          	 = omp3
 COMPILER         	 = INTEL
 MPI              	 = no
 DECOMP					 	 = TILES
-OPTIONS          	 = -DENABLE_PROFILING 
+OPTIONS          	 = -I/Applications/VisIt.app//Contents/Resources/2.10.2/darwin-x86_64/include/silo/include/ #-DENABLE_PROFILING  
 ARCH_COMPILER_CC   = icc
 ARCH_COMPILER_CPP  = icpc
 
 # Compiler-specific flags
 MAC_RPATH				 	 = -Wl,-rpath,${COMPILER_ROOT}/lib 
 CFLAGS_INTEL     	 = -O3 -qopenmp -no-prec-div -std=gnu99 -DINTEL \
-								 	   $(MAC_RPATH) -Wall -qopt-report=5 -I/Applications/VisIt.app//Contents/Resources/2.10.2/darwin-x86_64/include/silo/include/ #-xhost
+								 	   $(MAC_RPATH) -Wall -qopt-report=5 #-xhost
 
 CFLAGS_INTEL_KNL 	 = -O3 -qopenmp -no-prec-div -std=gnu99 -DINTEL \
 								 	   -xMIC-AVX512 -Wall -qopt-report=5
@@ -24,6 +24,7 @@ CFLAGS_XL_OMP4		 = -O5 -qsmp -qoffload
 CFLAGS_CLANG_OMP4  = -O3 -Wall -fopenmp-targets=nvptx64-nvidia-cuda \
 										 -fopenmp=libomp --cuda-path=$(CUDAROOT) -DCLANG #\
 										 -Xclang -target-feature -Xclang +ptx42
+CFLAGS_CLANG			 = -std=gnu99 -fopenmp=libiomp5 -march=native -Wall
 CFLAGS_PGI				 = -O3 -fast -mp
 
 ifeq ($(KERNELS), cuda)
@@ -60,7 +61,8 @@ endif
 # Default compiler
 ARCH_LINKER    			= $(ARCH_COMPILER_CC)
 ARCH_FLAGS     			= $(CFLAGS_$(COMPILER))
-ARCH_LDFLAGS   			= $(ARCH_FLAGS) -lm -L/Applications/VisIt.app//Contents/Resources/2.10.2/darwin-x86_64/lib -lsiloh5
+ARCH_LDFLAGS   			= $(ARCH_FLAGS) -lm -lsiloh5 \
+											-L/Applications/VisIt.app//Contents/Resources/2.10.2/darwin-x86_64/lib 
 ARCH_BUILD_DIR 			= ../obj/hale/
 ARCH_DIR       			= ..
 

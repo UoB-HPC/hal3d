@@ -40,6 +40,7 @@ void solve_unstructured_hydro_2d(
     double* subcell_internal_energy, double* subcell_mass,
     double* subcell_velocity_x, double* subcell_velocity_y,
     double* subcell_velocity_z, double* subcell_kinetic_energy,
+    double* rezoned_nodes_x, double* rezoned_nodes_y, double* rezoned_nodes_z,
     double* subcell_centroids_x, double* subcell_centroids_y,
     double* subcell_centroids_z, double* subcell_grad_x, double* subcell_grad_y,
     double* subcell_grad_z, int* nodes_to_faces_offsets, int* nodes_to_faces,
