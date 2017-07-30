@@ -172,7 +172,6 @@ void solve_unstructured_hydro_2d(
       subcell_nodes_z[2] = 0.0;
       for (int nn = 0; nn < nnodes_by_face; ++nn) {
         const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
-
         subcell_nodes_x[2] += nodes_x0[(node_index)] / nnodes_by_face;
         subcell_nodes_y[2] += nodes_y0[(node_index)] / nnodes_by_face;
         subcell_nodes_z[2] += nodes_z0[(node_index)] / nnodes_by_face;
@@ -212,16 +211,6 @@ void solve_unstructured_hydro_2d(
             subcell_centroid.y += subcell_nodes_y[ii] / NSUBCELL_NODES;
             subcell_centroid.z += subcell_nodes_z[ii] / NSUBCELL_NODES;
           }
-#if 0
-          printf("%.12f %.12f %.12f\n", subcell_centroid.x, subcell_centroid.y,
-                 subcell_centroid.z);
-
-          for (int aa = 0; aa < 4; ++aa) {
-            printf("(%.4f %.4f %.4f) ", subcell_nodes_x[aa],
-                   subcell_nodes_y[aa], subcell_nodes_z[aa]);
-          }
-          printf("\n");
-#endif // if 0
 
           // Calculate the weighted volume integral coefficients
           double vol = 0.0;
@@ -230,10 +219,7 @@ void solve_unstructured_hydro_2d(
               0, NSUBCELL_FACES, subcell_to_faces, subcell_faces_to_nodes,
               subcell_faces_to_nodes_offsets, subcell_nodes_x, subcell_nodes_y,
               subcell_nodes_z, subcell_centroid, &integrals, &vol);
-
-#if 0
-          printf("%.12f\n", vol);
-#endif // if 0
+          printf("%.5f %.5f %.5f\n", integrals.x, integrals.y, integrals.z);
 
           int nn2;
           for (nn2 = 0; nn2 < nnodes_by_cell; ++nn2) {
@@ -258,13 +244,11 @@ void solve_unstructured_hydro_2d(
       }
     }
 
-#if 0
     printf("subcell ie ");
     for (int nn = 0; nn < 8; ++nn) {
       printf("%.12f ", subcell_internal_energy[(cell_to_nodes_off + nn)]);
     }
     printf("\n");
-#endif // if 0
   }
 }
 
@@ -281,13 +265,6 @@ void calc_weighted_volume_integrals(
   T->y = 0.0;
   T->z = 0.0;
   *vol = 0.0;
-
-#if 0
-  printf(
-      "(%.4f %.4f %.4f) (%.4f %.4f %.4f) (%.4f %.4f %.4f) (%.4f %.4f %.4f)\n",
-      nodes_x[0], nodes_y[0], nodes_z[0], nodes_x[1], nodes_y[1], nodes_z[1],
-      nodes_x[2], nodes_y[2], nodes_z[2], nodes_x[3], nodes_y[3], nodes_z[3]);
-#endif // if 0
 
   // The weighted volume integrals are calculated over the polyhedral faces
   for (int ff = 0; ff < nfaces_by_cell; ++ff) {
@@ -306,10 +283,6 @@ void calc_weighted_volume_integrals(
     vec_t normal = {0.0};
     calc_unit_normal(n0, n1, n2, nodes_x, nodes_y, nodes_z, cell_centroid,
                      &normal);
-
-#if 0
-    printf("normal %.12f %.12f %.12f\n", normal.x, normal.y, normal.z);
-#endif // if 0
 
     // Select the orientation based on the face area
     int orientation;
@@ -366,6 +339,7 @@ void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
   const double Fgamma =
       -(normal.x * pi.alpha + normal.y * pi.beta + omega * pi.one) /
       (fabs(normal.z) * normal.z);
+
   const double Falpha2 = pi.alpha2 / fabs(normal.z);
   const double Fbeta2 = pi.beta2 / fabs(normal.z);
   const double Fgamma2 =
@@ -382,12 +356,12 @@ void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
     T->y += 0.5 * normal.x * Falpha2;
     T->x += 0.5 * normal.y * Fbeta2;
     T->z += 0.5 * normal.z * Fgamma2;
-    *vol += normal.x * Falpha;
+    *vol += normal.y * Fbeta;
   } else if (orientation == YZX) {
     T->y += 0.5 * normal.y * Fbeta2;
     T->x += 0.5 * normal.z * Fgamma2;
     T->z += 0.5 * normal.x * Falpha2;
-    *vol += normal.y * Fbeta;
+    *vol += normal.x * Falpha;
   } else if (orientation == ZXY) {
     T->y += 0.5 * normal.z * Fgamma2;
     T->x += 0.5 * normal.x * Falpha2;

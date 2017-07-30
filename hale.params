@@ -1,17 +1,18 @@
-#problem_0 density=0.125 energy=2.0 xpos=0.0 ypos=0.0 zpos=0.0 width=1.0 height=1.0 depth = 1.0
-#problem_1 density=1.0 energy=2.5 xpos=0.4 ypos=0.4 zpos=0.4 width=0.2 height=0.2 depth=0.2
-problem_0 density=0.125 energy=2.0 xpos=0.0 ypos=0.0 zpos=0.0 width=0.5 height=1.0 depth = 1.0
-problem_1 density=1.0 energy=2.5 xpos=0.5 ypos=0.0 zpos=0.0 width=0.5 height=1.0 depth=1.0
+problem_0 density=1.0 energy=1.0 xpos=0.0 ypos=0.0 zpos=0.0 width=1.0 height=1.0 depth=1.0
+#problem_0 density=0.125 energy=2.0 xpos=0.0 ypos=0.0 zpos=0.0 width=1.0 height=1.0 depth=1.0
+#problem_1 density=1.0 energy=2.5 xpos=0.3 ypos=0.3 zpos=0.3 width=0.4 height=0.4 depth=0.4
+#problem_0 density=0.125 energy=2.0 xpos=0.0 ypos=0.0 zpos=0.0 width=0.5 height=1.0 depth = 1.0
+#problem_1 density=1.0 energy=2.5 xpos=0.5 ypos=0.0 zpos=0.0 width=0.5 height=1.0 depth=1.0
 dt            1.0e-4
 visc_coeff1   0.5
 visc_coeff2   0.5
-iterations    100
+iterations    1
 visit_dump    1
 node_file     problems/tri.1.node
 ele_file      problems/tri.1.ele
-nx            64
-ny            64
-nz            64
+nx            10
+ny            10
+nz            10
 
 # READING UMESH IS NOT YET SUPPORTED IN 3D
 read_umesh    0
