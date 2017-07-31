@@ -37,8 +37,10 @@ void solve_unstructured_hydro_2d(
     double* nodal_soundspeed, double* limiter, double* subcell_volume,
     double* subcell_internal_energy, double* subcell_mass,
     double* subcell_velocity_x, double* subcell_velocity_y,
-    double* subcell_velocity_z, double* subcell_kinetic_energy,
-    double* rezoned_nodes_x, double* rezoned_nodes_y, double* rezoned_nodes_z,
+    double* subcell_velocity_z, double* subcell_integrals_x,
+    double* subcell_integrals_y, double* subcell_integrals_z,
+    double* subcell_kinetic_energy, double* rezoned_nodes_x,
+    double* rezoned_nodes_y, double* rezoned_nodes_z,
     double* subcell_centroids_x, double* subcell_centroids_y,
     double* subcell_centroids_z, double* subcell_grad_x, double* subcell_grad_y,
     double* subcell_grad_z, int* nodes_to_faces_offsets, int* nodes_to_faces,
@@ -49,51 +51,38 @@ void solve_unstructured_hydro_2d(
   for (int cc = 0; cc < ncells; ++cc) {
     total_mass += cell_mass[(cc)];
   }
+
   printf("total mass %.12f\n", total_mass);
 
-  // Calculate the sub-cell internal energies
-  for (int cc = 0; cc < ncells; ++cc) {
-    // Calculating the volume integrals necessary for the least squares
-    // regression
-    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
-    const int nfaces_by_cell =
-        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
-
-    vec_t cell_centroid;
-    cell_centroid.x = cell_centroids_x[(cc)];
-    cell_centroid.y = cell_centroids_y[(cc)];
-    cell_centroid.z = cell_centroids_z[(cc)];
-
-    // The coefficients of the 3x3 gradient coefficient matrix
-    vec_t coeff[3] = {{0.0, 0.0, 0.0}};
-    vec_t rhs = {0.0, 0.0, 0.0};
-
-    // Determine the weighted volume integrals for neighbouring cells
-    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
-      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
-      const int neighbour_index = (faces_to_cells0[(face_index)] == cc)
-                                      ? faces_to_cells1[(face_index)]
-                                      : faces_to_cells0[(face_index)];
-      // Check if boundary face
-      if (neighbour_index == -1) {
-        continue;
-      }
-
-      const int neighbour_to_faces_off =
-          cells_to_faces_offsets[(neighbour_index)];
-      const int nfaces_by_neighbour =
-          cells_to_faces_offsets[(neighbour_index + 1)] -
-          neighbour_to_faces_off;
-
 #if 0
-      subcell_mass[(cells_to_nodes_off + nn)] -=
-          sign(rf_normal.x * face_normal.x + rf_normal.y * face_normal.y +
-               rf_normal.z * normal.z)*face_flux;
-#endif // if 0
+    for(int nn = 0; nn < nnodes_by_cell; ++nn){
+      // Store the neighbouring cell's contribution to the coefficients
+      coeff[0].x +=
+        (2.0 * subcell_integrals.x * subcell_integrals.x) / (vol * vol);
+      coeff[0].y +=
+        (2.0 * subcell_integrals.x * subcell_integrals.y) / (vol * vol);
+      coeff[0].z +=
+        (2.0 * subcell_integrals.x * subcell_integrals.z) / (vol * vol);
+      coeff[1].x +=
+        (2.0 * subcell_integrals.y * subcell_integrals.x) / (vol * vol);
+      coeff[1].y +=
+        (2.0 * subcell_integrals.y * subcell_integrals.y) / (vol * vol);
+      coeff[1].z +=
+        (2.0 * subcell_integrals.y * subcell_integrals.z) / (vol * vol);
+      coeff[2].x +=
+        (2.0 * subcell_integrals.z * subcell_integrals.x) / (vol * vol);
+      coeff[2].y +=
+        (2.0 * subcell_integrals.z * subcell_integrals.y) / (vol * vol);
+      coeff[2].z +=
+        (2.0 * subcell_integrals.z * subcell_integrals.z) / (vol * vol);
+
+      // Prepare the RHS, which includes energy differential
+      const double de = (energy0[(neighbour_index)] - energy0[(cc)]);
+      rhs.x += (2.0 * integrals.x * de / vol);
+      rhs.y += (2.0 * integrals.y * de / vol);
+      rhs.z += (2.0 * integrals.z * de / vol);
     }
-  }
+#endif // if 0
 }
 
 // Calculates the weighted volume integrals for a provided cell along x-y-z

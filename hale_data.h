@@ -71,6 +71,9 @@ typedef struct {
   double* subcell_grad_x;
   double* subcell_grad_y;
   double* subcell_grad_z;
+  double* subcell_integrals_x;
+  double* subcell_integrals_y;
+  double* subcell_integrals_z;
   double* rezoned_nodes_x;
   double* rezoned_nodes_y;
   double* rezoned_nodes_z;

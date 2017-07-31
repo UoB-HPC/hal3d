@@ -1057,8 +1057,8 @@
     cell_centroid.z = cell_centroids_z[(cc)];
 
     // The coefficients of the 3x3 gradient coefficient matrix
-    vec_t coeff[3] = {0.0};
-    vec_t rhs = {0.0};
+    vec_t coeff[3] = {{0.0, 0.0, 0.0}};
+    vec_t rhs = {0.0, 0.0, 0.0};
 
     // Determine the weighted volume integrals for neighbouring cells
     for (int ff = 0; ff < nfaces_by_cell; ++ff) {
@@ -1080,7 +1080,7 @@
       // Calculate the weighted volume integral coefficients
       double vol = 0.0;
       vec_t integrals;
-      vec_t neighbour_centroid = {0.0};
+      vec_t neighbour_centroid = {0.0, 0.0, 0.0};
       neighbour_centroid.x = cell_centroids_x[(neighbour_index)];
       neighbour_centroid.y = cell_centroids_y[(neighbour_index)];
       neighbour_centroid.z = cell_centroids_z[(neighbour_index)];
@@ -1123,7 +1123,6 @@
     grad_energy.x = inv[0].x * rhs.x + inv[0].y * rhs.y + inv[0].z * rhs.z;
     grad_energy.y = inv[1].x * rhs.x + inv[1].y * rhs.y + inv[1].z * rhs.z;
     grad_energy.z = inv[2].x * rhs.x + inv[2].y * rhs.y + inv[2].z * rhs.z;
-
 
 // Describe the connectivity for a simple tetrahedron, the sub-cell shape
 #define NSUBCELL_FACES 4
@@ -1188,7 +1187,7 @@
           subcell_nodes_z[0] = nodes_z0[(node_index)];
 
           // Determine the sub-cell centroid
-          vec_t subcell_centroid = {0.0};
+          vec_t subcell_centroid = {0.0, 0.0, 0.0};
           for (int ii = 0; ii < NSUBCELL_NODES; ++ii) {
             subcell_centroid.x += subcell_nodes_x[ii] / NSUBCELL_NODES;
             subcell_centroid.y += subcell_nodes_y[ii] / NSUBCELL_NODES;
@@ -1197,7 +1196,7 @@
 
           // Calculate the weighted volume integral coefficients
           double vol = 0.0;
-          vec_t integrals = {0.0};
+          vec_t integrals = {0.0, 0.0, 0.0};
           calc_weighted_volume_integrals(
               0, NSUBCELL_FACES, subcell_to_faces, subcell_faces_to_nodes,
               subcell_faces_to_nodes_offsets, subcell_nodes_x, subcell_nodes_y,
@@ -1214,7 +1213,13 @@
           // WE ARE LOOKING AT ALL OF THE SUBCELL TETRAHEDRONS, WHEN WE COULD BE
           // LOOKING AT A SINGLE CORNER SUBCELL PER NODE
 
-          // Determine subcell energy from linear function determined at cell
+          // Store the weighted integrals
+          subcell_integrals_x[(cell_to_nodes_off + nn2)] += integrals.x;
+          subcell_integrals_y[(cell_to_nodes_off + nn2)] += integrals.y;
+          subcell_integrals_z[(cell_to_nodes_off + nn2)] += integrals.z;
+          subcell_volume[(cell_to_nodes_off + nn2)] += vol;
+
+          // Determine subcell energy from linear function at cell
           subcell_internal_energy[(cell_to_nodes_off + nn2)] +=
               vol * (density0[(cc)] * energy0[(cc)] -
                      (grad_energy.x * cell_centroid.x +
@@ -1226,3 +1231,4 @@
       }
     }
   }
+
