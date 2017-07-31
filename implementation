@@ -1031,15 +1031,9 @@
     }
   }
 
-  // The idea of the algorithm in 3d is to calculate the face centered and cell
-  // centered velocities using the 2d and 3d equations
-  //
-  //
-  // TODO: Could we just describe the density as a function and then interpolate
-  // it?
-
-  // TODO: LOADS OF OPTIMISATIONS HERE
-
+/*
+*      GATHERING STAGE OF THE REMAP 
+*/
 
   // Calculate the sub-cell internal energies
   for (int cc = 0; cc < ncells; ++cc) {

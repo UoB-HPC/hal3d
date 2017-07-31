@@ -54,35 +54,76 @@ void solve_unstructured_hydro_2d(
 
   printf("total mass %.12f\n", total_mass);
 
-#if 0
-    for(int nn = 0; nn < nnodes_by_cell; ++nn){
-      // Store the neighbouring cell's contribution to the coefficients
-      coeff[0].x +=
-        (2.0 * subcell_integrals.x * subcell_integrals.x) / (vol * vol);
-      coeff[0].y +=
-        (2.0 * subcell_integrals.x * subcell_integrals.y) / (vol * vol);
-      coeff[0].z +=
-        (2.0 * subcell_integrals.x * subcell_integrals.z) / (vol * vol);
-      coeff[1].x +=
-        (2.0 * subcell_integrals.y * subcell_integrals.x) / (vol * vol);
-      coeff[1].y +=
-        (2.0 * subcell_integrals.y * subcell_integrals.y) / (vol * vol);
-      coeff[1].z +=
-        (2.0 * subcell_integrals.y * subcell_integrals.z) / (vol * vol);
-      coeff[2].x +=
-        (2.0 * subcell_integrals.z * subcell_integrals.x) / (vol * vol);
-      coeff[2].y +=
-        (2.0 * subcell_integrals.z * subcell_integrals.y) / (vol * vol);
-      coeff[2].z +=
-        (2.0 * subcell_integrals.z * subcell_integrals.z) / (vol * vol);
+  // Calculate the sub-cell internal energies
+  for (int cc = 0; cc < ncells; ++cc) {
+    // Calculating the volume integrals necessary for the least squares
+    // regression
+    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
+    const int nfaces_by_cell =
+        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
+    const int cell_to_nodes_off = cells_offsets[(cc)];
+    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
 
+    vec_t cell_centroid;
+    cell_centroid.x = cell_centroids_x[(cc)];
+    cell_centroid.y = cell_centroids_y[(cc)];
+    cell_centroid.z = cell_centroids_z[(cc)];
+
+    for (int nn = 0; nn < nnodes_by_cell; ++nn) {
+      // The coefficients of the 3x3 gradient coefficient matrix
+      vec_t coeff[3] = {{0.0, 0.0, 0.0}};
+      // Store the neighbouring cell's contribution to the coefficients
+      coeff[0].x += (2.0 * subcell_integrals_x[(cell_to_nodes_off + nn)] *
+                     subcell_integrals_x[(cell_to_nodes_off + nn)]) /
+                    (subcell_volume[(cell_to_nodes_off + nn)] *
+                     subcell_volume[(cell_to_nodes_off + nn)]);
+      coeff[0].y += (2.0 * subcell_integrals_x[(cell_to_nodes_off + nn)] *
+                     subcell_integrals_y[(cell_to_nodes_off + nn)]) /
+                    (subcell_volume[(cell_to_nodes_off + nn)] *
+                     subcell_volume[(cell_to_nodes_off + nn)]);
+      coeff[0].z += (2.0 * subcell_integrals_x[(cell_to_nodes_off + nn)] *
+                     subcell_integrals_z[(cell_to_nodes_off + nn)]) /
+                    (subcell_volume[(cell_to_nodes_off + nn)] *
+                     subcell_volume[(cell_to_nodes_off + nn)]);
+      coeff[1].x += (2.0 * subcell_integrals_y[(cell_to_nodes_off + nn)] *
+                     subcell_integrals_x[(cell_to_nodes_off + nn)]) /
+                    (subcell_volume[(cell_to_nodes_off + nn)] *
+                     subcell_volume[(cell_to_nodes_off + nn)]);
+      coeff[1].y += (2.0 * subcell_integrals_y[(cell_to_nodes_off + nn)] *
+                     subcell_integrals_y[(cell_to_nodes_off + nn)]) /
+                    (subcell_volume[(cell_to_nodes_off + nn)] *
+                     subcell_volume[(cell_to_nodes_off + nn)]);
+      coeff[1].z += (2.0 * subcell_integrals_y[(cell_to_nodes_off + nn)] *
+                     subcell_integrals_z[(cell_to_nodes_off + nn)]) /
+                    (subcell_volume[(cell_to_nodes_off + nn)] *
+                     subcell_volume[(cell_to_nodes_off + nn)]);
+      coeff[2].x += (2.0 * subcell_integrals_z[(cell_to_nodes_off + nn)] *
+                     subcell_integrals_x[(cell_to_nodes_off + nn)]) /
+                    (subcell_volume[(cell_to_nodes_off + nn)] *
+                     subcell_volume[(cell_to_nodes_off + nn)]);
+      coeff[2].y += (2.0 * subcell_integrals_z[(cell_to_nodes_off + nn)] *
+                     subcell_integrals_y[(cell_to_nodes_off + nn)]) /
+                    (subcell_volume[(cell_to_nodes_off + nn)] *
+                     subcell_volume[(cell_to_nodes_off + nn)]);
+      coeff[2].z += (2.0 * subcell_integrals_z[(cell_to_nodes_off + nn)] *
+                     subcell_integrals_z[(cell_to_nodes_off + nn)]) /
+                    (subcell_volume[(cell_to_nodes_off + nn)] *
+                     subcell_volume[(cell_to_nodes_off + nn)]);
+
+      // Calculate the subcell gradients for all of the variables
+      vec_t rhs = {0.0, 0.0, 0.0};
+      vec_t subcell_grad = {0.0, 0.0, 0.0};
       // Prepare the RHS, which includes energy differential
-      const double de = (energy0[(neighbour_index)] - energy0[(cc)]);
-      rhs.x += (2.0 * integrals.x * de / vol);
-      rhs.y += (2.0 * integrals.y * de / vol);
-      rhs.z += (2.0 * integrals.z * de / vol);
+      const double de =
+          (subcell_energy[(neighbour_index)] - subcell_energy[(cc)]);
+      rhs.x += (2.0 * subcell_integrals_x[(cell_to_nodes_off + nn)] * de /
+                subcell_volume[(cell_to_nodes_off + nn)]);
+      rhs.y += (2.0 * subcell_integrals_y[(cell_to_nodes_off + nn)] * de /
+                subcell_volume[(cell_to_nodes_off + nn)]);
+      rhs.z += (2.0 * subcell_integrals_z[(cell_to_nodes_off + nn)] * de /
+                subcell_volume[(cell_to_nodes_off + nn)]);
     }
-#endif // if 0
+  }
 }
 
 // Calculates the weighted volume integrals for a provided cell along x-y-z
@@ -183,6 +224,7 @@ void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
       (fabs(normal.z) * normal.z * normal.z);
 
   // TODO: STUPID HACK UNTIL I FIND THE CULPRIT!
+  // x-y-z and the volumes are in the wrong order..
 
   // Accumulate the weighted volume integrals
   if (orientation == XYZ) {
@@ -201,26 +243,6 @@ void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
     T->z += 0.5 * normal.y * Fbeta2;
     *vol += normal.z * Fgamma;
   }
-
-#if 0
-  // Accumulate the weighted volume integrals
-  if (orientation == XYZ) {
-    T->x += 0.5 * normal.x * Falpha2;
-    T->y += 0.5 * normal.y * Fbeta2;
-    T->z += 0.5 * normal.z * Fgamma2;
-    *vol += normal.x * Falpha;
-  } else if (orientation == YZX) {
-    T->x += 0.5 * normal.y * Fbeta2;
-    T->y += 0.5 * normal.z * Fgamma2;
-    T->z += 0.5 * normal.x * Falpha2;
-    *vol += normal.y * Fbeta;
-  } else if (orientation == ZXY) {
-    T->x += 0.5 * normal.z * Fgamma2;
-    T->y += 0.5 * normal.x * Falpha2;
-    T->z += 0.5 * normal.y * Fbeta2;
-    *vol += normal.z * Fgamma;
-  }
-#endif // if 0
 }
 
 // Calculates the face integral for the provided face, projected onto
