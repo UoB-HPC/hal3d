@@ -597,32 +597,28 @@ void init_subcell_centroids(
 
 // Initialises the list of neighbours to a subcell
 void init_subcell_neighbours(
-    const int ncells, const int* cells_offsets, const int* cells_to_subcells,
-    const int* subcells_to_faces_offsets, const int* subcells_to_faces,
+    const int ncells, const int* cells_offsets, const int* cells_to_nodes,
+    const int* nodes_to_faces_offsets, const int* nodes_to_faces,
     const int* faces_to_cells0, const int* faces_to_cells1,
-    const int* faces_to_subcells_offsets, const int* faces_to_subcells,
+    const int* faces_to_nodes_offsets, const int* faces_to_nodes,
     int* subcell_neighbours, int* subcells_to_subcells_offsets) {
 
-  // TODO: This loop is essentially un-parallelisable. The best alternative that
-  // I can think of for now is to sum all of the counts into the entire offset
-  // array and then combine the result to get the actual offsets
+#pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_subcells_off = cells_offsets[(cc)];
-    const int nsubcells_by_cell =
-        cells_offsets[(cc + 1)] - cell_to_subcells_off;
+    const int cell_to_nodes_off = cells_offsets[(cc)];
+    const int nsubcells_in_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
 
     // Determine the neighbour offsets for every cell
-    for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
-      const int subcell_index = cells_to_subcells[(cell_to_subcells_off + ss)];
-      const int subcell_to_faces_off =
-          subcells_to_faces_offsets[(subcell_index)];
-      const int nfaces_by_subcell =
-          subcells_to_faces_offsets[(subcell_index + 1)] - subcell_to_faces_off;
+    for (int ss = 0; ss < nsubcells_in_cell; ++ss) {
+      const int node_index = cells_to_nodes[(cell_to_nodes_off + ss)];
+      const int node_to_faces_off = nodes_to_faces_offsets[(node_index)];
+      const int nfaces_by_node =
+          nodes_to_faces_offsets[(node_index + 1)] - node_to_faces_off;
 
       // Look at all of the face candidates
       int nneighbouring_faces = 0;
-      for (int ff = 0; ff < nfaces_by_subcell; ++ff) {
-        const int face_index = subcells_to_faces[(subcell_to_faces_off + ff)];
+      for (int ff = 0; ff < nfaces_by_node; ++ff) {
+        const int face_index = nodes_to_faces[(node_to_faces_off + ff)];
         if (face_index == -1) {
           continue;
         }
@@ -639,125 +635,155 @@ void init_subcell_neighbours(
           // Each face that isn't on the boundary leads to an external neighbour
           nneighbouring_faces += (fc0 != -1 && fc1 != -1);
         }
-
-        subcells_to_subcells_offsets[(cell_to_subcells_off + ss + 1)] =
-            subcells_to_subcells_offsets[(cell_to_subcells_off + ss)] +
-            nneighbouring_faces;
       }
+
+      subcells_to_subcells_offsets[(cell_to_nodes_off + ss + 1)] =
+          nneighbouring_faces;
     }
   }
 
+  // TODO: This component of the offset algorithm isn't obviously
+  // parallelisable, so it has been removed from the previous algorithm and
+  // though about some more in the future.
+  for (int cc = 0; cc < ncells; ++cc) {
+    const int cell_to_nodes_off = cells_offsets[(cc)];
+    const int nsubcells_in_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+
+    // Determine the neighbour offsets for every cell
+    for (int ss = 0; ss < nsubcells_in_cell; ++ss) {
+      subcells_to_subcells_offsets[(cell_to_nodes_off + ss + 1)] +=
+          subcells_to_subcells_offsets[(cell_to_nodes_off + ss)];
+    }
+  }
+
+// This is a hideous routine to determine the neighbours to the subcells. It
+// essentially does a scan through the faces adjoining the node at the subcell
+// position in order to determine the correct offset for future access to the
+// neighbouring subcell data.
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_subcells_off = cells_offsets[(cc)];
-    const int nsubcells_by_cell =
-        cells_offsets[(cc + 1)] - cell_to_subcells_off;
+    const int cell_to_nodes_off = cells_offsets[(cc)];
+    const int nsubcells_in_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
 
-    // A subcell exists at the corner where each subcell is stored
-    for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
-      const int subcell_index = cells_to_subcells[(cell_to_subcells_off + ss)];
-      const int subcell_to_faces_off =
-          subcells_to_faces_offsets[(subcell_index)];
-      const int nfaces_by_subcell =
-          subcells_to_faces_offsets[(subcell_index + 1)] - subcell_to_faces_off;
+    // A subcell exists at the corner where each node is as one-to-one
+    for (int ss = 0; ss < nsubcells_in_cell; ++ss) {
+      const int node_index = cells_to_nodes[(cell_to_nodes_off + ss)];
+      const int node_to_faces_off = nodes_to_faces_offsets[(node_index)];
+      const int nfaces_by_node =
+          nodes_to_faces_offsets[(node_index + 1)] - node_to_faces_off;
       const int subcell_to_subcells_off =
-          subcells_to_subcells_offsets[(cell_to_subcells_off + ss)];
+          subcells_to_subcells_offsets[(cell_to_nodes_off + ss)];
+      const int nsubcells_by_subcell =
+          subcells_to_subcells_offsets[(cell_to_nodes_off + ss + 1)] -
+          subcell_to_subcells_off;
 
-      // Look at all of the faces that attach to the subcell
+      // This switch list allows us to simply determine the union of all of the
+      // face contributions. There might be a better way to avoid duplication,
+      // but can't think of one yet.
       int neighbour_index = 0;
-      int subcell_list[nsubcells_by_cell];
-      for (int ss2 = 0; ss2 < nsubcells_by_cell; ++ss2) {
+      int subcell_list[nsubcells_in_cell];
+      for (int ss2 = 0; ss2 < nsubcells_in_cell; ++ss2) {
         subcell_list[(ss2)] = 0;
       }
-      for (int ff = 0; ff < nfaces_by_subcell; ++ff) {
-        const int face_index = subcells_to_faces[(subcell_to_faces_off + ff)];
-        const int fc0 = faces_to_cells0[(face_index)];
-        const int fc1 = faces_to_cells1[(face_index)];
 
-        // Check not on boundary and face for our cell
-        if (face_index == -1 || (fc0 != cc && fc1 != cc)) {
+      // Look at all of the faces that contain the current node
+      for (int ff = 0; ff < nfaces_by_node; ++ff) {
+        const int face_index = nodes_to_faces[(node_to_faces_off + ff)];
+
+        // Check this is a valid face
+        if (face_index == -1) {
           // TODO: Do we need to zero the contribution to the least squares
-          // regression here somehow? Or does it just come out in the wash
+          // regression here somehow? Or does it just come out in the wash?
           continue;
         }
 
-        const int face_to_subcells_off =
-            faces_to_subcells_offsets[(face_index)];
-        const int nsubcells_by_face =
-            faces_to_subcells_offsets[(face_index + 1)] - face_to_subcells_off;
+        // Fetch the two cell either side of this face
+        const int fc0 = faces_to_cells0[(face_index)];
+        const int fc1 = faces_to_cells1[(face_index)];
 
-        // Fetching a local subcell neighbour
-        for (int ss2 = 0; ss2 < nsubcells_by_face; ++ss2) {
-          if (faces_to_subcells[(face_to_subcells_off + ss2)] ==
-              subcell_index) {
-            const int subcell_r_index = faces_to_subcells[(
-                face_to_subcells_off +
-                ((ss2 == nsubcells_by_face - 1) ? 0 : ss2 + 1))];
-            const int subcell_l_index = faces_to_subcells[(
-                face_to_subcells_off +
-                ((ss2 == 0) ? nsubcells_by_face - 1 : ss2 - 1))];
-
-            // Discover the location of the subcell in the adjoining cell
-            for (int ss3 = 0; ss3 < nsubcells_by_cell; ++ss3) {
-              subcell_list[ss3] |=
-                  (cells_to_subcells[(cell_to_subcells_off + ss3)] ==
-                       subcell_r_index ||
-                   cells_to_subcells[(cell_to_subcells_off + ss3)] ==
-                       subcell_l_index);
-            }
-          }
-
-          break;
+        // Check we have found an adjoining face for subcell
+        if (fc0 != cc && fc1 != cc) {
+          continue;
         }
 
+        const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+        const int nnodes_by_face =
+            faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+
+        // Fetch a local subcell neighbour
+        for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
+          if (faces_to_nodes[(face_to_nodes_off + nn2)] == node_index) {
+            const int subcell_r_index =
+                faces_to_nodes[(face_to_nodes_off +
+                                ((nn2 == nnodes_by_face - 1) ? 0 : nn2 + 1))];
+            const int subcell_l_index =
+                faces_to_nodes[(face_to_nodes_off +
+                                ((nn2 == 0) ? nnodes_by_face - 1 : nn2 - 1))];
+
+            // Discover the location of the subcell in the current cell
+            for (int ss3 = 0; ss3 < nsubcells_in_cell; ++ss3) {
+              subcell_list[(ss3)] |=
+                  (cells_to_nodes[(cell_to_nodes_off + ss3)] ==
+                       subcell_r_index ||
+                   cells_to_nodes[(cell_to_nodes_off + ss3)] ==
+                       subcell_l_index);
+            }
+
+            break;
+          }
+        }
+
+        // Skip if we are looking at a boundary face
         if (fc0 == -1 || fc1 == -1) {
           continue;
         }
 
-        // Fetch the two cell indices
-        const int cell2_index = (fc0 == cc) ? fc1 : fc0;
-        const int cell2_to_subcells_off = cells_offsets[(cell2_index)];
-        const int nsubcells_by_cell2 =
-            cells_offsets[(cell2_index + 1)] - cell2_to_subcells_off;
-
         // Discover the location of the subcell in the adjoining cell
-        for (int ss2 = 0; ss2 < nsubcells_by_cell2; ++ss2) {
-          if (cells_to_subcells[(cell2_to_subcells_off + ss2)] ==
-              subcell_index) {
+        const int cell2_index = (fc0 == cc) ? fc1 : fc0;
+        const int cell2_to_nodes_off = cells_offsets[(cell2_index)];
+        const int nnodes_by_cell2 =
+            cells_offsets[(cell2_index + 1)] - cell2_to_nodes_off;
+        for (int nn2 = 0; nn2 < nnodes_by_cell2; ++nn2) {
+          if (cells_to_nodes[(cell2_to_nodes_off + nn2)] == node_index) {
             subcell_neighbours[(subcell_to_subcells_off + neighbour_index++)] =
-                cell2_to_subcells_off + ss2;
+                cell2_to_nodes_off + nn2;
             break;
           }
         }
       }
 
       // Store all of the internal neighbours
-      for (int ss2 = 0; ss2 < nsubcells_by_cell; ++ss2) {
-        if (subcell_list[(ss2)]) {
+      for (int nn2 = 0; nn2 < nsubcells_in_cell; ++nn2) {
+        if (subcell_list[(nn2)]) {
           subcell_neighbours[(subcell_to_subcells_off + neighbour_index++)] =
-              cell_to_subcells_off + ss2;
+              cell_to_nodes_off + nn2;
         }
       }
     }
   }
-
+#if 0
   for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_subcells_off = cells_offsets[(cc)];
-    const int nsubcells_by_cell =
-        cells_offsets[(cc + 1)] - cell_to_subcells_off;
+    const int cell_to_nodes_off = cells_offsets[(cc)];
+    const int nsubcells_in_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
 
     // A subcell exists at the corner where each subcell is stored
-    for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
-      const int subcell_index = cells_to_subcells[(cell_to_subcells_off + ss)];
-      printf("sub cell index %d subcells ", subcell_index);
-      for (int ss = 0; ss < 6; ++ss) {
-        printf("(%d:%d) ", subcell_neighbours[(cell_to_subcells_off + ss)],
-               cells_to_subcells[(
-                   subcell_neighbours[(cell_to_subcells_off + ss)])]);
+    for (int ss = 0; ss < nsubcells_in_cell; ++ss) {
+      const int subcell_to_subcells_off =
+          subcells_to_subcells_offsets[(cell_to_nodes_off + ss)];
+      const int nsubcells_by_subcell =
+          subcells_to_subcells_offsets[(cell_to_nodes_off + ss + 1)] -
+          subcell_to_subcells_off;
+
+      printf("sub cell index %d subcells ", subcell_to_subcells_off);
+      for (int ss = 0; ss < nsubcells_by_subcell; ++ss) {
+        printf("(%d:%d) ", subcell_neighbours[(subcell_to_subcells_off + ss)],
+               cells_to_nodes[(
+                   subcell_neighbours[(subcell_to_subcells_off + ss)])]);
       }
       printf("\n");
     }
   }
+#endif // if 0
 }
 
 // Stores the rezoned mesh specification as the original mesh. Until we
