@@ -58,27 +58,54 @@ void solve_unstructured_hydro_2d(
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
 
-#if 0
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
         cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
     const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+    const int nsubcells_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
 
     vec_t cell_centroid;
     cell_centroid.x = cell_centroids_x[(cc)];
     cell_centroid.y = cell_centroids_y[(cc)];
     cell_centroid.z = cell_centroids_z[(cc)];
 
-    /*
-     * Calculate the swept-edge region
-     */
+/*
+ * Calculate the swept-edge region
+ */
+
+// Here we are constructing a reference subcell prism for the target face, this
+// reference element is used for all of the faces of the subcell, in fact it's
+// the same for all cells too, so this could be moved into some global space
+// it's going to spill anyway.
+#define NSUBCELL_FACES 6
+#define NSUBCELL_NODES 8
+#define NSUBCELL_NODES_PER_FACE 4
+    const int subcell_faces_to_nodes_offsets[NSUBCELL_FACES + 1] = {
+        0, 4, 8, 12, 16, 20, 24};
+    const int subcell_faces_to_nodes[NSUBCELL_FACES * NSUBCELL_NODES_PER_FACE] =
+        {0, 1, 2, 3, 0, 1, 5, 4, 0, 3, 7, 4,
+         1, 2, 6, 5, 4, 5, 6, 7, 3, 2, 6, 7};
+    const int subcell_to_faces[NSUBCELL_FACES] = {0, 1, 2, 3, 4, 5};
+    double subcell_nodes_x[NSUBCELL_NODES] = {0.0};
+    double subcell_nodes_y[NSUBCELL_NODES] = {0.0};
+    double subcell_nodes_z[NSUBCELL_NODES] = {0.0};
+
+    // We will calculate the flux at every face of the subcells
+    for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
+      const int node_to_faces_off = nodes_to_faces_offsets[(ss)];
+      const int nfaces_by_node =
+          nodes_to_faces_offsets[(ss + 1)] - node_to_faces_off;
+
+      // Determine the flux at each of the subcell faces
+      for (int ff = 0; ff < nfaces_by_node; ++ff) {
+      }
+    }
 
     /*
      * Calculate the subcell gradients
      */
 
-    for (int nn = 0; nn < nnodes_by_cell; ++nn) {
+    for (int nn = 0; nn < nsubcells_by_cell; ++nn) {
 
       // The coefficients of the 3x3 gradient coefficient matrix
       vec_t coeff[3] = {{0.0, 0.0, 0.0}};
@@ -136,7 +163,7 @@ void solve_unstructured_hydro_2d(
       rhs.z += (2.0 * subcell_integrals_z[(cell_to_nodes_off + nn)] * de /
                 subcell_volume[(cell_to_nodes_off + nn)]);
 #endif // if 0
-#endif // if 0
+    }
   }
 }
 
@@ -633,7 +660,8 @@ void init_subcell_neighbours(
           // Every real face leads to an internal neighbour
           nneighbouring_faces++;
 
-          // Each face that isn't on the boundary leads to an external neighbour
+          // Each face that isn't on the boundary leads to an external
+          // neighbour
           nneighbouring_faces += (fc0 != -1 && fc1 != -1);
         }
       }
@@ -678,7 +706,8 @@ void init_subcell_neighbours(
           subcells_to_subcells_offsets[(cell_to_nodes_off + ss + 1)] -
           subcell_to_subcells_off;
 
-      // This switch list allows us to simply determine the union of all of the
+      // This switch list allows us to simply determine the union of all of
+      // the
       // face contributions. There might be a better way to avoid duplication,
       // but can't think of one yet.
       int neighbour_index = 0;

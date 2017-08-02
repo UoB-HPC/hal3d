@@ -1101,9 +1101,10 @@
 // Describe the connectivity for a simple tetrahedron, the sub-cell shape
 #define NSUBCELL_FACES 4
 #define NSUBCELL_NODES 4
-    const int subcell_faces_to_nodes_offsets[NSUBCELL_NODES + 1] = {0, 3, 6, 9,
+#define NSUBCELL_NODES_PER_FACE 3
+    const int subcell_faces_to_nodes_offsets[NSUBCELL_FACES + 1] = {0, 3, 6, 9,
                                                                     12};
-    const int subcell_faces_to_nodes[NSUBCELL_FACES * 3] = {0, 1, 2, 0, 1, 3,
+    const int subcell_faces_to_nodes[NSUBCELL_FACES * NSUBCELL_NODES_PER_FACE] = {0, 1, 2, 0, 1, 3,
                                                             0, 2, 3, 1, 2, 3};
     const int subcell_to_faces[NSUBCELL_FACES] = {0, 1, 2, 3};
     double subcell_nodes_x[NSUBCELL_NODES] = {0.0};
