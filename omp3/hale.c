@@ -57,6 +57,7 @@ void solve_unstructured_hydro_2d(
 // Calculate the sub-cell internal energies
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
+
 #if 0
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
@@ -761,29 +762,6 @@ void init_subcell_neighbours(
       }
     }
   }
-#if 0
-  for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nsubcells_in_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
-
-    // A subcell exists at the corner where each subcell is stored
-    for (int ss = 0; ss < nsubcells_in_cell; ++ss) {
-      const int subcell_to_subcells_off =
-          subcells_to_subcells_offsets[(cell_to_nodes_off + ss)];
-      const int nsubcells_by_subcell =
-          subcells_to_subcells_offsets[(cell_to_nodes_off + ss + 1)] -
-          subcell_to_subcells_off;
-
-      printf("sub cell index %d subcells ", subcell_to_subcells_off);
-      for (int ss = 0; ss < nsubcells_by_subcell; ++ss) {
-        printf("(%d:%d) ", subcell_neighbours[(subcell_to_subcells_off + ss)],
-               cells_to_nodes[(
-                   subcell_neighbours[(subcell_to_subcells_off + ss)])]);
-      }
-      printf("\n");
-    }
-  }
-#endif // if 0
 }
 
 // Stores the rezoned mesh specification as the original mesh. Until we
