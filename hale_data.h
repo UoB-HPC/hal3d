@@ -55,6 +55,9 @@ typedef struct {
   double* nodal_volumes;
   double* nodal_soundspeed;
   double* limiter;
+
+  int* subcell_neighbours;
+  int* subcells_to_subcells_offsets;
   double* subcell_internal_energy;
   double* subcell_mass;
   double* subcell_velocity_x;
@@ -79,6 +82,7 @@ typedef struct {
   double* rezoned_nodes_z;
 
   int nsubcell_edges;
+  int nsubcells;
 
   double visc_coeff1;
   double visc_coeff2;
@@ -110,6 +114,14 @@ void init_subcell_centroids(
     const double* cell_centroids_x, const double* cell_centroids_y,
     const double* cell_centroids_z, double* subcell_centroids_x,
     double* subcell_centroids_y, double* subcell_centroids_z);
+
+// Initialises the list of neighbours to a subcell
+void init_subcell_neighbours(
+    const int ncells, const int* cells_offsets, const int* cells_to_subcells,
+    const int* subcells_to_faces_offsets, const int* subcells_to_faces,
+    const int* faces_to_cells0, const int* faces_to_cells1,
+    const int* faces_to_subcells_offsets, const int* faces_to_subcells,
+    int* subcell_neighbours, int* subcells_to_subcells_offsets);
 
 // Stores the rezoned grid specification, in case we aren't going to use a
 // rezoning strategy and want to perform an Eulerian remap

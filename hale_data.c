@@ -9,6 +9,9 @@
 
 // Initialises the shared_data variables for two dimensional applications
 size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
+  hale_data->nsubcells = umesh->ncells * umesh->nnodes_by_cell;
+  hale_data->nsubcell_edges = 4;
+
   size_t allocated = allocate_data(&hale_data->pressure0, umesh->ncells);
   allocated += allocate_data(&hale_data->velocity_x0, umesh->nnodes);
   allocated += allocate_data(&hale_data->velocity_y0, umesh->nnodes);
@@ -28,50 +31,31 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
   allocated += allocate_data(&hale_data->rezoned_nodes_y, umesh->nnodes);
   allocated += allocate_data(&hale_data->rezoned_nodes_z, umesh->nnodes);
 
-  allocated += allocate_data(&hale_data->subcell_mass,
-                             umesh->ncells * umesh->nnodes_by_cell);
-  allocated += allocate_data(&hale_data->subcell_velocity_x,
-                             umesh->ncells * umesh->nnodes_by_cell);
-  allocated += allocate_data(&hale_data->subcell_velocity_y,
-                             umesh->ncells * umesh->nnodes_by_cell);
-  allocated += allocate_data(&hale_data->subcell_velocity_z,
-                             umesh->ncells * umesh->nnodes_by_cell);
-  allocated += allocate_data(&hale_data->subcell_volume,
-                             umesh->ncells * umesh->nnodes_by_cell);
-  allocated += allocate_data(&hale_data->subcell_volume,
-                             umesh->ncells * umesh->nnodes_by_cell);
-  allocated += allocate_data(&hale_data->subcell_integrals_x,
-                             umesh->ncells * umesh->nnodes_by_cell);
-  allocated += allocate_data(&hale_data->subcell_integrals_y,
-                             umesh->ncells * umesh->nnodes_by_cell);
-  allocated += allocate_data(&hale_data->subcell_integrals_z,
-                             umesh->ncells * umesh->nnodes_by_cell);
-#if 0
-  allocated += allocate_data(&hale_data->subcell_force_x,
-                             umesh->ncells * umesh->nnodes_by_cell);
-  allocated += allocate_data(&hale_data->subcell_force_y,
-                             umesh->ncells * umesh->nnodes_by_cell);
-  allocated += allocate_data(&hale_data->subcell_force_z,
-                             umesh->ncells * umesh->nnodes_by_cell);
-  allocated += allocate_data(&hale_data->subcell_kinetic_energy,
-                             umesh->ncells * umesh->nnodes_by_cell);
-  allocated += allocate_data(&hale_data->subcell_grad_x,
-                             umesh->ncells * umesh->nnodes_by_cell);
-  allocated += allocate_data(&hale_data->subcell_grad_y,
-                             umesh->ncells * umesh->nnodes_by_cell);
-  allocated += allocate_data(&hale_data->subcell_grad_z,
-                             umesh->ncells * umesh->nnodes_by_cell);
-#endif // if 0
-  allocated += allocate_data(&hale_data->subcell_internal_energy,
-                             umesh->ncells * umesh->nnodes_by_cell);
-  allocated += allocate_data(&hale_data->node_force_x,
-                             umesh->ncells * umesh->nnodes_by_cell);
-  allocated += allocate_data(&hale_data->node_force_y,
-                             umesh->ncells * umesh->nnodes_by_cell);
-  allocated += allocate_data(&hale_data->node_force_z,
-                             umesh->ncells * umesh->nnodes_by_cell);
+  allocated += allocate_data(&hale_data->subcell_mass, hale_data->nsubcells);
+  allocated +=
+      allocate_data(&hale_data->subcell_velocity_x, hale_data->nsubcells);
+  allocated +=
+      allocate_data(&hale_data->subcell_velocity_y, hale_data->nsubcells);
+  allocated +=
+      allocate_data(&hale_data->subcell_velocity_z, hale_data->nsubcells);
+  allocated += allocate_data(&hale_data->subcell_volume, hale_data->nsubcells);
+  allocated +=
+      allocate_data(&hale_data->subcell_integrals_x, hale_data->nsubcells);
+  allocated +=
+      allocate_data(&hale_data->subcell_integrals_y, hale_data->nsubcells);
+  allocated +=
+      allocate_data(&hale_data->subcell_integrals_z, hale_data->nsubcells);
 
-  hale_data->nsubcell_edges = 4;
+  // TODO: Fix this with a decent initialisation
+  allocated += allocate_int_data(&hale_data->subcell_neighbours,
+                                 hale_data->nsubcells * 6);
+  allocated += allocate_int_data(&hale_data->subcells_to_subcells_offsets,
+                                 hale_data->nsubcells + 1);
+  allocated +=
+      allocate_data(&hale_data->subcell_internal_energy, hale_data->nsubcells);
+  allocated += allocate_data(&hale_data->node_force_x, hale_data->nsubcells);
+  allocated += allocate_data(&hale_data->node_force_y, hale_data->nsubcells);
+  allocated += allocate_data(&hale_data->node_force_z, hale_data->nsubcells);
 
   // In hale, the fundamental principle is that the mass at the cell and
   // sub-cell are conserved, so we can initialise them from the mesh
@@ -88,6 +72,13 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
                  hale_data->subcell_volume, hale_data->subcell_mass,
                  umesh->cells_to_faces_offsets, umesh->cells_to_faces,
                  umesh->faces_to_nodes_offsets, umesh->faces_to_nodes);
+
+  init_subcell_neighbours(umesh->ncells, umesh->cells_offsets,
+                          umesh->cells_to_nodes, umesh->nodes_to_faces_offsets,
+                          umesh->nodes_to_faces, umesh->faces_to_cells0,
+                          umesh->faces_to_cells1, umesh->faces_to_nodes_offsets,
+                          umesh->faces_to_nodes, hale_data->subcell_neighbours,
+                          hale_data->subcells_to_subcells_offsets);
 
   store_rezoned_mesh(umesh->nnodes, umesh->nodes_x0, umesh->nodes_y0,
                      umesh->nodes_z0, hale_data->rezoned_nodes_x,
