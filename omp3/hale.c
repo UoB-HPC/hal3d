@@ -603,12 +603,15 @@ void init_subcell_neighbours(
     const int* faces_to_subcells_offsets, const int* faces_to_subcells,
     int* subcell_neighbours, int* subcells_to_subcells_offsets) {
 
-#pragma omp parallel for
+  // TODO: This loop is essentially un-parallelisable. The best alternative that
+  // I can think of for now is to sum all of the counts into the entire offset
+  // array and then combine the result to get the actual offsets
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_subcells_off = cells_offsets[(cc)];
     const int nsubcells_by_cell =
         cells_offsets[(cc + 1)] - cell_to_subcells_off;
 
+    // Determine the neighbour offsets for every cell
     for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
       const int subcell_index = cells_to_subcells[(cell_to_subcells_off + ss)];
       const int subcell_to_faces_off =
@@ -616,20 +619,31 @@ void init_subcell_neighbours(
       const int nfaces_by_subcell =
           subcells_to_faces_offsets[(subcell_index + 1)] - subcell_to_faces_off;
 
+      // Look at all of the face candidates
       int nneighbouring_faces = 0;
       for (int ff = 0; ff < nfaces_by_subcell; ++ff) {
         const int face_index = subcells_to_faces[(subcell_to_faces_off + ff)];
+        if (face_index == -1) {
+          continue;
+        }
+
+        // Fetch the two cells that the face coindices with
         const int fc0 = faces_to_cells0[(face_index)];
         const int fc1 = faces_to_cells1[(face_index)];
 
-        // Check not on boundary and face for our cell
-        nneighbouring_faces += (face_index != -1 && (fc0 == cc || fc1 == cc) &&
-                                fc0 != -1 && fc1 != -1);
-      }
+        // Check this is a face on the edge of our current cell
+        if (fc0 == cc || fc1 == cc) {
+          // Every real face leads to an internal neighbour
+          nneighbouring_faces++;
 
-      subcells_to_subcells_offsets[(cell_to_subcells_off + ss + 1)] =
-          subcells_to_subcells_offsets[(cell_to_subcells_off + ss)] +
-          nfaces_by_subcell;
+          // Each face that isn't on the boundary leads to an external neighbour
+          nneighbouring_faces += (fc0 != -1 && fc1 != -1);
+        }
+
+        subcells_to_subcells_offsets[(cell_to_subcells_off + ss + 1)] =
+            subcells_to_subcells_offsets[(cell_to_subcells_off + ss)] +
+            nneighbouring_faces;
+      }
     }
   }
 
