@@ -56,38 +56,21 @@ typedef struct {
   double* nodal_soundspeed;
   double* limiter;
 
-  int* subcells_to_faces;
-  int* subcells_to_faces_offsets;
   int* subcells_to_subcells;
   int* subcells_to_subcells_offsets;
-  int* faces_to_cells_l;
-  int* faces_to_cells_r;
-  int* faces_to_nodes;
-  int* faces_to_nodes_offsets;
-
-  double* subcell_nodes_x0;
-  double* subcell_nodes_y0;
-  double* subcell_nodes_z0;
-  double* subcell_nodes_x1;
-  double* subcell_nodes_y1;
-  double* subcell_nodes_z1;
+  int* subcells_to_faces;
+  int* subcells_to_faces_offsets;
 
   double* subcell_internal_energy;
   double* subcell_mass;
+  double* subcell_volume;
   double* subcell_velocity_x;
   double* subcell_velocity_y;
   double* subcell_velocity_z;
   double* subcell_force_x;
   double* subcell_force_y;
   double* subcell_force_z;
-  double* subcell_volume;
   double* subcell_kinetic_energy;
-  double* subcell_centroids_x;
-  double* subcell_centroids_y;
-  double* subcell_centroids_z;
-  double* subcell_grad_x;
-  double* subcell_grad_y;
-  double* subcell_grad_z;
   double* subcell_integrals_x;
   double* subcell_integrals_y;
   double* subcell_integrals_z;
@@ -125,11 +108,19 @@ void init_cell_centroids(const int ncells, const int* cells_offsets,
 
 // Initialises the list of neighbours to a subcell
 void init_subcell_neighbours(
-    const int ncells, const int* cells_offsets, const int* cells_to_subcells,
-    const int* subcells_to_faces_offsets, const int* subcells_to_faces,
+    const int ncells, const int* cells_offsets, const int* cells_to_nodes,
+    const int* nodes_to_faces_offsets, const int* nodes_to_faces,
     const int* faces_to_cells0, const int* faces_to_cells1,
-    const int* faces_to_subcells_offsets, const int* faces_to_subcells,
+    const int* faces_to_nodes_offsets, const int* faces_to_nodes,
     int* subcell_neighbours, int* subcells_to_subcells_offsets);
+
+// Initialise the subcells to faces connectivity list
+void init_subcells_to_faces(
+    const int ncells, const int* cells_offsets, const int* cells_to_nodes,
+    const int* nodes_to_faces_offsets, const int* nodes_to_faces,
+    const int* cells_to_faces_offsets, const int* cells_to_faces,
+    const int* faces_to_cells0, const int* faces_to_cells1,
+    const int* faces_to_nodes_offsets, const int* faces_to_nodes);
 
 // Stores the rezoned grid specification, in case we aren't going to use a
 // rezoning strategy and want to perform an Eulerian remap

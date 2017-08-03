@@ -1110,6 +1110,7 @@ for (int cc = 0; cc < ncells; ++cc) {
     const int nnodes_by_face =
         faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
 
+    // TODO: SHOULD WE PRECOMPUTE THE FACE CENTROID???
     // The face centroid is the same for all nodes on the face
     subcell_nodes_x[2] = 0.0;
     subcell_nodes_y[2] = 0.0;
@@ -1125,8 +1126,18 @@ for (int cc = 0; cc < ncells; ++cc) {
     for (int nn = 0; nn < nnodes_by_face; ++nn) {
       const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
 
-      // The left and right nodes on the face for this anchor node
-      int nodes_a[2];
+      // TODO: HAVE MOVED THIS, CHECK IT WORKS....
+      // Find the node offset in the cell
+      int nn2;
+      for (nn2 = 0; nn2 < nnodes_by_cell; ++nn2) {
+        if (cells_to_nodes[(cell_to_nodes_off + nn2)] == node_index) {
+          break;
+        }
+      }
+
+// The left and right nodes on the face for this anchor node
+#define NNEIGHBOUR_NODES 2
+      int nodes_a[NNEIGHBOUR_NODES];
       nodes_a[0] =
           (nn == 0) ? faces_to_nodes[(face_to_nodes_off + nnodes_by_face - 1)]
                     : faces_to_nodes[(face_to_nodes_off + nn - 1)];
@@ -1134,7 +1145,8 @@ for (int cc = 0; cc < ncells; ++cc) {
                        ? faces_to_nodes[(face_to_nodes_off)]
                        : faces_to_nodes[(face_to_nodes_off + nn + 1)];
 
-      for (int ss = 0; ss < 2; ++ss) {
+      // Loop over both of the neighbour nodes
+      for (int ss = 0; ss < NNEIGHBOUR_NODES; ++ss) {
         // Store the right and left nodes
         subcell_nodes_x[1] =
             0.5 * (nodes_x0[nodes_a[ss]] + nodes_x0[(node_index)]);
@@ -1163,13 +1175,6 @@ for (int cc = 0; cc < ncells; ++cc) {
             0, NSUBCELL_FACES, subcell_to_faces, subcell_faces_to_nodes,
             subcell_faces_to_nodes_offsets, subcell_nodes_x, subcell_nodes_y,
             subcell_nodes_z, subcell_centroid, &integrals, &vol);
-
-        int nn2;
-        for (nn2 = 0; nn2 < nnodes_by_cell; ++nn2) {
-          if (cells_to_nodes[(cell_to_nodes_off + nn2)] == node_index) {
-            break;
-          }
-        }
 
         // TODO: THIS MIGHT BE A STUPID WAY TO DO THIS.
         // WE ARE LOOKING AT ALL OF THE SUBCELL TETRAHEDRONS, WHEN WE COULD BE

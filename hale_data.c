@@ -31,18 +31,19 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
   allocated += allocate_data(&hale_data->rezoned_nodes_y, umesh->nnodes);
   allocated += allocate_data(&hale_data->rezoned_nodes_z, umesh->nnodes);
 
-  allocated +=
-      allocate_int_data(&hale_data->faces_to_nodes, umesh->nfaces * 8 * 4);
-  allocated +=
-      allocate_int_data(&hale_data->faces_to_nodes_offsets, umesh->nfaces * 8);
+  // TODO: This constant is the number of subcells that might neighbour a
+  // subcell, which is at most 8 for a prism!
   allocated += allocate_int_data(&hale_data->subcells_to_subcells,
-                                 hale_data->nsubcells * 6);
-  allocated += allocate_int_data(&hale_data->subcells_to_faces,
-                                 hale_data->nsubcells * 6);
-  allocated += allocate_int_data(&hale_data->subcells_to_faces_offsets,
-                                 hale_data->nsubcells + 1);
+                                 hale_data->nsubcells * 8);
   allocated += allocate_int_data(&hale_data->subcells_to_subcells_offsets,
-                                 hale_data->nsubcells + 1);
+                                 hale_data->nsubcells);
+  // TODO: This constant is essentially making a guess about the maximum number
+  // of faces we will see attached to a subcell. The number is determined from
+  // the prism shape, which connects a single node with four on the base.
+  allocated += allocate_int_data(&hale_data->subcells_to_faces,
+                                 hale_data->nsubcells * 4);
+  allocated += allocate_int_data(&hale_data->subcells_to_faces_offsets,
+                                 hale_data->nsubcells);
 
   allocated +=
       allocate_data(&hale_data->subcell_velocity_x, hale_data->nsubcells);
@@ -58,15 +59,8 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
       allocate_data(&hale_data->subcell_integrals_z, hale_data->nsubcells);
   allocated +=
       allocate_data(&hale_data->subcell_internal_energy, hale_data->nsubcells);
-
   allocated += allocate_data(&hale_data->subcell_volume, hale_data->nsubcells);
   allocated += allocate_data(&hale_data->subcell_mass, hale_data->nsubcells);
-  allocated += allocate_data(&hale_data->subcell_nodes_x0, umesh->nnodes * 6);
-  allocated += allocate_data(&hale_data->subcell_nodes_y0, umesh->nnodes * 6);
-  allocated += allocate_data(&hale_data->subcell_nodes_z0, umesh->nnodes * 6);
-  allocated += allocate_data(&hale_data->subcell_nodes_x1, umesh->nnodes * 6);
-  allocated += allocate_data(&hale_data->subcell_nodes_y1, umesh->nnodes * 6);
-  allocated += allocate_data(&hale_data->subcell_nodes_z1, umesh->nnodes * 6);
   allocated += allocate_data(&hale_data->subcell_force_x, hale_data->nsubcells);
   allocated += allocate_data(&hale_data->subcell_force_y, hale_data->nsubcells);
   allocated += allocate_data(&hale_data->subcell_force_z, hale_data->nsubcells);
@@ -93,6 +87,13 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
       umesh->faces_to_cells0, umesh->faces_to_cells1,
       umesh->faces_to_nodes_offsets, umesh->faces_to_nodes,
       hale_data->subcells_to_subcells, hale_data->subcells_to_subcells_offsets);
+
+  init_subcells_to_faces(umesh->ncells, umesh->cells_offsets,
+                         umesh->cells_to_nodes, umesh->nodes_to_faces_offsets,
+                         umesh->nodes_to_faces, umesh->cells_to_faces_offsets,
+                         umesh->cells_to_faces, umesh->faces_to_cells0,
+                         umesh->faces_to_cells1, umesh->faces_to_nodes_offsets,
+                         umesh->faces_to_nodes);
 
   store_rezoned_mesh(umesh->nnodes, umesh->nodes_x0, umesh->nodes_y0,
                      umesh->nodes_z0, hale_data->rezoned_nodes_x,
