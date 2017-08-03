@@ -56,8 +56,22 @@ typedef struct {
   double* nodal_soundspeed;
   double* limiter;
 
-  int* subcell_neighbours;
+  int* subcells_to_faces;
+  int* subcells_to_faces_offsets;
+  int* subcells_to_subcells;
   int* subcells_to_subcells_offsets;
+  int* faces_to_cells_l;
+  int* faces_to_cells_r;
+  int* faces_to_nodes;
+  int* faces_to_nodes_offsets;
+
+  double* subcell_nodes_x0;
+  double* subcell_nodes_y0;
+  double* subcell_nodes_z0;
+  double* subcell_nodes_x1;
+  double* subcell_nodes_y1;
+  double* subcell_nodes_z1;
+
   double* subcell_internal_energy;
   double* subcell_mass;
   double* subcell_velocity_x;
@@ -92,13 +106,15 @@ typedef struct {
 size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh);
 
 // Initialises the cell mass, sub-cell mass and sub-cell volume
-void init_mesh_mass(
-    const int ncells, const int* cells_offsets, const double* cell_centroids_x,
-    const double* cell_centroids_y, const double* cell_centroids_z,
-    const int* cells_to_nodes, const double* density, const double* nodes_x,
-    const double* nodes_y, const double* nodes_z, double* cell_mass,
-    double* subcell_volume, double* subcell_mass, int* cells_to_faces_offsets,
-    int* cells_to_faces, int* faces_to_nodes_offsets, int* faces_to_nodes);
+void init_mesh_mass(const int ncells, const int* cells_offsets,
+                    const double* cell_centroids_x,
+                    const double* cell_centroids_y,
+                    const double* cell_centroids_z, const int* cells_to_nodes,
+                    const double* density, const double* nodes_x,
+                    const double* nodes_y, const double* nodes_z,
+                    double* cell_mass, double* subcell_mass,
+                    int* cells_to_faces_offsets, int* cells_to_faces,
+                    int* faces_to_nodes_offsets, int* faces_to_nodes);
 
 // Initialises the centroids for each cell
 void init_cell_centroids(const int ncells, const int* cells_offsets,
@@ -106,14 +122,6 @@ void init_cell_centroids(const int ncells, const int* cells_offsets,
                          const double* nodes_y0, const double* nodes_z0,
                          double* cell_centroids_x, double* cell_centroids_y,
                          double* cell_centroids_z);
-
-// Initialises the centroids for each cell
-void init_subcell_centroids(
-    const int ncells, const int* cells_offsets, const int* cells_to_nodes,
-    const double* nodes_x0, const double* nodes_y0, const double* nodes_z0,
-    const double* cell_centroids_x, const double* cell_centroids_y,
-    const double* cell_centroids_z, double* subcell_centroids_x,
-    double* subcell_centroids_y, double* subcell_centroids_z);
 
 // Initialises the list of neighbours to a subcell
 void init_subcell_neighbours(
