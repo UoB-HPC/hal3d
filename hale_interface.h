@@ -8,11 +8,6 @@
 #include "../shared_data.h"
 #include "hale_data.h" // An important part of the interface
 
-// Controllable parameters for the application
-#define GAM 1.4
-#define C_Q 3.0
-#define C_M (1.5 / C_T)
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -42,7 +37,8 @@ void solve_unstructured_hydro_2d(
     double* rezoned_nodes_y, double* rezoned_nodes_z,
     int* nodes_to_faces_offsets, int* nodes_to_faces, int* faces_to_nodes,
     int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
-    int* cells_to_faces_offsets, int* cells_to_faces);
+    int* cells_to_faces_offsets, int* cells_to_faces,
+    int* subcells_to_faces_offsets, int* subcells_to_faces);
 
 // Controls the timestep for the simulation
 void set_timestep(const int ncells, const double* nodes_x,

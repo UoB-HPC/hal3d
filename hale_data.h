@@ -7,6 +7,11 @@
 #include "../umesh.h"
 #include <stdlib.h>
 
+// Controllable parameters for the application
+#define GAM 1.4
+#define C_Q 3.0
+#define C_M (1.5 / C_T)
+
 #define CFL 0.3
 #define VALIDATE_TOLERANCE 1.0e-5
 #define ARCH_ROOT_PARAMS "../arch.params"
@@ -121,6 +126,9 @@ void init_subcells_to_faces(
     const int* cells_to_faces_offsets, const int* cells_to_faces,
     const int* faces_to_cells0, const int* faces_to_cells1,
     const int* faces_to_nodes_offsets, const int* faces_to_nodes,
+    const double* cell_centroids_x, const double* cell_centroids_y,
+    const double* cell_centroids_z, const double* nodes_x,
+    const double* nodes_y, const double* nodes_z,
     int* subcells_to_faces_offsets, int* subcells_to_faces);
 
 // Stores the rezoned grid specification, in case we aren't going to use a

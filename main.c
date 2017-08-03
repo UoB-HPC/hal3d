@@ -52,6 +52,8 @@ int main(int argc, char** argv) {
   UnstructuredMesh umesh = {0};
   HaleData hale_data = {0};
 
+  double i0 = omp_get_wtime();
+
   if (read_umesh) {
     umesh.node_filename = get_parameter("node_file", hale_params);
     umesh.ele_filename = get_parameter("ele_file", hale_params);
@@ -77,6 +79,7 @@ int main(int argc, char** argv) {
   hale_data.visc_coeff2 = get_double_parameter("visc_coeff2", hale_params);
   allocated += init_hale_data(&hale_data, &umesh);
 
+  printf("Initialisation time %.4lfs\n", omp_get_wtime() - i0);
   printf("Allocated %.3fGB bytes of data\n", allocated / (double)GB);
 
   int nthreads = 0;
@@ -139,7 +142,8 @@ int main(int argc, char** argv) {
         umesh.nodes_to_faces_offsets, umesh.nodes_to_faces,
         umesh.faces_to_nodes, umesh.faces_to_nodes_offsets,
         umesh.faces_to_cells0, umesh.faces_to_cells1,
-        umesh.cells_to_faces_offsets, umesh.cells_to_faces);
+        umesh.cells_to_faces_offsets, umesh.cells_to_faces,
+        hale_data.subcells_to_faces_offsets, hale_data.subcells_to_faces);
 
     wallclock += omp_get_wtime() - w0;
     elapsed_sim_time += mesh.dt;
