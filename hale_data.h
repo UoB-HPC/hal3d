@@ -120,7 +120,8 @@ void init_subcells_to_faces(
     const int* nodes_to_faces_offsets, const int* nodes_to_faces,
     const int* cells_to_faces_offsets, const int* cells_to_faces,
     const int* faces_to_cells0, const int* faces_to_cells1,
-    const int* faces_to_nodes_offsets, const int* faces_to_nodes);
+    const int* faces_to_nodes_offsets, const int* faces_to_nodes,
+    int* subcells_to_faces_offsets, int* subcells_to_faces);
 
 // Stores the rezoned grid specification, in case we aren't going to use a
 // rezoning strategy and want to perform an Eulerian remap

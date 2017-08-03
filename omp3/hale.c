@@ -960,8 +960,67 @@ void init_subcells_to_faces(
     const int* nodes_to_faces_offsets, const int* nodes_to_faces,
     const int* cells_to_faces_offsets, const int* cells_to_faces,
     const int* faces_to_cells0, const int* faces_to_cells1,
-    const int* faces_to_nodes_offsets, const int* faces_to_nodes) {
+    const int* faces_to_nodes_offsets, const int* faces_to_nodes,
+    int* subcells_to_faces_offsets, int* subcells_to_faces) {
 
+// NOTE: Some of these steps might be mergable, but I feel liek the current
+// implementation leads to a better read through of the code
+#pragma omp parallel for
+  for (int cc = 0; cc < ncells; ++cc) {
+    const int cell_to_nodes_off = cells_offsets[(cc)];
+    const int nsubcells_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
+    const int nfaces_by_cell =
+        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
+
+    // We will calculate the flux at every face of the subcells
+    for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
+      const int node_index = cells_to_nodes[(cell_to_nodes_off + ss)];
+
+      // Find all of the faces that share the node (was slightly easier to
+      // understand if this and subsequent step were separated)
+      int nfaces_on_node = 0;
+      for (int ff = 0; ff < nfaces_by_cell; ++ff) {
+        const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
+        const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+        const int nnodes_by_face =
+            faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+
+        // Attempt to the node on the face
+        for (int nn = 0; nn < nnodes_by_face; ++nn) {
+          if (faces_to_nodes[(face_to_nodes_off + nn)] == node_index) {
+            // We found a touching face
+            nfaces_on_node++;
+            break;
+          }
+        }
+      }
+
+      subcells_to_faces_offsets[(cell_to_nodes_off + ss + 1)] = nfaces_on_node;
+    }
+  }
+
+  // TODO: This is another serial conversion from counts to offsets. Need to
+  // find a way of paralellising these.
+  for (int cc = 0; cc < ncells; ++cc) {
+    const int cell_to_subcells_off = cells_offsets[(cc)];
+    const int nsubcells_by_cell =
+        cells_offsets[(cc + 1)] - cell_to_subcells_off;
+
+    // We will calculate the flux at every face of the subcells
+    for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
+      subcells_to_faces_offsets[(cell_to_subcells_off + ss + 1)] +=
+          subcells_to_faces_offsets[(cell_to_subcells_off + ss)];
+    }
+  }
+
+// NOTE: Some of these steps might be mergable, but I feel liek the current
+// implementation leads to a better read through of the code
+// We also do too much work in this, as we have knowledge about those faces
+// that have already been processed, but this should be quite minor overall
+// and it's and initialisation function so just keep an eye on the
+// initialisation performance.
+#pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nsubcells_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
@@ -999,16 +1058,18 @@ void init_subcells_to_faces(
         }
       }
 
-      printf("subcell %d\n", cell_to_nodes_off + ss);
-      for (int fn = 0; fn < nfaces_on_node; ++fn) {
-        printf("%d ", faces_on_node[(fn)]);
-      }
-      printf("\n");
+      const int subcell_to_faces_off =
+          subcells_to_faces_offsets[(cell_to_nodes_off + ss)];
+      const int nfaces_by_subcell =
+          subcells_to_faces_offsets[(cell_to_nodes_off + ss + 1)] -
+          subcell_to_faces_off;
 
       // Look at all of the faces we have discovered so far and see if
       // there is a connection between the faces
-      for (int fn = 0; fn < nfaces_on_node; ++fn) {
-        const int face_index = faces_on_node[(fn)];
+      subcells_to_faces[(subcell_to_faces_off)] = faces_on_node[(0)];
+      for (int fn = 1; fn < nfaces_by_subcell; ++fn) {
+        const int face_index =
+            subcells_to_faces[(subcell_to_faces_off + fn - 1)];
         const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
         const int nnodes_by_face =
             faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
@@ -1023,24 +1084,26 @@ void init_subcells_to_faces(
 
             // Find all of the faces that connect to this face in the list
             int connect_face_index = 0;
-            for (int fn2 = 0; fn2 < nfaces_on_node; ++fn2) {
+            for (int fn2 = 0; fn2 < nfaces_by_subcell; ++fn2) {
+              const int face_index2 = faces_on_node[(fn2)];
+
               // No self connectivity
-              if (fn2 == fn) {
+              if (face_index2 == face_index) {
                 continue;
               }
 
-              const int face_index2 = faces_on_node[(fn2)];
               const int face_to_nodes_off2 =
                   faces_to_nodes_offsets[(face_index2)];
               const int nnodes_by_face2 =
                   faces_to_nodes_offsets[(face_index2 + 1)] -
                   face_to_nodes_off2;
 
+              // Check whether the face is connected
               for (int nn2 = 0; nn2 < nnodes_by_face2; ++nn2) {
                 const int node_index2 =
                     faces_to_nodes[(face_to_nodes_off2 + nn2)];
                 if (node_index2 == lnode_index || node_index2 == rnode_index) {
-                  faces_to_faces[(fn * 2 + connect_face_index++)] = fn2;
+                  subcells_to_faces[(subcell_to_faces_off + fn)] = face_index2;
                   break;
                 }
               }
@@ -1050,13 +1113,6 @@ void init_subcells_to_faces(
           }
         }
       }
-
-      for (int fn = 0; fn < nfaces_on_node; ++fn) {
-        for (int ii = 0; ii < 2; ++ii) {
-          printf("(%d:%d) ", fn, faces_to_faces[(fn * 2 + ii)]);
-        }
-      }
-      printf("\n");
     }
   }
 }
