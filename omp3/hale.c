@@ -1,10 +1,7 @@
 #include "hale.h"
-#include "../../comms.h"
-#include "../../params.h"
 #include "../../shared.h"
 #include "../hale_data.h"
 #include "../hale_interface.h"
-#include <assert.h>
 #include <float.h>
 #include <math.h>
 #include <stdio.h>
@@ -32,7 +29,7 @@ void solve_unstructured_hydro_2d(
     double* subcell_force_x, double* subcell_force_y, double* subcell_force_z,
     double* cell_mass, double* nodal_mass, double* nodal_volumes,
     double* nodal_soundspeed, double* limiter, double* subcell_volume,
-    double* subcell_internal_energy, double* subcell_mass,
+    double* subcell_ie_density, double* subcell_mass,
     double* subcell_velocity_x, double* subcell_velocity_y,
     double* subcell_velocity_z, double* subcell_integrals_x,
     double* subcell_integrals_y, double* subcell_integrals_z,
@@ -41,7 +38,8 @@ void solve_unstructured_hydro_2d(
     int* nodes_to_faces_offsets, int* nodes_to_faces, int* faces_to_nodes,
     int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
     int* cells_to_faces_offsets, int* cells_to_faces,
-    int* subcells_to_faces_offsets, int* subcells_to_faces) {
+    int* subcells_to_faces_offsets, int* subcells_to_faces,
+    int* subcells_to_subcells_offsets, int* subcells_to_subcells) {
 
   double total_mass = 0.0;
   for (int cc = 0; cc < ncells; ++cc) {
@@ -50,7 +48,28 @@ void solve_unstructured_hydro_2d(
 
   printf("total mass %.12f\n", total_mass);
 
-// Calculate the sub-cell internal energies
+// Calculate the swept edge remap for each of the subcells.
+// TODO: There a again many different ways to crack this nut. One consideration
+// is that teh whole algorithm will allow you to precompute and store for
+// re-use, but artefacts such as the inverse coefficient matrix for the least
+// squares, which stays the same for all density calculations of a subcell, are
+// essentially prohibitively large for storage.
+//
+// The approach I am currently taking here is to calculate the inverse
+// coefficient matrix and then perform the gradient calculations and swept edge
+// remaps for all of the densities for a particular subcell in a single
+// timestep. The impplication is that the whole calculation will be repeated
+// many times, but it seems like this will be the case regardless and my
+// intuition is that this path leads to the fewest expensive and repetitious
+// calculations.
+//
+// The choices I can see are:
+//  (1) remap all of the variables for a subcell
+//  (2) remap each variable individually for every subcell
+//
+//  option (1) will have to recompute the gradient coefficients every time
+//  option (2) will have to recompute the gradients for local subcells every
+//  time
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
@@ -114,305 +133,83 @@ void solve_unstructured_hydro_2d(
     }
 
     /*
-     * Calculate the subcell gradients
+     * Perform the swept edge remaps for the subcells...
      */
 
-    for (int nn = 0; nn < nsubcells_by_cell; ++nn) {
+    // We discover the subcell gradients using a least squares fit for the
+    // gradient between the subcell and its neighbours
+    for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
+      const int subcell_index = cells_to_nodes[(cell_to_nodes_off + ss)];
+      const int subcell_to_subcells_off =
+          subcells_to_subcells_offsets[(subcell_index)];
+      const int nsubcells_by_subcell =
+          subcells_to_subcells[(subcell_index + 1)] - subcell_to_subcells_off;
+
+      /*
+       * Calculate the coefficients for all density gradients
+       */
+
       // The coefficients of the 3x3 gradient coefficient matrix
       vec_t coeff[3] = {{0.0, 0.0, 0.0}};
+      for (int ss2 = 0; ss2 < nsubcells_by_subcell; ++ss2) {
+        const int neighbour_subcell_index =
+            subcells_to_subcells[(subcell_to_subcells_off + ss2)];
 
-      // Store the neighbouring cell's contribution to the coefficients
-      coeff[0].x += (2.0 * subcell_integrals_x[(cell_to_nodes_off + nn)] *
-                     subcell_integrals_x[(cell_to_nodes_off + nn)]) /
-                    (subcell_volume[(cell_to_nodes_off + nn)] *
-                     subcell_volume[(cell_to_nodes_off + nn)]);
-      coeff[0].y += (2.0 * subcell_integrals_x[(cell_to_nodes_off + nn)] *
-                     subcell_integrals_y[(cell_to_nodes_off + nn)]) /
-                    (subcell_volume[(cell_to_nodes_off + nn)] *
-                     subcell_volume[(cell_to_nodes_off + nn)]);
-      coeff[0].z += (2.0 * subcell_integrals_x[(cell_to_nodes_off + nn)] *
-                     subcell_integrals_z[(cell_to_nodes_off + nn)]) /
-                    (subcell_volume[(cell_to_nodes_off + nn)] *
-                     subcell_volume[(cell_to_nodes_off + nn)]);
-      coeff[1].x += (2.0 * subcell_integrals_y[(cell_to_nodes_off + nn)] *
-                     subcell_integrals_x[(cell_to_nodes_off + nn)]) /
-                    (subcell_volume[(cell_to_nodes_off + nn)] *
-                     subcell_volume[(cell_to_nodes_off + nn)]);
-      coeff[1].y += (2.0 * subcell_integrals_y[(cell_to_nodes_off + nn)] *
-                     subcell_integrals_y[(cell_to_nodes_off + nn)]) /
-                    (subcell_volume[(cell_to_nodes_off + nn)] *
-                     subcell_volume[(cell_to_nodes_off + nn)]);
-      coeff[1].z += (2.0 * subcell_integrals_y[(cell_to_nodes_off + nn)] *
-                     subcell_integrals_z[(cell_to_nodes_off + nn)]) /
-                    (subcell_volume[(cell_to_nodes_off + nn)] *
-                     subcell_volume[(cell_to_nodes_off + nn)]);
-      coeff[2].x += (2.0 * subcell_integrals_z[(cell_to_nodes_off + nn)] *
-                     subcell_integrals_x[(cell_to_nodes_off + nn)]) /
-                    (subcell_volume[(cell_to_nodes_off + nn)] *
-                     subcell_volume[(cell_to_nodes_off + nn)]);
-      coeff[2].y += (2.0 * subcell_integrals_z[(cell_to_nodes_off + nn)] *
-                     subcell_integrals_y[(cell_to_nodes_off + nn)]) /
-                    (subcell_volume[(cell_to_nodes_off + nn)] *
-                     subcell_volume[(cell_to_nodes_off + nn)]);
-      coeff[2].z += (2.0 * subcell_integrals_z[(cell_to_nodes_off + nn)] *
-                     subcell_integrals_z[(cell_to_nodes_off + nn)]) /
-                    (subcell_volume[(cell_to_nodes_off + nn)] *
-                     subcell_volume[(cell_to_nodes_off + nn)]);
+        const double ix = subcell_integrals_x[(neighbour_subcell_index)];
+        const double iy = subcell_integrals_y[(neighbour_subcell_index)];
+        const double iz = subcell_integrals_z[(neighbour_subcell_index)];
+        const double vol = subcell_volume[(neighbour_subcell_index)];
 
-      // Calculate the subcell gradients for all of the variables
+        // Store the neighbouring cell's contribution to the coefficients
+        coeff[0].x += (2.0 * ix * ix) / (vol * vol);
+        coeff[0].y += (2.0 * ix * iy) / (vol * vol);
+        coeff[0].z += (2.0 * ix * iz) / (vol * vol);
+        coeff[1].x += (2.0 * iy * ix) / (vol * vol);
+        coeff[1].y += (2.0 * iy * iy) / (vol * vol);
+        coeff[1].z += (2.0 * iy * iz) / (vol * vol);
+        coeff[2].x += (2.0 * iz * ix) / (vol * vol);
+        coeff[2].y += (2.0 * iz * iy) / (vol * vol);
+        coeff[2].z += (2.0 * iz * iz) / (vol * vol);
+      }
+
+      // Calculate the inverse of the coefficients for swept edge of all faces
+      vec_t inv[3];
+      calc_3x3_inverse(&coeff, &inv);
+
+      // Calculate the gradient for the internal energy density
       vec_t rhs = {0.0, 0.0, 0.0};
-      vec_t subcell_grad = {0.0, 0.0, 0.0};
+      for (int ss2 = 0; ss2 < nsubcells_by_subcell; ++ss2) {
+        const int neighbour_subcell_index =
+            subcells_to_subcells[(subcell_to_subcells_off + ss2)];
 
-#if 0
-      // Prepare the RHS, which includes energy differential
-      const double de =
-          (subcell_internal_energy[(neighbour_index)] - subcell_internal_energy[(cc)]);
-      rhs.x += (2.0 * subcell_integrals_x[(cell_to_nodes_off + nn)] * de /
-                subcell_volume[(cell_to_nodes_off + nn)]);
-      rhs.y += (2.0 * subcell_integrals_y[(cell_to_nodes_off + nn)] * de /
-                subcell_volume[(cell_to_nodes_off + nn)]);
-      rhs.z += (2.0 * subcell_integrals_z[(cell_to_nodes_off + nn)] * de /
-                subcell_volume[(cell_to_nodes_off + nn)]);
-#endif // if 0
-    }
-  }
-}
+        // Prepare differential
+        const double de = (subcell_ie_density[(neighbour_subcell_index)] -
+                           subcell_ie_density[(subcell_index)]);
 
-// Initialise the subcells to faces connectivity list
-void init_subcells_to_faces(
-    const int ncells, const int* cells_offsets, const int* cells_to_nodes,
-    const int* nodes_to_faces_offsets, const int* nodes_to_faces,
-    const int* cells_to_faces_offsets, const int* cells_to_faces,
-    const int* faces_to_cells0, const int* faces_to_cells1,
-    const int* faces_to_nodes_offsets, const int* faces_to_nodes,
-    const double* cell_centroids_x, const double* cell_centroids_y,
-    const double* cell_centroids_z, const double* nodes_x,
-    const double* nodes_y, const double* nodes_z,
-    int* subcells_to_faces_offsets, int* subcells_to_faces) {
-
-// NOTE: Some of these steps might be mergable, but I feel liek the current
-// implementation leads to a better read through of the code
-#pragma omp parallel for
-  for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nsubcells_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
-    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
-    const int nfaces_by_cell =
-        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
-
-    // We will calculate the flux at every face of the subcells
-    for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
-      const int node_index = cells_to_nodes[(cell_to_nodes_off + ss)];
-
-      // Find all of the faces that share the node (was slightly easier to
-      // understand if this and subsequent step were separated)
-      int nfaces_on_node = 0;
-      for (int ff = 0; ff < nfaces_by_cell; ++ff) {
-        const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
-        const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-        const int nnodes_by_face =
-            faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-
-        // Attempt to the node on the face
-        for (int nn = 0; nn < nnodes_by_face; ++nn) {
-          if (faces_to_nodes[(face_to_nodes_off + nn)] == node_index) {
-            // We found a touching face
-            nfaces_on_node++;
-            break;
-          }
-        }
+        // Calculate the subcell gradients for all of the variables
+        rhs.x += (2.0 * subcell_integrals_x[(cell_to_nodes_off + ss)] * de /
+                  subcell_volume[(cell_to_nodes_off + ss)]);
+        rhs.y += (2.0 * subcell_integrals_y[(cell_to_nodes_off + ss)] * de /
+                  subcell_volume[(cell_to_nodes_off + ss)]);
+        rhs.z += (2.0 * subcell_integrals_z[(cell_to_nodes_off + ss)] * de /
+                  subcell_volume[(cell_to_nodes_off + ss)]);
       }
 
-      subcells_to_faces_offsets[(cell_to_nodes_off + ss + 1)] = nfaces_on_node;
+      vec_t grad_ie_density;
+      grad_ie_density.x =
+          inv[0].x * rhs.x + inv[0].y * rhs.y + inv[0].z * rhs.z;
+      grad_ie_density.y =
+          inv[1].x * rhs.x + inv[1].y * rhs.y + inv[1].z * rhs.z;
+      grad_ie_density.z =
+          inv[2].x * rhs.x + inv[2].y * rhs.y + inv[2].z * rhs.z;
+
+      // NOTE: At this stage we are *currently* making a decision to
+      // overcalculate the face sweeps in order to ensure that there are no data
+      // races. The idea is that each of the faces is calculated twice, once for
+      // eac of the coinciding subcells, which means that we could potentially
+      // improve this routine by a factor of 2 if we can devise a scheme that
+      // allows all of the work to occur independently while updating both
+      // subcells that coincide with a face.
     }
   }
-
-  // TODO: This is another serial conversion from counts to offsets. Need to
-  // find a way of paralellising these.
-  for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_subcells_off = cells_offsets[(cc)];
-    const int nsubcells_by_cell =
-        cells_offsets[(cc + 1)] - cell_to_subcells_off;
-
-    // We will calculate the flux at every face of the subcells
-    for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
-      subcells_to_faces_offsets[(cell_to_subcells_off + ss + 1)] +=
-          subcells_to_faces_offsets[(cell_to_subcells_off + ss)];
-    }
-  }
-
-// NOTE: Some of these steps might be mergable, but I feel liek the current
-// implementation leads to a better read through of the code
-// We also do too much work in this, as we have knowledge about those faces
-// that have already been processed, but this should be quite minor overall
-// and it's and initialisation function so just keep an eye on the
-// initialisation performance.
-#pragma omp parallel for
-  for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nsubcells_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
-    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
-    const int nfaces_by_cell =
-        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
-
-    vec_t cell_centroid;
-    cell_centroid.x = cell_centroids_x[(cc)];
-    cell_centroid.y = cell_centroids_y[(cc)];
-    cell_centroid.z = cell_centroids_z[(cc)];
-
-    // The list of face indices attached to a node
-    int faces_on_node[] = {-1, -1, -1, -1};
-    int face_rorientation[] = {0, 0, 0, 0};
-
-    // This is a map between one element of faces_on_node and another, with
-    // the unique pairings, which is essentially a ring of faces
-    int faces_to_faces[] = {-1, -1, -1, -1, -1, -1, -1, -1};
-
-    // We will calculate the flux at every face of the subcells
-    for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
-      const int node_index = cells_to_nodes[(cell_to_nodes_off + ss)];
-
-      // Find all of the faces that share the node (was slightly easier to
-      // understand if this and subsequent step were separated)
-      int nfaces_on_node = 0;
-      for (int ff = 0; ff < nfaces_by_cell; ++ff) {
-        const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
-        const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-        const int nnodes_by_face =
-            faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-
-        // Attempt to find the node on the face
-        int found = 0;
-        for (int nn = 0; nn < nnodes_by_face; ++nn) {
-          if (faces_to_nodes[(face_to_nodes_off + nn)] == node_index) {
-            // TODO: This is duplicate, and all of this just to determine
-            // orientation is annoying ><
-
-            // Get two vectors on the face plane
-            vec_t dn0 = {0.0, 0.0, 0.0};
-            vec_t dn1 = {0.0, 0.0, 0.0};
-            dn0.x = nodes_x[(faces_to_nodes[(face_to_nodes_off + 2)])] -
-                    nodes_x[faces_to_nodes[(face_to_nodes_off + 1)]];
-            dn0.y = nodes_y[(faces_to_nodes[(face_to_nodes_off + 2)])] -
-                    nodes_y[faces_to_nodes[(face_to_nodes_off + 1)]];
-            dn0.z = nodes_z[(faces_to_nodes[(face_to_nodes_off + 2)])] -
-                    nodes_z[faces_to_nodes[(face_to_nodes_off + 1)]];
-            dn1.x = nodes_x[(faces_to_nodes[(face_to_nodes_off + 1)])] -
-                    nodes_x[faces_to_nodes[(face_to_nodes_off + 0)]];
-            dn1.y = nodes_y[(faces_to_nodes[(face_to_nodes_off + 1)])] -
-                    nodes_y[faces_to_nodes[(face_to_nodes_off + 0)]];
-            dn1.z = nodes_z[(faces_to_nodes[(face_to_nodes_off + 1)])] -
-                    nodes_z[faces_to_nodes[(face_to_nodes_off + 0)]];
-
-            // Calculate a vector from face to cell centroid
-            vec_t ab;
-            ab.x = (cell_centroid.x -
-                    nodes_x[(faces_to_nodes[(face_to_nodes_off)])]);
-            ab.y = (cell_centroid.y -
-                    nodes_y[(faces_to_nodes[(face_to_nodes_off)])]);
-            ab.z = (cell_centroid.z -
-                    nodes_z[(faces_to_nodes[(face_to_nodes_off)])]);
-
-            // Cross product to get the normal
-            vec_t normal;
-            normal.x = (dn0.y * dn1.z - dn0.z * dn1.y);
-            normal.y = (dn0.z * dn1.x - dn0.x * dn1.z);
-            normal.z = (dn0.x * dn1.y - dn0.y * dn1.x);
-            face_rorientation[(nfaces_on_node)] =
-                (ab.x * normal.x + ab.y * normal.y + ab.z * normal.z < 0.0);
-            faces_on_node[(nfaces_on_node++)] = face_index;
-            break;
-          }
-        }
-      }
-
-      const int subcell_to_faces_off =
-          subcells_to_faces_offsets[(cell_to_nodes_off + ss)];
-      const int nfaces_by_subcell =
-          subcells_to_faces_offsets[(cell_to_nodes_off + ss + 1)] -
-          subcell_to_faces_off;
-
-      // Look at all of the faces we have discovered so far and see if
-      // there is a connection between the faces
-      subcells_to_faces[(subcell_to_faces_off)] = faces_on_node[(0)];
-      int previous_fn = 0;
-      for (int fn = 0; fn < nfaces_by_subcell - 1; ++fn) {
-        const int face_index = subcells_to_faces[(subcell_to_faces_off + fn)];
-        const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-        const int nnodes_by_face =
-            faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-
-        // Re-find the node on the face
-        for (int nn = 0; nn < nnodes_by_face; ++nn) {
-          if (faces_to_nodes[(face_to_nodes_off + nn)] == node_index) {
-            int side_node;
-            if (face_rorientation[(previous_fn)]) {
-              side_node =
-                  faces_to_nodes[(face_to_nodes_off +
-                                  ((nn == nnodes_by_face - 1) ? 0 : nn + 1))];
-            } else {
-              side_node =
-                  faces_to_nodes[(face_to_nodes_off +
-                                  ((nn == 0) ? nnodes_by_face - 1 : nn - 1))];
-            }
-
-            // Find all of the faces that connect to this face in the list
-            int connect_face_index = 0;
-            for (int fn2 = 0; fn2 < nfaces_by_subcell; ++fn2) {
-              const int face_index2 = faces_on_node[(fn2)];
-
-              // No self connectivity
-              if (face_index2 == face_index) {
-                continue;
-              }
-
-              const int face_to_nodes_off2 =
-                  faces_to_nodes_offsets[(face_index2)];
-              const int nnodes_by_face2 =
-                  faces_to_nodes_offsets[(face_index2 + 1)] -
-                  face_to_nodes_off2;
-
-              // Check whether the face is connected
-              for (int nn2 = 0; nn2 < nnodes_by_face2; ++nn2) {
-                if (faces_to_nodes[(face_to_nodes_off2 + nn2)] == side_node) {
-                  subcells_to_faces[(subcell_to_faces_off + fn + 1)] =
-                      face_index2;
-                  previous_fn = fn2;
-                  break;
-                }
-              }
-            }
-
-            break;
-          }
-        }
-      }
-    }
-  }
-#if 0
-
-  for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nsubcells_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
-    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
-    const int nfaces_by_cell =
-        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
-
-    // We will calculate the flux at every face of the subcells
-    for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
-      const int subcell_index = cell_to_nodes_off + ss;
-      const int subcell_to_faces_off =
-          subcells_to_faces_offsets[(subcell_index)];
-      const int nfaces_by_subcell =
-          subcells_to_faces_offsets[(subcell_index + 1)] - subcell_to_faces_off;
-
-      printf("subcell %d : ", subcell_index);
-      for (int ff = 0; ff < nfaces_by_subcell; ++ff) {
-        const int face_index = subcells_to_faces[(subcell_to_faces_off + ff)];
-        printf("%d ", face_index);
-      }
-      printf("\n");
-    }
-  }
-#endif // if 0
 }

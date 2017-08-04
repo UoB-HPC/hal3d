@@ -40,6 +40,8 @@ int main(int argc, char** argv) {
   const int visit_dump = get_int_parameter("visit_dump", hale_params);
   const int read_umesh = get_int_parameter("read_umesh", hale_params);
 
+  double i0 = omp_get_wtime();
+
   // Perform initialisation routines
   initialise_mpi(argc, argv, &mesh.rank, &mesh.nranks);
   initialise_comms(&mesh);
@@ -51,8 +53,6 @@ int main(int argc, char** argv) {
   // Fetch the size of the unstructured mesh
   UnstructuredMesh umesh = {0};
   HaleData hale_data = {0};
-
-  double i0 = omp_get_wtime();
 
   if (read_umesh) {
     umesh.node_filename = get_parameter("node_file", hale_params);
@@ -133,7 +133,7 @@ int main(int argc, char** argv) {
         hale_data.subcell_force_y, hale_data.subcell_force_z,
         hale_data.cell_mass, hale_data.nodal_mass, hale_data.nodal_volumes,
         hale_data.nodal_soundspeed, hale_data.limiter, hale_data.subcell_volume,
-        hale_data.subcell_internal_energy, hale_data.subcell_mass,
+        hale_data.subcell_ie_density, hale_data.subcell_mass,
         hale_data.subcell_velocity_x, hale_data.subcell_velocity_y,
         hale_data.subcell_velocity_z, hale_data.subcell_integrals_x,
         hale_data.subcell_integrals_y, hale_data.subcell_integrals_z,
@@ -143,7 +143,8 @@ int main(int argc, char** argv) {
         umesh.faces_to_nodes, umesh.faces_to_nodes_offsets,
         umesh.faces_to_cells0, umesh.faces_to_cells1,
         umesh.cells_to_faces_offsets, umesh.cells_to_faces,
-        hale_data.subcells_to_faces_offsets, hale_data.subcells_to_faces);
+        hale_data.subcells_to_faces_offsets, hale_data.subcells_to_faces,
+        hale_data.subcells_to_subcells_offsets, hale_data.subcells_to_subcells);
 
     wallclock += omp_get_wtime() - w0;
     elapsed_sim_time += mesh.dt;

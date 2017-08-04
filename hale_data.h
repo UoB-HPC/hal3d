@@ -66,7 +66,9 @@ typedef struct {
   int* subcells_to_faces;
   int* subcells_to_faces_offsets;
 
-  double* subcell_internal_energy;
+  // TODO: These are large arrays, which definitely aren't used all at the same
+  // time and so there are some potential capacity reclaiming optimisations
+  double* subcell_ie_density;
   double* subcell_mass;
   double* subcell_volume;
   double* subcell_velocity_x;

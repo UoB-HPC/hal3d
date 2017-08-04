@@ -1187,7 +1187,7 @@ for (int cc = 0; cc < ncells; ++cc) {
         subcell_volume[(cell_to_nodes_off + nn2)] += vol;
 
         // Determine subcell energy from linear function at cell
-        subcell_internal_energy[(cell_to_nodes_off + nn2)] +=
+        subcell_ie_density[(cell_to_nodes_off + nn2)] +=
             vol * (density0[(cc)] * energy0[(cc)] -
                    (grad_energy.x * cell_centroid.x +
                     grad_energy.y * cell_centroid.y +

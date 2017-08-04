@@ -29,7 +29,7 @@ void solve_unstructured_hydro_2d(
     double* subcell_force_x, double* subcell_force_y, double* subcell_force_z,
     double* cell_mass, double* nodal_mass, double* nodal_volumes,
     double* nodal_soundspeed, double* limiter, double* subcell_volume,
-    double* subcell_internal_energy, double* subcell_mass,
+    double* subcell_ie_density, double* subcell_mass,
     double* subcell_velocity_x, double* subcell_velocity_y,
     double* subcell_velocity_z, double* subcell_integrals_x,
     double* subcell_integrals_y, double* subcell_integrals_z,
@@ -38,7 +38,8 @@ void solve_unstructured_hydro_2d(
     int* nodes_to_faces_offsets, int* nodes_to_faces, int* faces_to_nodes,
     int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
     int* cells_to_faces_offsets, int* cells_to_faces,
-    int* subcells_to_faces_offsets, int* subcells_to_faces);
+    int* subcells_to_faces_offsets, int* subcells_to_faces,
+    int* subcells_to_subcells_offsets, int* subcells_to_subcells);
 
 // Controls the timestep for the simulation
 void set_timestep(const int ncells, const double* nodes_x,
