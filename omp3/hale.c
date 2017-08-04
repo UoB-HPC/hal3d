@@ -39,7 +39,7 @@ void solve_unstructured_hydro_2d(
     int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
     int* cells_to_faces_offsets, int* cells_to_faces,
     int* subcells_to_faces_offsets, int* subcells_to_faces,
-    int* subcells_to_subcells_offsets, int* subcells_to_subcells) {
+    int* subcells_to_subcells) {
 
   double total_mass = 0.0;
   for (int cc = 0; cc < ncells; ++cc) {
@@ -74,15 +74,13 @@ void solve_unstructured_hydro_2d(
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nsubcells_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
-    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
-    const int nfaces_by_cell =
-        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
 
     vec_t cell_centroid;
     cell_centroid.x = cell_centroids_x[(cc)];
     cell_centroid.y = cell_centroids_y[(cc)];
     cell_centroid.z = cell_centroids_z[(cc)];
 
+#if 0
 // Here we are constructing a reference subcell prism for the target face, this
 // reference element is used for all of the faces of the subcell, in fact it's
 // the same for all cells too, so this could be moved into some global space
@@ -100,13 +98,14 @@ void solve_unstructured_hydro_2d(
     double subcell_nodes_x[NSUBCELL_NODES] = {0.0};
     double subcell_nodes_y[NSUBCELL_NODES] = {0.0};
     double subcell_nodes_z[NSUBCELL_NODES] = {0.0};
+#endif // if 0
 
     // We discover the subcell gradients using a least squares fit for the
     // gradient between the subcell and its neighbours
     for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
-      const int subcell_index = cells_to_nodes[(cell_to_nodes_off + ss)];
+      const int subcell_index = (cell_to_nodes_off + ss);
       const int subcell_to_subcells_off =
-          subcells_to_subcells_offsets[(subcell_index)];
+          subcells_to_faces_offsets[(subcell_index)] * 2;
       const int nsubcells_by_subcell =
           subcells_to_subcells[(subcell_index + 1)] - subcell_to_subcells_off;
 
@@ -124,18 +123,30 @@ void solve_unstructured_hydro_2d(
          */
 
         const int face_index = subcells_to_faces[(ff)];
+        const int face_index2 =
+            (ff == nfaces_by_subcell - 1)
+                ? subcells_to_faces[(subcell_to_faces_off)]
+                : subcells_to_faces[(subcell_to_faces_off + ff + 1)];
         const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
         const int nnodes_by_face =
             faces_to_nodes[(face_index + 1)] - face_to_nodes_off;
+        const int face2_to_nodes_off = faces_to_nodes_offsets[(face_index2)];
+        const int nnodes_by_face2 =
+            faces_to_nodes[(face_index2 + 1)] - face2_to_nodes_off;
 
-        double face_c_x = 0.0;
-        double face_c_y = 0.0;
-        double face_c_z = 0.0;
+        vec_t face_c = {0.0, 0.0, 0.0};
         for (int nn = 0; nn < nnodes_by_face; ++nn) {
           const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
-          face_c_x += nodes_x1[(node_index)] / nnodes_by_face;
-          face_c_y += nodes_y1[(node_index)] / nnodes_by_face;
-          face_c_z += nodes_z1[(node_index)] / nnodes_by_face;
+          face_c.x += nodes_x0[(node_index)] / nnodes_by_face;
+          face_c.y += nodes_y0[(node_index)] / nnodes_by_face;
+          face_c.z += nodes_z0[(node_index)] / nnodes_by_face;
+        }
+        vec_t face2_c = {0.0, 0.0, 0.0};
+        for (int nn = 0; nn < nnodes_by_face2; ++nn) {
+          const int node_index = faces_to_nodes[(face2_to_nodes_off + nn)];
+          face2_c.x += nodes_x0[(node_index)] / nnodes_by_face2;
+          face2_c.y += nodes_y0[(node_index)] / nnodes_by_face2;
+          face2_c.z += nodes_z0[(node_index)] / nnodes_by_face2;
         }
 
         /*

@@ -62,7 +62,6 @@ typedef struct {
   double* limiter;
 
   int* subcells_to_subcells;
-  int* subcells_to_subcells_offsets;
   int* subcells_to_faces;
   int* subcells_to_faces_offsets;
 
@@ -114,12 +113,15 @@ void init_cell_centroids(const int ncells, const int* cells_offsets,
                          double* cell_centroids_z);
 
 // Initialises the list of neighbours to a subcell
-void init_subcell_neighbours(
-    const int ncells, const int* cells_offsets, const int* cells_to_nodes,
+void init_subcells_to_subcells(
+    const int ncells, const double* nodes_x, const double* nodes_y,
+    const double* nodes_z, const int* cells_offsets, const int* cells_to_nodes,
     const int* nodes_to_faces_offsets, const int* nodes_to_faces,
     const int* faces_to_cells0, const int* faces_to_cells1,
     const int* faces_to_nodes_offsets, const int* faces_to_nodes,
-    int* subcell_neighbours, int* subcells_to_subcells_offsets);
+    const double* cell_centroids_x, const double* cell_centroids_y,
+    const double* cell_centroids_z, const int* subcells_to_faces_offsets,
+    const int* subcells_to_faces, int* subcells_to_subcells);
 
 // Initialise the subcells to faces connectivity list
 void init_subcells_to_faces(
