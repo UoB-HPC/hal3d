@@ -101,41 +101,6 @@ void solve_unstructured_hydro_2d(
     double subcell_nodes_y[NSUBCELL_NODES] = {0.0};
     double subcell_nodes_z[NSUBCELL_NODES] = {0.0};
 
-    /*
-     * Calculate the swept-edge region
-     */
-
-    for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
-      const int subcell_index = cell_to_nodes_off + ss;
-      const int subcell_to_faces_off =
-          subcells_to_faces_offsets[(subcell_index)];
-      const int nfaces_by_subcell =
-          subcells_to_faces_offsets[(subcell_index + 1)] - subcell_to_faces_off;
-
-      // We will calculate the swept edge region for the internal and external
-      // face here, this relies on the faces being ordered in a ring.
-      for (int ff = 0; ff < nfaces_by_subcell; ++ff) {
-        const int face_index = subcells_to_faces[(ff)];
-        const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-        const int nnodes_by_face =
-            faces_to_nodes[(face_index + 1)] - face_to_nodes_off;
-
-        double face_c_x = 0.0;
-        double face_c_y = 0.0;
-        double face_c_z = 0.0;
-        for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
-          const int node_index = faces_to_nodes[(face_to_nodes_off + nn2)];
-          face_c_x += nodes_x1[(node_index)] / nnodes_by_face;
-          face_c_y += nodes_y1[(node_index)] / nnodes_by_face;
-          face_c_z += nodes_z1[(node_index)] / nnodes_by_face;
-        }
-      }
-    }
-
-    /*
-     * Perform the swept edge remaps for the subcells...
-     */
-
     // We discover the subcell gradients using a least squares fit for the
     // gradient between the subcell and its neighbours
     for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
@@ -145,71 +110,114 @@ void solve_unstructured_hydro_2d(
       const int nsubcells_by_subcell =
           subcells_to_subcells[(subcell_index + 1)] - subcell_to_subcells_off;
 
-      /*
-       * Calculate the coefficients for all density gradients
-       */
+      const int subcell_to_faces_off =
+          subcells_to_faces_offsets[(subcell_index)];
+      const int nfaces_by_subcell =
+          subcells_to_faces_offsets[(subcell_index + 1)] - subcell_to_faces_off;
 
-      // The coefficients of the 3x3 gradient coefficient matrix
-      vec_t coeff[3] = {{0.0, 0.0, 0.0}};
-      for (int ss2 = 0; ss2 < nsubcells_by_subcell; ++ss2) {
-        const int neighbour_subcell_index =
-            subcells_to_subcells[(subcell_to_subcells_off + ss2)];
+      // We will calculate the swept edge region for the internal and external
+      // face here, this relies on the faces being ordered in a ring.
+      for (int ff = 0; ff < nfaces_by_subcell; ++ff) {
 
-        const double ix = subcell_integrals_x[(neighbour_subcell_index)];
-        const double iy = subcell_integrals_y[(neighbour_subcell_index)];
-        const double iz = subcell_integrals_z[(neighbour_subcell_index)];
-        const double vol = subcell_volume[(neighbour_subcell_index)];
+        /*
+         * Calculate the swept-edge region
+         */
 
-        // Store the neighbouring cell's contribution to the coefficients
-        coeff[0].x += (2.0 * ix * ix) / (vol * vol);
-        coeff[0].y += (2.0 * ix * iy) / (vol * vol);
-        coeff[0].z += (2.0 * ix * iz) / (vol * vol);
-        coeff[1].x += (2.0 * iy * ix) / (vol * vol);
-        coeff[1].y += (2.0 * iy * iy) / (vol * vol);
-        coeff[1].z += (2.0 * iy * iz) / (vol * vol);
-        coeff[2].x += (2.0 * iz * ix) / (vol * vol);
-        coeff[2].y += (2.0 * iz * iy) / (vol * vol);
-        coeff[2].z += (2.0 * iz * iz) / (vol * vol);
+        const int face_index = subcells_to_faces[(ff)];
+        const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+        const int nnodes_by_face =
+            faces_to_nodes[(face_index + 1)] - face_to_nodes_off;
+
+        double face_c_x = 0.0;
+        double face_c_y = 0.0;
+        double face_c_z = 0.0;
+        for (int nn = 0; nn < nnodes_by_face; ++nn) {
+          const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
+          face_c_x += nodes_x1[(node_index)] / nnodes_by_face;
+          face_c_y += nodes_y1[(node_index)] / nnodes_by_face;
+          face_c_z += nodes_z1[(node_index)] / nnodes_by_face;
+        }
+
+        /*
+         * Calculate the coefficients for all density gradients
+         */
+
+        // The coefficients of the 3x3 gradient coefficient matrix
+        vec_t coeff[3] = {{0.0, 0.0, 0.0}};
+        for (int ss2 = 0; ss2 < nsubcells_by_subcell; ++ss2) {
+          const int neighbour_subcell_index =
+              subcells_to_subcells[(subcell_to_subcells_off + ss2)];
+
+          const double ix = subcell_integrals_x[(neighbour_subcell_index)];
+          const double iy = subcell_integrals_y[(neighbour_subcell_index)];
+          const double iz = subcell_integrals_z[(neighbour_subcell_index)];
+          const double vol = subcell_volume[(neighbour_subcell_index)];
+
+          // Store the neighbouring cell's contribution to the coefficients
+          coeff[0].x += (2.0 * ix * ix) / (vol * vol);
+          coeff[0].y += (2.0 * ix * iy) / (vol * vol);
+          coeff[0].z += (2.0 * ix * iz) / (vol * vol);
+          coeff[1].x += (2.0 * iy * ix) / (vol * vol);
+          coeff[1].y += (2.0 * iy * iy) / (vol * vol);
+          coeff[1].z += (2.0 * iy * iz) / (vol * vol);
+          coeff[2].x += (2.0 * iz * ix) / (vol * vol);
+          coeff[2].y += (2.0 * iz * iy) / (vol * vol);
+          coeff[2].z += (2.0 * iz * iz) / (vol * vol);
+        }
+
+        // Calculate the inverse of the coefficients for swept edge of all faces
+        vec_t inv[3];
+        calc_3x3_inverse(&coeff, &inv);
+
+        // Calculate the gradient for the internal energy density
+        vec_t rhs = {0.0, 0.0, 0.0};
+        for (int ss2 = 0; ss2 < nsubcells_by_subcell; ++ss2) {
+          const int neighbour_subcell_index =
+              subcells_to_subcells[(subcell_to_subcells_off + ss2)];
+
+          // Prepare differential
+          const double de = (subcell_ie_density[(neighbour_subcell_index)] -
+                             subcell_ie_density[(subcell_index)]);
+
+          // Calculate the subcell gradients for all of the variables
+          rhs.x += (2.0 * subcell_integrals_x[(cell_to_nodes_off + ss)] * de /
+                    subcell_volume[(cell_to_nodes_off + ss)]);
+          rhs.y += (2.0 * subcell_integrals_y[(cell_to_nodes_off + ss)] * de /
+                    subcell_volume[(cell_to_nodes_off + ss)]);
+          rhs.z += (2.0 * subcell_integrals_z[(cell_to_nodes_off + ss)] * de /
+                    subcell_volume[(cell_to_nodes_off + ss)]);
+        }
+
+        vec_t grad_ie_density;
+        grad_ie_density.x =
+            inv[0].x * rhs.x + inv[0].y * rhs.y + inv[0].z * rhs.z;
+        grad_ie_density.y =
+            inv[1].x * rhs.x + inv[1].y * rhs.y + inv[1].z * rhs.z;
+        grad_ie_density.z =
+            inv[2].x * rhs.x + inv[2].y * rhs.y + inv[2].z * rhs.z;
+
+        // NOTE: At this stage we are *currently* making a decision to
+        // overcalculate the face sweeps in order to ensure that there are no
+        // data
+        // races. The idea is that each of the faces is calculated twice, once
+        // for
+        // eac of the coinciding subcells, which means that we could potentially
+        // improve this routine by a factor of 2 if we can devise a scheme that
+        // allows all of the work to occur independently while updating both
+        // subcells that coincide with a face.
+
+        // NOTE: We need to avoid the data race, but we also need to recognise
+        // that the calculation of the swept edge regions is going to be the
+        // most
+        // expensive step in this process. There are a few choices again for the
+        // algorithm:
+        //
+        //   (1)
+
+        /*
+         * Perform the swept edge remaps for the subcells...
+         */
       }
-
-      // Calculate the inverse of the coefficients for swept edge of all faces
-      vec_t inv[3];
-      calc_3x3_inverse(&coeff, &inv);
-
-      // Calculate the gradient for the internal energy density
-      vec_t rhs = {0.0, 0.0, 0.0};
-      for (int ss2 = 0; ss2 < nsubcells_by_subcell; ++ss2) {
-        const int neighbour_subcell_index =
-            subcells_to_subcells[(subcell_to_subcells_off + ss2)];
-
-        // Prepare differential
-        const double de = (subcell_ie_density[(neighbour_subcell_index)] -
-                           subcell_ie_density[(subcell_index)]);
-
-        // Calculate the subcell gradients for all of the variables
-        rhs.x += (2.0 * subcell_integrals_x[(cell_to_nodes_off + ss)] * de /
-                  subcell_volume[(cell_to_nodes_off + ss)]);
-        rhs.y += (2.0 * subcell_integrals_y[(cell_to_nodes_off + ss)] * de /
-                  subcell_volume[(cell_to_nodes_off + ss)]);
-        rhs.z += (2.0 * subcell_integrals_z[(cell_to_nodes_off + ss)] * de /
-                  subcell_volume[(cell_to_nodes_off + ss)]);
-      }
-
-      vec_t grad_ie_density;
-      grad_ie_density.x =
-          inv[0].x * rhs.x + inv[0].y * rhs.y + inv[0].z * rhs.z;
-      grad_ie_density.y =
-          inv[1].x * rhs.x + inv[1].y * rhs.y + inv[1].z * rhs.z;
-      grad_ie_density.z =
-          inv[2].x * rhs.x + inv[2].y * rhs.y + inv[2].z * rhs.z;
-
-      // NOTE: At this stage we are *currently* making a decision to
-      // overcalculate the face sweeps in order to ensure that there are no data
-      // races. The idea is that each of the faces is calculated twice, once for
-      // eac of the coinciding subcells, which means that we could potentially
-      // improve this routine by a factor of 2 if we can devise a scheme that
-      // allows all of the work to occur independently while updating both
-      // subcells that coincide with a face.
     }
   }
 }
