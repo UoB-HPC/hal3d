@@ -80,7 +80,6 @@ void solve_unstructured_hydro_2d(
     cell_centroid.y = cell_centroids_y[(cc)];
     cell_centroid.z = cell_centroids_z[(cc)];
 
-#if 0
 // Here we are constructing a reference subcell prism for the target face, this
 // reference element is used for all of the faces of the subcell, in fact it's
 // the same for all cells too, so this could be moved into some global space
@@ -98,17 +97,16 @@ void solve_unstructured_hydro_2d(
     double subcell_nodes_x[NSUBCELL_NODES] = {0.0};
     double subcell_nodes_y[NSUBCELL_NODES] = {0.0};
     double subcell_nodes_z[NSUBCELL_NODES] = {0.0};
-#endif // if 0
 
     // We discover the subcell gradients using a least squares fit for the
     // gradient between the subcell and its neighbours
     for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
       const int subcell_index = (cell_to_nodes_off + ss);
+      const int subcell_node_index = cells_to_nodes[(subcell_index)];
       const int subcell_to_subcells_off =
           subcells_to_faces_offsets[(subcell_index)] * 2;
       const int nsubcells_by_subcell =
           subcells_to_subcells[(subcell_index + 1)] - subcell_to_subcells_off;
-
       const int subcell_to_faces_off =
           subcells_to_faces_offsets[(subcell_index)];
       const int nfaces_by_subcell =
@@ -117,10 +115,6 @@ void solve_unstructured_hydro_2d(
       // We will calculate the swept edge region for the internal and external
       // face here, this relies on the faces being ordered in a ring.
       for (int ff = 0; ff < nfaces_by_subcell; ++ff) {
-
-        /*
-         * Calculate the swept-edge region
-         */
 
         const int face_index = subcells_to_faces[(ff)];
         const int face_index2 =
@@ -134,20 +128,70 @@ void solve_unstructured_hydro_2d(
         const int nnodes_by_face2 =
             faces_to_nodes[(face_index2 + 1)] - face2_to_nodes_off;
 
+        /*
+         * Determine all of the nodes for the swept edge region inside the
+         * current mesh and in the rezoned mesh
+         */
+
+        // Calculate the face center for the current and rezoned meshes
         vec_t face_c = {0.0, 0.0, 0.0};
+        vec_t rz_face_c = {0.0, 0.0, 0.0};
+        int sn_off;
         for (int nn = 0; nn < nnodes_by_face; ++nn) {
           const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
           face_c.x += nodes_x0[(node_index)] / nnodes_by_face;
           face_c.y += nodes_y0[(node_index)] / nnodes_by_face;
           face_c.z += nodes_z0[(node_index)] / nnodes_by_face;
+          rz_face_c.x += rezoned_nodes_x[(node_index)] / nnodes_by_face;
+          rz_face_c.y += rezoned_nodes_y[(node_index)] / nnodes_by_face;
+          rz_face_c.z += rezoned_nodes_z[(node_index)] / nnodes_by_face;
+
+          // Store the offset of our subcell's node on the face for calculating
+          // the half edges later
+          if (subcell_node_index == node_index) {
+            sn_off = nn;
+          }
         }
+
+        // Calculate the face center for the current and rezoned meshes of the
+        // neighbouring face
         vec_t face2_c = {0.0, 0.0, 0.0};
+        vec_t rz_face2_c = {0.0, 0.0, 0.0};
         for (int nn = 0; nn < nnodes_by_face2; ++nn) {
           const int node_index = faces_to_nodes[(face2_to_nodes_off + nn)];
           face2_c.x += nodes_x0[(node_index)] / nnodes_by_face2;
           face2_c.y += nodes_y0[(node_index)] / nnodes_by_face2;
           face2_c.z += nodes_z0[(node_index)] / nnodes_by_face2;
+          rz_face2_c.x += rezoned_nodes_x[(node_index)] / nnodes_by_face2;
+          rz_face2_c.y += rezoned_nodes_y[(node_index)] / nnodes_by_face2;
+          rz_face2_c.z += rezoned_nodes_z[(node_index)] / nnodes_by_face2;
         }
+
+        // The half edges are the points between the node at the subcell and the
+        // right and left nodes on our current face
+        vec_t half_edge_l = {0.0, 0.0, 0.0};
+        vec_t half_edge_r = {0.0, 0.0, 0.0};
+        const int l_off = (sn_off == 0) ? nnodes_by_face - 1 : sn_off - 1;
+        const int r_off = (sn_off == nnodes_by_face) ? 0 : sn_off + 1;
+
+        half_edge_l.x = 0.5 * (nodes_x0[(face_to_nodes_off + sn_off)] +
+                               nodes_x0[(face_to_nodes_off + l_off)]);
+        half_edge_l.y = 0.5 * (nodes_x0[(face_to_nodes_off + sn_off)] +
+                               nodes_x0[(face_to_nodes_off + l_off)]);
+        half_edge_l.z = 0.5 * (nodes_x0[(face_to_nodes_off + sn_off)] +
+                               nodes_x0[(face_to_nodes_off + l_off)]);
+        half_edge_r.x = 0.5 * (nodes_x0[(face_to_nodes_off + sn_off)] +
+                               nodes_x0[(face_to_nodes_off + r_off)]);
+        half_edge_r.y = 0.5 * (nodes_x0[(face_to_nodes_off + sn_off)] +
+                               nodes_x0[(face_to_nodes_off + r_off)]);
+        half_edge_r.z = 0.5 * (nodes_x0[(face_to_nodes_off + sn_off)] +
+                               nodes_x0[(face_to_nodes_off + r_off)]);
+
+        /*
+         * Construct the swept edge prism for the internal and external face
+         * that is described by the above nodes, and determine the weighted
+         * volume integrals
+         */
 
         /*
          * Calculate the coefficients for all density gradients
