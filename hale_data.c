@@ -1003,32 +1003,6 @@ void init_subcells_to_faces(
       }
     }
   }
-#if 0
-
-  for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nsubcells_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
-    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
-    const int nfaces_by_cell =
-        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
-
-    // We will calculate the flux at every face of the subcells
-    for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
-      const int subcell_index = cell_to_nodes_off + ss;
-      const int subcell_to_faces_off =
-          subcells_to_faces_offsets[(subcell_index)];
-      const int nfaces_by_subcell =
-          subcells_to_faces_offsets[(subcell_index + 1)] - subcell_to_faces_off;
-
-      printf("subcell %d : ", subcell_index);
-      for (int ff = 0; ff < nfaces_by_subcell; ++ff) {
-        const int face_index = subcells_to_faces[(subcell_to_faces_off + ff)];
-        printf("%d ", face_index);
-      }
-      printf("\n");
-    }
-  }
-#endif // if 0
 }
 
 // Initialises the list of neighbours to a subcell
