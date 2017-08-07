@@ -90,12 +90,11 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
 
   init_subcells_to_subcells(
       umesh->ncells, umesh->nodes_x0, umesh->nodes_y0, umesh->nodes_z0,
-      umesh->cells_offsets, umesh->cells_to_nodes,
-      umesh->nodes_to_faces_offsets, umesh->nodes_to_faces,
-      umesh->faces_to_nodes_offsets, umesh->faces_to_nodes,
-      umesh->cell_centroids_x, umesh->cell_centroids_y, umesh->cell_centroids_z,
-      hale_data->subcells_to_faces_offsets, hale_data->subcells_to_faces,
-      hale_data->subcells_to_subcells);
+      umesh->cells_offsets, umesh->cells_to_nodes, umesh->faces_to_cells0,
+      umesh->faces_to_cells1, umesh->faces_to_nodes_offsets,
+      umesh->faces_to_nodes, umesh->cell_centroids_x, umesh->cell_centroids_y,
+      umesh->cell_centroids_z, hale_data->subcells_to_faces_offsets,
+      hale_data->subcells_to_faces, hale_data->subcells_to_subcells);
 
   store_rezoned_mesh(umesh->nnodes, umesh->nodes_x0, umesh->nodes_y0,
                      umesh->nodes_z0, hale_data->rezoned_nodes_x,

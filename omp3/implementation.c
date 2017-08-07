@@ -1195,18 +1195,14 @@ void gather_subcell_quantities(
     grad_energy.y = inv[1].x * rhs.x + inv[1].y * rhs.y + inv[1].z * rhs.z;
     grad_energy.z = inv[2].x * rhs.x + inv[2].y * rhs.y + inv[2].z * rhs.z;
 
-// Describe the connectivity for a simple tetrahedron, the sub-cell shape
-#define NSUBCELL_FACES 4
-#define NSUBCELL_NODES 4
-#define NSUBCELL_NODES_PER_FACE 3
-    const int subcell_faces_to_nodes_offsets[NSUBCELL_FACES + 1] = {0, 3, 6, 9,
-                                                                    12};
-    const int subcell_faces_to_nodes[NSUBCELL_FACES * NSUBCELL_NODES_PER_FACE] =
-        {0, 1, 2, 0, 1, 3, 0, 2, 3, 1, 2, 3};
-    const int subcell_to_faces[NSUBCELL_FACES] = {0, 1, 2, 3};
-    double subcell_nodes_x[NSUBCELL_NODES] = {0.0};
-    double subcell_nodes_y[NSUBCELL_NODES] = {0.0};
-    double subcell_nodes_z[NSUBCELL_NODES] = {0.0};
+    // Describe the connectivity for a simple tetrahedron, the sub-cell shape
+    const int subcell_faces_to_nodes_offsets[NTET_FACES + 1] = {0, 3, 6, 9, 12};
+    const int subcell_faces_to_nodes[NTET_FACES * NTET_NODES_PER_FACE] = {
+        0, 1, 2, 0, 1, 3, 0, 2, 3, 1, 2, 3};
+    const int subcell_to_faces[NTET_FACES] = {0, 1, 2, 3};
+    double subcell_nodes_x[NTET_NODES] = {0.0};
+    double subcell_nodes_y[NTET_NODES] = {0.0};
+    double subcell_nodes_z[NTET_NODES] = {0.0};
 
     // The centroid remains a component of all sub-cells
     subcell_nodes_x[3] = cell_centroid.x;
@@ -1272,17 +1268,17 @@ void gather_subcell_quantities(
 
           // Determine the sub-cell centroid
           vec_t subcell_centroid = {0.0, 0.0, 0.0};
-          for (int ii = 0; ii < NSUBCELL_NODES; ++ii) {
-            subcell_centroid.x += subcell_nodes_x[ii] / NSUBCELL_NODES;
-            subcell_centroid.y += subcell_nodes_y[ii] / NSUBCELL_NODES;
-            subcell_centroid.z += subcell_nodes_z[ii] / NSUBCELL_NODES;
+          for (int ii = 0; ii < NTET_NODES; ++ii) {
+            subcell_centroid.x += subcell_nodes_x[ii] / NTET_NODES;
+            subcell_centroid.y += subcell_nodes_y[ii] / NTET_NODES;
+            subcell_centroid.z += subcell_nodes_z[ii] / NTET_NODES;
           }
 
           // Calculate the weighted volume integral coefficients
           double vol = 0.0;
           vec_t integrals = {0.0, 0.0, 0.0};
           calc_weighted_volume_integrals(
-              0, NSUBCELL_FACES, subcell_to_faces, subcell_faces_to_nodes,
+              0, NTET_FACES, subcell_to_faces, subcell_faces_to_nodes,
               subcell_faces_to_nodes_offsets, subcell_nodes_x, subcell_nodes_y,
               subcell_nodes_z, &subcell_centroid, &integrals, &vol);
 

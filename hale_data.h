@@ -18,8 +18,14 @@
 #define HALE_PARAMS "hale.params"
 #define HALE_TESTS "hale.tests"
 
+// Describes the corner subcells
 #define NSUBCELL_NODES 8
 #define NSUBCELL_FACES 6
+
+// Describes the miniature tetrahedral subcells
+#define NTET_FACES 4
+#define NTET_NODES 4
+#define NTET_NODES_PER_FACE 3
 
 enum { XYZ, YZX, ZXY };
 
