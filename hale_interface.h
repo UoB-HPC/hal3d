@@ -14,8 +14,7 @@ extern "C" {
 
 // Solve a single timestep on the given mesh
 void solve_unstructured_hydro_2d(
-    Mesh* mesh, const int ncells, const int nnodes,
-    const int nsubcell_neighbours, const double visc_coeff1,
+    Mesh* mesh, const int ncells, const int nnodes, const double visc_coeff1,
     const double visc_coeff2, double* cell_centroids_x,
     double* cell_centroids_y, double* cell_centroids_z, int* cells_to_nodes,
     int* cells_offsets, int* nodes_to_cells, int* nodes_offsets,

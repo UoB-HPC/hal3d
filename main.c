@@ -118,13 +118,13 @@ int main(int argc, char** argv) {
     double w0 = omp_get_wtime();
 
     solve_unstructured_hydro_2d(
-        &mesh, umesh.ncells, umesh.nnodes, hale_data.nsubcell_edges,
-        hale_data.visc_coeff1, hale_data.visc_coeff2, umesh.cell_centroids_x,
-        umesh.cell_centroids_y, umesh.cell_centroids_z, umesh.cells_to_nodes,
-        umesh.cells_offsets, umesh.nodes_to_cells, umesh.nodes_offsets,
-        umesh.nodes_x0, umesh.nodes_y0, umesh.nodes_z0, umesh.nodes_x1,
-        umesh.nodes_y1, umesh.nodes_z1, umesh.boundary_index,
-        umesh.boundary_type, umesh.boundary_normal_x, umesh.boundary_normal_y,
+        &mesh, umesh.ncells, umesh.nnodes, hale_data.visc_coeff1,
+        hale_data.visc_coeff2, umesh.cell_centroids_x, umesh.cell_centroids_y,
+        umesh.cell_centroids_z, umesh.cells_to_nodes, umesh.cells_offsets,
+        umesh.nodes_to_cells, umesh.nodes_offsets, umesh.nodes_x0,
+        umesh.nodes_y0, umesh.nodes_z0, umesh.nodes_x1, umesh.nodes_y1,
+        umesh.nodes_z1, umesh.boundary_index, umesh.boundary_type,
+        umesh.boundary_normal_x, umesh.boundary_normal_y,
         umesh.boundary_normal_z, hale_data.energy0, hale_data.energy1,
         hale_data.density0, hale_data.density1, hale_data.pressure0,
         hale_data.pressure1, hale_data.velocity_x0, hale_data.velocity_y0,
