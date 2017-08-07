@@ -111,7 +111,15 @@ void set_timestep(const int ncells, const double* nodes_x,
 // Calculates the inverse of a 3x3 matrix, out-of-place
 void calc_3x3_inverse(vec_t (*a)[3], vec_t (*inv)[3]);
 
-// Constructs the prism f
+// Constructs the prism for swept region of a subcell face external to a cell
+void construct_external_swept_region(
+    const vec_t* nodes, const vec_t* rz_nodes, const vec_t* half_edge_l,
+    const vec_t* half_edge_r, const vec_t* rz_half_edge_l,
+    const vec_t* rz_half_edge_r, const vec_t* face_c, const vec_t* rz_face_c,
+    vec_t* prism_centroid, double* prism_nodes_x, double* prism_nodes_y,
+    double* prism_nodes_z);
+
+// Constructs the prism for swept region of a subcell face internal to a cell
 void construct_internal_swept_region(
     const int face_rorientation, const vec_t* half_edge_l,
     const vec_t* half_edge_r, const vec_t* rz_half_edge_l,

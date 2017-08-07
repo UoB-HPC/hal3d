@@ -115,10 +115,8 @@ void lagrangian_phase(
           half_edge.z = 0.5 * (nodes_z0[(nodes[(nn2)])] + nodes_z0[(nn)]);
 
           // Setup basis on plane of tetrahedron
-          vec_t a;
-          a.x = (face_c.x - node_c.x);
-          a.y = (face_c.y - node_c.y);
-          a.z = (face_c.z - node_c.z);
+          vec_t a = {(face_c.x - node_c.x), (face_c.y - node_c.y),
+                     (face_c.z - node_c.z)};
           vec_t b;
           b.x = (face_c.x - half_edge.x);
           b.y = (face_c.y - half_edge.y);

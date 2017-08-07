@@ -80,7 +80,6 @@ void solve_unstructured_hydro_2d(
       faces_to_cells1, cells_to_faces_offsets, cells_to_faces);
 #endif // if 0
 
-#if 0
 // Calculate the swept edge remap for each of the subcells.
 // TODO: There a again many different ways to crack this nut. One consideration
 // is that teh whole algorithm will allow you to precompute and store for
@@ -113,14 +112,10 @@ void solve_unstructured_hydro_2d(
     cell_centroid.y = cell_centroids_y[(cc)];
     cell_centroid.z = cell_centroids_z[(cc)];
 
-    // Calculate the cell centroids for the rezoned mesh
     vec_t rz_cell_centroid = {0.0, 0.0, 0.0};
-    for (int nn = 0; nn < nsubcells_by_cell; ++nn) {
-      const int node_index = cells_to_nodes[(cell_to_nodes_off + nn)];
-      rz_cell_centroid.x += rezoned_nodes_x[(node_index)] / nsubcells_by_cell;
-      rz_cell_centroid.y += rezoned_nodes_y[(node_index)] / nsubcells_by_cell;
-      rz_cell_centroid.z += rezoned_nodes_z[(node_index)] / nsubcells_by_cell;
-    }
+    calc_centroid(nsubcells_by_cell, rezoned_nodes_x, rezoned_nodes_y,
+                  rezoned_nodes_z, cells_to_nodes, cell_to_nodes_off,
+                  &rz_cell_centroid);
 
     /*
      * Here we are constructing a reference subcell prism for the target face,
@@ -174,13 +169,17 @@ void solve_unstructured_hydro_2d(
 
         // Calculate the face center for the current and rezoned meshes
         vec_t face_c = {0.0, 0.0, 0.0};
+        calc_centroid(nnodes_by_face, nodes_x0, nodes_y0, nodes_z0,
+                      faces_to_nodes, face_to_nodes_off, &face_c);
+        vec_t face2_c = {0.0, 0.0, 0.0};
+        calc_centroid(nnodes_by_face2, nodes_x0, nodes_y0, nodes_z0,
+                      faces_to_nodes, face2_to_nodes_off, &face2_c);
+
+        // Calculate the subsequent face center for current and rezoned meshes
         vec_t rz_face_c = {0.0, 0.0, 0.0};
         int sn_off;
         for (int nn = 0; nn < nnodes_by_face; ++nn) {
           const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
-          face_c.x += nodes_x0[(node_index)] / nnodes_by_face;
-          face_c.y += nodes_y0[(node_index)] / nnodes_by_face;
-          face_c.z += nodes_z0[(node_index)] / nnodes_by_face;
           rz_face_c.x += rezoned_nodes_x[(node_index)] / nnodes_by_face;
           rz_face_c.y += rezoned_nodes_y[(node_index)] / nnodes_by_face;
           rz_face_c.z += rezoned_nodes_z[(node_index)] / nnodes_by_face;
@@ -191,56 +190,39 @@ void solve_unstructured_hydro_2d(
             sn_off = nn;
           }
         }
-
-        // Calculate the face center for the current and rezoned meshes of the
-        // neighbouring face
-        vec_t face2_c = {0.0, 0.0, 0.0};
         vec_t rz_face2_c = {0.0, 0.0, 0.0};
-        for (int nn = 0; nn < nnodes_by_face2; ++nn) {
-          const int node_index = faces_to_nodes[(face2_to_nodes_off + nn)];
-          face2_c.x += nodes_x0[(node_index)] / nnodes_by_face2;
-          face2_c.y += nodes_y0[(node_index)] / nnodes_by_face2;
-          face2_c.z += nodes_z0[(node_index)] / nnodes_by_face2;
-          rz_face2_c.x += rezoned_nodes_x[(node_index)] / nnodes_by_face2;
-          rz_face2_c.y += rezoned_nodes_y[(node_index)] / nnodes_by_face2;
-          rz_face2_c.z += rezoned_nodes_z[(node_index)] / nnodes_by_face2;
-        }
+        calc_centroid(nnodes_by_face2, rezoned_nodes_x, rezoned_nodes_y,
+                      rezoned_nodes_z, faces_to_nodes, face2_to_nodes_off,
+                      &face2_c);
 
         // The half edges are the points between the node at the subcell and the
         // right and left nodes on our current face
-        vec_t half_edge_l = {0.0, 0.0, 0.0};
-        vec_t half_edge_r = {0.0, 0.0, 0.0};
         const int l_off = (sn_off == 0) ? nnodes_by_face - 1 : sn_off - 1;
         const int r_off = (sn_off == nnodes_by_face - 1) ? 0 : sn_off + 1;
         const int node_l_index = faces_to_nodes[(face_to_nodes_off + l_off)];
         const int node_r_index = faces_to_nodes[(face_to_nodes_off + r_off)];
-        half_edge_l.x =
-            0.5 * (nodes_x0[(subcell_node_index)] + nodes_x0[(node_l_index)]);
-        half_edge_l.y =
-            0.5 * (nodes_y0[(subcell_node_index)] + nodes_y0[(node_l_index)]);
-        half_edge_l.z =
-            0.5 * (nodes_z0[(subcell_node_index)] + nodes_z0[(node_l_index)]);
-        half_edge_r.x =
-            0.5 * (nodes_x0[(subcell_node_index)] + nodes_x0[(node_r_index)]);
-        half_edge_r.y =
-            0.5 * (nodes_y0[(subcell_node_index)] + nodes_y0[(node_r_index)]);
-        half_edge_r.z =
-            0.5 * (nodes_z0[(subcell_node_index)] + nodes_z0[(node_r_index)]);
 
-        vec_t rz_half_edge_l = {0.0, 0.0, 0.0};
-        vec_t rz_half_edge_r = {0.0, 0.0, 0.0};
-        rz_half_edge_l.x = 0.5 * (rezoned_nodes_x[(subcell_node_index)] +
-                                  rezoned_nodes_x[(node_l_index)]);
-        rz_half_edge_l.y = 0.5 * (rezoned_nodes_y[(subcell_node_index)] +
-                                  rezoned_nodes_y[(node_l_index)]);
-        rz_half_edge_l.z = 0.5 * (rezoned_nodes_z[(subcell_node_index)] +
-                                  rezoned_nodes_z[(node_l_index)]);
-        rz_half_edge_r.x = 0.5 * (rezoned_nodes_x[(subcell_node_index)] +
-                                  rezoned_nodes_x[(node_r_index)]);
-        rz_half_edge_r.y = 0.5 * (rezoned_nodes_y[(subcell_node_index)] +
-                                  rezoned_nodes_y[(node_r_index)]);
-        rz_half_edge_r.z = 0.5 * (rezoned_nodes_z[(subcell_node_index)] +
-                                  rezoned_nodes_z[(node_r_index)]);
+        vec_t half_edge_l = {
+            0.5 * (nodes_x0[(subcell_node_index)] + nodes_x0[(node_l_index)]),
+            0.5 * (nodes_y0[(subcell_node_index)] + nodes_y0[(node_l_index)]),
+            0.5 * (nodes_z0[(subcell_node_index)] + nodes_z0[(node_l_index)])};
+        vec_t half_edge_r = {
+            0.5 * (nodes_x0[(subcell_node_index)] + nodes_x0[(node_r_index)]),
+            0.5 * (nodes_y0[(subcell_node_index)] + nodes_y0[(node_r_index)]),
+            0.5 * (nodes_z0[(subcell_node_index)] + nodes_z0[(node_r_index)])};
+
+        vec_t rz_half_edge_l = {0.5 * (rezoned_nodes_x[(subcell_node_index)] +
+                                       rezoned_nodes_x[(node_l_index)]),
+                                0.5 * (rezoned_nodes_y[(subcell_node_index)] +
+                                       rezoned_nodes_y[(node_l_index)]),
+                                0.5 * (rezoned_nodes_z[(subcell_node_index)] +
+                                       rezoned_nodes_z[(node_l_index)])};
+        vec_t rz_half_edge_r = {0.5 * (rezoned_nodes_x[(subcell_node_index)] +
+                                       rezoned_nodes_x[(node_r_index)]),
+                                0.5 * (rezoned_nodes_y[(subcell_node_index)] +
+                                       rezoned_nodes_y[(node_r_index)]),
+                                0.5 * (rezoned_nodes_z[(subcell_node_index)] +
+                                       rezoned_nodes_z[(node_r_index)])};
 
         /*
          * Construct the swept edge prism for the internal and external face
@@ -249,38 +231,18 @@ void solve_unstructured_hydro_2d(
          */
 
         // Firstly we will determine the external swept region
-
-        prism_nodes_x[(0)] = nodes_x0[(subcell_node_index)];
-        prism_nodes_y[(0)] = nodes_y0[(subcell_node_index)];
-        prism_nodes_z[(0)] = nodes_z0[(subcell_node_index)];
-        prism_nodes_x[(1)] = half_edge_r.x;
-        prism_nodes_y[(1)] = half_edge_r.y;
-        prism_nodes_z[(1)] = half_edge_r.z;
-        prism_nodes_x[(2)] = face_c.x;
-        prism_nodes_y[(2)] = face_c.y;
-        prism_nodes_z[(2)] = face_c.z;
-        prism_nodes_x[(3)] = half_edge_l.x;
-        prism_nodes_y[(3)] = half_edge_l.y;
-        prism_nodes_z[(3)] = half_edge_l.z;
-        prism_nodes_x[(4)] = rezoned_nodes_x[(subcell_node_index)];
-        prism_nodes_y[(4)] = rezoned_nodes_y[(subcell_node_index)];
-        prism_nodes_z[(4)] = rezoned_nodes_z[(subcell_node_index)];
-        prism_nodes_x[(5)] = rz_half_edge_r.x;
-        prism_nodes_y[(5)] = rz_half_edge_r.y;
-        prism_nodes_z[(5)] = rz_half_edge_r.z;
-        prism_nodes_x[(6)] = rz_face_c.x;
-        prism_nodes_y[(6)] = rz_face_c.y;
-        prism_nodes_z[(6)] = rz_face_c.z;
-        prism_nodes_x[(7)] = rz_half_edge_l.x;
-        prism_nodes_y[(7)] = rz_half_edge_l.y;
-        prism_nodes_z[(7)] = rz_half_edge_l.z;
+        vec_t nodes = {nodes_x0[(subcell_node_index)],
+                       nodes_y0[(subcell_node_index)],
+                       nodes_z0[(subcell_node_index)]};
+        vec_t rz_nodes = {rezoned_nodes_x[(subcell_node_index)],
+                          rezoned_nodes_y[(subcell_node_index)],
+                          rezoned_nodes_z[(subcell_node_index)]};
 
         vec_t prism_centroid = {0.0, 0.0, 0.0};
-        for (int pp = 0; pp < NSUBCELL_NODES; ++pp) {
-          prism_centroid.x += prism_nodes_x[(pp)] / NSUBCELL_NODES;
-          prism_centroid.y += prism_nodes_y[(pp)] / NSUBCELL_NODES;
-          prism_centroid.z += prism_nodes_z[(pp)] / NSUBCELL_NODES;
-        }
+        construct_external_swept_region(
+            &nodes, &rz_nodes, &half_edge_l, &half_edge_r, &rz_half_edge_l,
+            &rz_half_edge_r, &face_c, &rz_face_c, &prism_centroid,
+            prism_nodes_x, prism_nodes_y, prism_nodes_z);
 
         vec_t integrals = {0.0, 0.0, 0.0};
         double vol = 0.0;
@@ -291,33 +253,18 @@ void solve_unstructured_hydro_2d(
 
         // Secondly we will determine the internal swept region
 
-        // Get the orientation of the face
-        vec_t dn0 = {0.0, 0.0, 0.0};
-        vec_t dn1 = {0.0, 0.0, 0.0};
+        // Choose threee points on the planar face
         const int fn0 = faces_to_nodes[(face_to_nodes_off + 0)];
         const int fn1 = faces_to_nodes[(face_to_nodes_off + 1)];
         const int fn2 = faces_to_nodes[(face_to_nodes_off + 2)];
-        dn0.x = nodes_x0[(fn2)] - nodes_x0[(fn1)];
-        dn0.y = nodes_y0[(fn2)] - nodes_y0[(fn1)];
-        dn0.z = nodes_z0[(fn2)] - nodes_z0[(fn1)];
-        dn1.x = nodes_x0[(fn1)] - nodes_x0[(fn0)];
-        dn1.y = nodes_y0[(fn1)] - nodes_y0[(fn0)];
-        dn1.z = nodes_z0[(fn1)] - nodes_z0[(fn0)];
 
-        // Calculate a vector from face to cell centroid
-        vec_t ab;
-        ab.x = (cell_centroid.x - nodes_x0[(fn0)]);
-        ab.y = (cell_centroid.y - nodes_y0[(fn0)]);
-        ab.z = (cell_centroid.z - nodes_z0[(fn0)]);
-
-        // Cross product to get the normal
         vec_t normal;
-        normal.x = (dn0.y * dn1.z - dn0.z * dn1.y);
-        normal.y = (dn0.z * dn1.x - dn0.x * dn1.z);
-        normal.z = (dn0.x * dn1.y - dn0.y * dn1.x);
+        calc_normal(fn0, fn1, fn2, nodes_x0, nodes_y0, nodes_z0, &normal);
 
-        const int face_rorientation =
-            (ab.x * normal.x + ab.y * normal.y + ab.z * normal.z < 0.0);
+        // TODO: Fairly sure that this returns the opposite value to what we are
+        // expecting later on...
+        const int face_rorientation = check_normal_orientation(
+            fn0, nodes_x0, nodes_y0, nodes_z0, &cell_centroid, &normal);
 
         construct_internal_swept_region(
             face_rorientation, &half_edge_l, &half_edge_r, &rz_half_edge_l,
@@ -328,6 +275,7 @@ void solve_unstructured_hydro_2d(
             0, NSUBCELL_FACES, prism_to_faces, prism_faces_to_nodes,
             prism_faces_to_nodes_offsets, prism_nodes_x, prism_nodes_y,
             prism_nodes_z, &prism_centroid, &integrals, &vol);
+
         /*
          * Calculate the coefficients for all density gradients
          * The gradient that we calculate may be for the external or the
@@ -400,13 +348,10 @@ void solve_unstructured_hydro_2d(
                     subcell_volume[(cell_to_nodes_off + ss)]);
         }
 
-        vec_t grad_ie_density;
-        grad_ie_density.x =
-            inv[0].x * rhs.x + inv[0].y * rhs.y + inv[0].z * rhs.z;
-        grad_ie_density.y =
-            inv[1].x * rhs.x + inv[1].y * rhs.y + inv[1].z * rhs.z;
-        grad_ie_density.z =
-            inv[2].x * rhs.x + inv[2].y * rhs.y + inv[2].z * rhs.z;
+        vec_t grad_ie_density = {
+            inv[0].x * rhs.x + inv[0].y * rhs.y + inv[0].z * rhs.z,
+            inv[1].x * rhs.x + inv[1].y * rhs.y + inv[1].z * rhs.z,
+            inv[2].x * rhs.x + inv[2].y * rhs.y + inv[2].z * rhs.z};
 
         /*
          * Perform the swept edge remaps for the subcells...
@@ -414,7 +359,49 @@ void solve_unstructured_hydro_2d(
       }
     }
   }
-#endif // if 0
+}
+
+// Constructs the prism for swept region of a subcell face external to a cell
+void construct_external_swept_region(
+    const vec_t* nodes, const vec_t* rz_nodes, const vec_t* half_edge_l,
+    const vec_t* half_edge_r, const vec_t* rz_half_edge_l,
+    const vec_t* rz_half_edge_r, const vec_t* face_c, const vec_t* rz_face_c,
+    vec_t* prism_centroid, double* prism_nodes_x, double* prism_nodes_y,
+    double* prism_nodes_z) {
+
+  prism_nodes_x[(0)] = nodes->x;
+  prism_nodes_y[(0)] = nodes->y;
+  prism_nodes_z[(0)] = nodes->z;
+  prism_nodes_x[(1)] = half_edge_r->x;
+  prism_nodes_y[(1)] = half_edge_r->y;
+  prism_nodes_z[(1)] = half_edge_r->z;
+  prism_nodes_x[(2)] = face_c->x;
+  prism_nodes_y[(2)] = face_c->y;
+  prism_nodes_z[(2)] = face_c->z;
+  prism_nodes_x[(3)] = half_edge_l->x;
+  prism_nodes_y[(3)] = half_edge_l->y;
+  prism_nodes_z[(3)] = half_edge_l->z;
+  prism_nodes_x[(4)] = rz_nodes->x;
+  prism_nodes_y[(4)] = rz_nodes->y;
+  prism_nodes_z[(4)] = rz_nodes->z;
+  prism_nodes_x[(5)] = rz_half_edge_r->x;
+  prism_nodes_y[(5)] = rz_half_edge_r->y;
+  prism_nodes_z[(5)] = rz_half_edge_r->z;
+  prism_nodes_x[(6)] = rz_face_c->x;
+  prism_nodes_y[(6)] = rz_face_c->y;
+  prism_nodes_z[(6)] = rz_face_c->z;
+  prism_nodes_x[(7)] = rz_half_edge_l->x;
+  prism_nodes_y[(7)] = rz_half_edge_l->y;
+  prism_nodes_z[(7)] = rz_half_edge_l->z;
+
+  prism_centroid->x = 0.0;
+  prism_centroid->y = 0.0;
+  prism_centroid->z = 0.0;
+  for (int pp = 0; pp < NSUBCELL_NODES; ++pp) {
+    prism_centroid->x += prism_nodes_x[(pp)] / NSUBCELL_NODES;
+    prism_centroid->y += prism_nodes_y[(pp)] / NSUBCELL_NODES;
+    prism_centroid->z += prism_nodes_z[(pp)] / NSUBCELL_NODES;
+  }
 }
 
 // Constructs the prism for swept region of a subcell face internal to a cell
