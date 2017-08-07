@@ -53,6 +53,7 @@ void solve_unstructured_hydro_2d(
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
 
+#if 0
   gather_subcell_quantities(
       ncells, cell_centroids_x, cell_centroids_y, cell_centroids_z,
       cells_to_nodes, cells_offsets, nodes_x0, nodes_y0, nodes_z0, energy0,
@@ -245,9 +246,6 @@ void solve_unstructured_hydro_2d(
 
 // Firstly we will determine the external swept region
 
-#define NSUBCELL_FACES 6
-#define NSUBCELL_NODES 8
-
         prism_nodes_x[(0)] = nodes_x0[(subcell_node_index)];
         prism_nodes_y[(0)] = nodes_y0[(subcell_node_index)];
         prism_nodes_z[(0)] = nodes_z0[(subcell_node_index)];
@@ -439,6 +437,7 @@ void solve_unstructured_hydro_2d(
       }
     }
   }
+#endif // if 0
 }
 
 // Constructs the prism for swept region of a subcell face internal to a cell

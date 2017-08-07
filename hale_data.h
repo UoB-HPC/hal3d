@@ -18,6 +18,9 @@
 #define HALE_PARAMS "hale.params"
 #define HALE_TESTS "hale.tests"
 
+#define NSUBCELL_NODES 8
+#define NSUBCELL_FACES 6
+
 enum { XYZ, YZX, ZXY };
 
 typedef struct {
