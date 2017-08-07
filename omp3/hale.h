@@ -96,6 +96,11 @@ void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
                          const double* nodes_beta, const double* nodes_gamma,
                          vec_t normal, vec_t* T, double* vol);
 
+// Calculate the centroid
+void calc_centroid(const int nnodes, const double* nodes_x,
+                   const double* nodes_y, const double* nodes_z,
+                   const int* indirection, const int offset, vec_t* centroid);
+
 // Controls the timestep for the simulation
 void set_timestep(const int ncells, const double* nodes_x,
                   const double* nodes_y, const double* nodes_z,

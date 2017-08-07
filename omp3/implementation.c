@@ -53,9 +53,11 @@ void lagrangian_phase(
     const int node_to_faces_off = nodes_to_faces_offsets[(nn)];
     const int nfaces_by_node =
         nodes_to_faces_offsets[(nn + 1)] - node_to_faces_off;
-    const double node_c_x = nodes_x0[(nn)];
-    const double node_c_y = nodes_y0[(nn)];
-    const double node_c_z = nodes_z0[(nn)];
+
+    vec_t node_c;
+    node_c.x = nodes_x0[(nn)];
+    node_c.y = nodes_y0[(nn)];
+    node_c.z = nodes_z0[(nn)];
 
     // Consider all faces attached to node
     for (int ff = 0; ff < nfaces_by_node; ++ff) {
@@ -70,15 +72,13 @@ void lagrangian_phase(
           faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
 
       // Find node center and location of current node on face
+      vec_t face_c = {0.0, 0.0, 0.0};
       int node_in_face_c;
-      double face_c_x = 0.0;
-      double face_c_y = 0.0;
-      double face_c_z = 0.0;
       for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
         const int node_index = faces_to_nodes[(face_to_nodes_off + nn2)];
-        face_c_x += nodes_x0[(node_index)] / nnodes_by_face;
-        face_c_y += nodes_y0[(node_index)] / nnodes_by_face;
-        face_c_z += nodes_z0[(node_index)] / nnodes_by_face;
+        face_c.x += nodes_x0[(node_index)] / nnodes_by_face;
+        face_c.y += nodes_y0[(node_index)] / nnodes_by_face;
+        face_c.z += nodes_z0[(node_index)] / nnodes_by_face;
 
         // Choose the node in the list of nodes attached to the face
         if (nn == node_index) {
@@ -109,35 +109,37 @@ void lagrangian_phase(
         // Add contributions for both edges attached to our current node
         for (int nn2 = 0; nn2 < 2; ++nn2) {
           // Get the halfway point on the right edge
-          const double half_edge_x =
-              0.5 * (nodes_x0[(nodes[(nn2)])] + nodes_x0[(nn)]);
-          const double half_edge_y =
-              0.5 * (nodes_y0[(nodes[(nn2)])] + nodes_y0[(nn)]);
-          const double half_edge_z =
-              0.5 * (nodes_z0[(nodes[(nn2)])] + nodes_z0[(nn)]);
+          vec_t half_edge;
+          half_edge.x = 0.5 * (nodes_x0[(nodes[(nn2)])] + nodes_x0[(nn)]);
+          half_edge.y = 0.5 * (nodes_y0[(nodes[(nn2)])] + nodes_y0[(nn)]);
+          half_edge.z = 0.5 * (nodes_z0[(nodes[(nn2)])] + nodes_z0[(nn)]);
 
           // Setup basis on plane of tetrahedron
-          const double a_x = (face_c_x - node_c_x);
-          const double a_y = (face_c_y - node_c_y);
-          const double a_z = (face_c_z - node_c_z);
-          const double b_x = (face_c_x - half_edge_x);
-          const double b_y = (face_c_y - half_edge_y);
-          const double b_z = (face_c_z - half_edge_z);
-          const double ab_x = (cell_centroids_x[(cells[cc])] - face_c_x);
-          const double ab_y = (cell_centroids_y[(cells[cc])] - face_c_y);
-          const double ab_z = (cell_centroids_z[(cells[cc])] - face_c_z);
+          vec_t a;
+          a.x = (face_c.x - node_c.x);
+          a.y = (face_c.y - node_c.y);
+          a.z = (face_c.z - node_c.z);
+          vec_t b;
+          b.x = (face_c.x - half_edge.x);
+          b.y = (face_c.y - half_edge.y);
+          b.z = (face_c.z - half_edge.z);
+          vec_t ab;
+          ab.x = (cell_centroids_x[(cells[cc])] - face_c.x);
+          ab.y = (cell_centroids_y[(cells[cc])] - face_c.y);
+          ab.z = (cell_centroids_z[(cells[cc])] - face_c.z);
 
           // Calculate the area vector S using cross product
-          double A_x = 0.5 * (a_y * b_z - a_z * b_y);
-          double A_y = -0.5 * (a_x * b_z - a_z * b_x);
-          double A_z = 0.5 * (a_x * b_y - a_y * b_x);
+          vec_t A;
+          A.x = 0.5 * (a.y * b.z - a.z * b.y);
+          A.y = -0.5 * (a.x * b.z - a.z * b.x);
+          A.z = 0.5 * (a.x * b.y - a.y * b.x);
 
           // TODO: I HAVENT WORKED OUT A REASONABLE WAY TO ORDER THE NODES
           // SO
           // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
           // CALCULATION
           const double subcell_volume =
-              fabs((ab_x * A_x + ab_y * A_y + ab_z * A_z) / 3.0);
+              fabs((ab.x * A.x + ab.y * A.y + ab.z * A.z) / 3.0);
 
           nodal_mass[(nn)] += density0[(cells[(cc)])] * subcell_volume;
           nodal_soundspeed[(nn)] +=
@@ -178,15 +180,9 @@ void lagrangian_phase(
           faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
 
       // Calculate the face center... SHOULD WE PRECOMPUTE?
-      double face_c_x = 0.0;
-      double face_c_y = 0.0;
-      double face_c_z = 0.0;
-      for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
-        const int node_index = faces_to_nodes[(face_to_nodes_off + nn2)];
-        face_c_x += nodes_x0[(node_index)] / nnodes_by_face;
-        face_c_y += nodes_y0[(node_index)] / nnodes_by_face;
-        face_c_z += nodes_z0[(node_index)] / nnodes_by_face;
-      }
+      vec_t face_c = {0.0, 0.0, 0.0};
+      calc_centroid(nnodes_by_face, nodes_x0, nodes_y0, nodes_z0,
+                    faces_to_nodes, face_to_nodes_off, &face_c);
 
       // Now we will sum the contributions at each of the nodes
       // TODO: THERE IS SOME SYMMETRY HERE THAT MEANS WE MIGHT BE ABLE TO
@@ -200,28 +196,30 @@ void lagrangian_phase(
                 : faces_to_nodes[(face_to_nodes_off)];
 
         // Get the halfway point on the right edge
-        const double half_edge_x =
-            0.5 * (nodes_x0[(current_node)] + nodes_x0[(next_node)]);
-        const double half_edge_y =
-            0.5 * (nodes_y0[(current_node)] + nodes_y0[(next_node)]);
-        const double half_edge_z =
-            0.5 * (nodes_z0[(current_node)] + nodes_z0[(next_node)]);
+        vec_t half_edge;
+        half_edge.x = 0.5 * (nodes_x0[(current_node)] + nodes_x0[(next_node)]);
+        half_edge.y = 0.5 * (nodes_y0[(current_node)] + nodes_y0[(next_node)]);
+        half_edge.z = 0.5 * (nodes_z0[(current_node)] + nodes_z0[(next_node)]);
 
         // Setup basis on plane of tetrahedron
-        const double a_x = (face_c_x - nodes_x0[(current_node)]);
-        const double a_y = (face_c_y - nodes_y0[(current_node)]);
-        const double a_z = (face_c_z - nodes_z0[(current_node)]);
-        const double b_x = (face_c_x - half_edge_x);
-        const double b_y = (face_c_y - half_edge_y);
-        const double b_z = (face_c_z - half_edge_z);
-        const double ab_x = (cell_centroids_x[(cc)] - face_c_x);
-        const double ab_y = (cell_centroids_y[(cc)] - face_c_y);
-        const double ab_z = (cell_centroids_z[(cc)] - face_c_z);
+        vec_t a;
+        a.x = (face_c.x - nodes_x0[(current_node)]);
+        a.y = (face_c.y - nodes_y0[(current_node)]);
+        a.z = (face_c.z - nodes_z0[(current_node)]);
+        vec_t b;
+        b.x = (face_c.x - half_edge.x);
+        b.y = (face_c.y - half_edge.y);
+        b.z = (face_c.z - half_edge.z);
+        vec_t ab;
+        ab.x = (cell_centroids_x[(cc)] - face_c.x);
+        ab.y = (cell_centroids_y[(cc)] - face_c.y);
+        ab.z = (cell_centroids_z[(cc)] - face_c.z);
 
         // Calculate the area vector S using cross product
-        double A_x = 0.5 * (a_y * b_z - a_z * b_y);
-        double A_y = -0.5 * (a_x * b_z - a_z * b_x);
-        double A_z = 0.5 * (a_x * b_y - a_y * b_x);
+        vec_t A;
+        A.x = 0.5 * (a.y * b.z - a.z * b.y);
+        A.y = -0.5 * (a.x * b.z - a.z * b.x);
+        A.z = 0.5 * (a.x * b.y - a.y * b.x);
 
         // TODO: I HATE SEARCHES LIKE THIS... CAN WE FIND SOME BETTER CLOSED
         // FORM SOLUTION?
@@ -238,19 +236,19 @@ void lagrangian_phase(
         // TODO: I HAVENT WORKED OUT A REASONABLE WAY TO ORDER THE NODES SO
         // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
         // CALCULATION
-        const int flip = (ab_x * A_x + ab_y * A_y + ab_z * A_z > 0.0);
+        const int flip = (ab.x * A.x + ab.y * A.y + ab.z * A.z > 0.0);
         subcell_force_x[(cell_to_nodes_off + node_off)] +=
-            pressure0[(cc)] * ((flip) ? -A_x : A_x);
+            pressure0[(cc)] * ((flip) ? -A.x : A.x);
         subcell_force_y[(cell_to_nodes_off + node_off)] +=
-            pressure0[(cc)] * ((flip) ? -A_y : A_y);
+            pressure0[(cc)] * ((flip) ? -A.y : A.y);
         subcell_force_z[(cell_to_nodes_off + node_off)] +=
-            pressure0[(cc)] * ((flip) ? -A_z : A_z);
+            pressure0[(cc)] * ((flip) ? -A.z : A.z);
         subcell_force_x[(cell_to_nodes_off + next_node_off)] +=
-            pressure0[(cc)] * ((flip) ? -A_x : A_x);
+            pressure0[(cc)] * ((flip) ? -A.x : A.x);
         subcell_force_y[(cell_to_nodes_off + next_node_off)] +=
-            pressure0[(cc)] * ((flip) ? -A_y : A_y);
+            pressure0[(cc)] * ((flip) ? -A.y : A.y);
         subcell_force_z[(cell_to_nodes_off + next_node_off)] +=
-            pressure0[(cc)] * ((flip) ? -A_z : A_z);
+            pressure0[(cc)] * ((flip) ? -A.z : A.z);
       }
     }
   }
@@ -281,9 +279,7 @@ void lagrangian_phase(
     const int ncells_by_node = nodes_offsets[(nn + 1)] - node_to_cells_off;
 
     // Accumulate the force at this node
-    double node_force_x0 = 0.0;
-    double node_force_y0 = 0.0;
-    double node_force_z0 = 0.0;
+    vec_t node_force = {0.0, 0.0, 0.0};
     for (int cc = 0; cc < ncells_by_node; ++cc) {
       const int cell_index = nodes_to_cells[(node_to_cells_off + cc)];
       const int cell_to_nodes_off = cells_offsets[(cell_index)];
@@ -298,18 +294,18 @@ void lagrangian_phase(
         }
       }
 
-      node_force_x0 += subcell_force_x[(cell_to_nodes_off + node_off)];
-      node_force_y0 += subcell_force_y[(cell_to_nodes_off + node_off)];
-      node_force_z0 += subcell_force_z[(cell_to_nodes_off + node_off)];
+      node_force.x += subcell_force_x[(cell_to_nodes_off + node_off)];
+      node_force.y += subcell_force_y[(cell_to_nodes_off + node_off)];
+      node_force.z += subcell_force_z[(cell_to_nodes_off + node_off)];
     }
 
     // Determine the predicted velocity
     velocity_x1[(nn)] =
-        velocity_x0[(nn)] + mesh->dt * node_force_x0 / nodal_mass[(nn)];
+        velocity_x0[(nn)] + mesh->dt * node_force.x / nodal_mass[(nn)];
     velocity_y1[(nn)] =
-        velocity_y0[(nn)] + mesh->dt * node_force_y0 / nodal_mass[(nn)];
+        velocity_y0[(nn)] + mesh->dt * node_force.y / nodal_mass[(nn)];
     velocity_z1[(nn)] =
-        velocity_z0[(nn)] + mesh->dt * node_force_z0 / nodal_mass[(nn)];
+        velocity_z0[(nn)] + mesh->dt * node_force.z / nodal_mass[(nn)];
 
     // Calculate the time centered velocity
     velocity_x1[(nn)] = 0.5 * (velocity_x0[(nn)] + velocity_x1[(nn)]);
@@ -381,15 +377,9 @@ void lagrangian_phase(
           faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
 
       // Calculate the face center... SHOULD WE PRECOMPUTE?
-      double face_c_x = 0.0;
-      double face_c_y = 0.0;
-      double face_c_z = 0.0;
-      for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
-        const int node_index = faces_to_nodes[(face_to_nodes_off + nn2)];
-        face_c_x += nodes_x1[(node_index)] / nnodes_by_face;
-        face_c_y += nodes_y1[(node_index)] / nnodes_by_face;
-        face_c_z += nodes_z1[(node_index)] / nnodes_by_face;
-      }
+      vec_t face_c = {0.0, 0.0, 0.0};
+      calc_centroid(nnodes_by_face, nodes_x1, nodes_y1, nodes_z1,
+                    faces_to_nodes, face_to_nodes_off, &face_c);
 
       // Now we will sum the contributions at each of the nodes
       // TODO: THERE IS SOME SYMMETRY HERE THAT MEANS WE MIGHT BE ABLE TO
@@ -403,33 +393,34 @@ void lagrangian_phase(
                 : faces_to_nodes[(face_to_nodes_off)];
 
         // Get the halfway point on the right edge
-        const double half_edge_x =
-            0.5 * (nodes_x1[(current_node)] + nodes_x1[(next_node)]);
-        const double half_edge_y =
-            0.5 * (nodes_y1[(current_node)] + nodes_y1[(next_node)]);
-        const double half_edge_z =
-            0.5 * (nodes_z1[(current_node)] + nodes_z1[(next_node)]);
+        vec_t half_edge;
+        half_edge.x = 0.5 * (nodes_x1[(current_node)] + nodes_x1[(next_node)]);
+        half_edge.y = 0.5 * (nodes_y1[(current_node)] + nodes_y1[(next_node)]);
+        half_edge.z = 0.5 * (nodes_z1[(current_node)] + nodes_z1[(next_node)]);
 
         // Setup basis on plane of tetrahedron
-        const double a_x = (half_edge_x - face_c_x);
-        const double a_y = (half_edge_y - face_c_y);
-        const double a_z = (half_edge_z - face_c_z);
-        const double b_x = (cell_centroids_x[(cc)] - face_c_x);
-        const double b_y = (cell_centroids_y[(cc)] - face_c_y);
-        const double b_z = (cell_centroids_z[(cc)] - face_c_z);
+        vec_t a;
+        a.x = (half_edge.x - face_c.x);
+        a.y = (half_edge.y - face_c.y);
+        a.z = (half_edge.z - face_c.z);
+        vec_t b;
+        b.x = (cell_centroids_x[(cc)] - face_c.x);
+        b.y = (cell_centroids_y[(cc)] - face_c.y);
+        b.z = (cell_centroids_z[(cc)] - face_c.z);
 
         // Calculate the area vector S using cross product
-        const double S_x = 0.5 * (a_y * b_z - a_z * b_y);
-        const double S_y = -0.5 * (a_x * b_z - a_z * b_x);
-        const double S_z = 0.5 * (a_x * b_y - a_y * b_x);
+        vec_t S;
+        S.x = 0.5 * (a.y * b.z - a.z * b.y);
+        S.y = -0.5 * (a.x * b.z - a.z * b.x);
+        S.z = 0.5 * (a.x * b.y - a.y * b.x);
 
         // TODO: WE MULTIPLY BY 2 HERE BECAUSE WE ARE ADDING THE VOLUME TO BOTH
         // THE CURRENT AND NEXT NODE, OTHERWISE WE ONLY ACCOUNT FOR HALF OF THE
         // 'HALF' TETRAHEDRONS
         cell_volume +=
-            fabs(2.0 * ((half_edge_x - nodes_x1[(current_node)]) * S_x +
-                        (half_edge_y - nodes_y1[(current_node)]) * S_y +
-                        (half_edge_z - nodes_z1[(current_node)]) * S_z) /
+            fabs(2.0 * ((half_edge.x - nodes_x1[(current_node)]) * S.x +
+                        (half_edge.y - nodes_y1[(current_node)]) * S.y +
+                        (half_edge.z - nodes_z1[(current_node)]) * S.z) /
                  3.0);
       }
     }
@@ -485,9 +476,11 @@ void lagrangian_phase(
     const int node_to_faces_off = nodes_to_faces_offsets[(nn)];
     const int nfaces_by_node =
         nodes_to_faces_offsets[(nn + 1)] - node_to_faces_off;
-    const double node_c_x = nodes_x1[(nn)];
-    const double node_c_y = nodes_y1[(nn)];
-    const double node_c_z = nodes_z1[(nn)];
+
+    vec_t node_c;
+    node_c.x = nodes_x1[(nn)];
+    node_c.y = nodes_y1[(nn)];
+    node_c.z = nodes_z1[(nn)];
 
     // Consider all faces attached to node
     for (int ff = 0; ff < nfaces_by_node; ++ff) {
@@ -503,14 +496,12 @@ void lagrangian_phase(
 
       // Find node center and location of current node on face
       int node_in_face_c;
-      double face_c_x = 0.0;
-      double face_c_y = 0.0;
-      double face_c_z = 0.0;
+      vec_t face_c = {0.0, 0.0, 0.0};
       for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
         const int node_index = faces_to_nodes[(face_to_nodes_off + nn2)];
-        face_c_x += nodes_x1[(node_index)] / nnodes_by_face;
-        face_c_y += nodes_y1[(node_index)] / nnodes_by_face;
-        face_c_z += nodes_z1[(node_index)] / nnodes_by_face;
+        face_c.x += nodes_x1[(node_index)] / nnodes_by_face;
+        face_c.y += nodes_y1[(node_index)] / nnodes_by_face;
+        face_c.z += nodes_z1[(node_index)] / nnodes_by_face;
 
         // Choose the node in the list of nodes attached to the face
         if (nn == node_index) {
@@ -540,32 +531,34 @@ void lagrangian_phase(
 
         // Add contributions for both edges attached to our current node
         for (int nn2 = 0; nn2 < 2; ++nn2) {
+          vec_t half_edge;
           // Get the halfway point on the right edge
-          const double half_edge_x =
-              0.5 * (nodes_x1[(nodes[(nn2)])] + nodes_x1[(nn)]);
-          const double half_edge_y =
-              0.5 * (nodes_y1[(nodes[(nn2)])] + nodes_y1[(nn)]);
-          const double half_edge_z =
-              0.5 * (nodes_z1[(nodes[(nn2)])] + nodes_z1[(nn)]);
+          half_edge.x = 0.5 * (nodes_x1[(nodes[(nn2)])] + nodes_x1[(nn)]);
+          half_edge.y = 0.5 * (nodes_y1[(nodes[(nn2)])] + nodes_y1[(nn)]);
+          half_edge.z = 0.5 * (nodes_z1[(nodes[(nn2)])] + nodes_z1[(nn)]);
 
           // Setup basis on plane of tetrahedron
-          const double a_x = (face_c_x - node_c_x);
-          const double a_y = (face_c_y - node_c_y);
-          const double a_z = (face_c_z - node_c_z);
-          const double b_x = (face_c_x - half_edge_x);
-          const double b_y = (face_c_y - half_edge_y);
-          const double b_z = (face_c_z - half_edge_z);
-          const double ab_x = (cell_centroids_x[(cells[cc])] - face_c_x);
-          const double ab_y = (cell_centroids_y[(cells[cc])] - face_c_y);
-          const double ab_z = (cell_centroids_z[(cells[cc])] - face_c_z);
+          vec_t a;
+          a.x = (face_c.x - node_c.x);
+          a.y = (face_c.y - node_c.y);
+          a.z = (face_c.z - node_c.z);
+          vec_t b;
+          b.x = (face_c.x - half_edge.x);
+          b.y = (face_c.y - half_edge.y);
+          b.z = (face_c.z - half_edge.z);
+          vec_t ab;
+          ab.x = (cell_centroids_x[(cells[cc])] - face_c.x);
+          ab.y = (cell_centroids_y[(cells[cc])] - face_c.y);
+          ab.z = (cell_centroids_z[(cells[cc])] - face_c.z);
 
           // Calculate the area vector S using cross product
-          double A_x = 0.5 * (a_y * b_z - a_z * b_y);
-          double A_y = -0.5 * (a_x * b_z - a_z * b_x);
-          double A_z = 0.5 * (a_x * b_y - a_y * b_x);
+          vec_t A;
+          A.x = 0.5 * (a.y * b.z - a.z * b.y);
+          A.y = -0.5 * (a.x * b.z - a.z * b.x);
+          A.z = 0.5 * (a.x * b.y - a.y * b.x);
 
           const double subcell_volume =
-              fabs((ab_x * A_x + ab_y * A_y + ab_z * A_z) / 3.0);
+              fabs((ab.x * A.x + ab.y * A.y + ab.z * A.z) / 3.0);
 
           nodal_soundspeed[(nn)] +=
               sqrt(GAM * (GAM - 1.0) * energy1[(cells[(cc)])]) * subcell_volume;
@@ -601,15 +594,9 @@ void lagrangian_phase(
           faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
 
       // Calculate the face center... SHOULD WE PRECOMPUTE?
-      double face_c_x = 0.0;
-      double face_c_y = 0.0;
-      double face_c_z = 0.0;
-      for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
-        const int node_index = faces_to_nodes[(face_to_nodes_off + nn2)];
-        face_c_x += nodes_x1[(node_index)] / nnodes_by_face;
-        face_c_y += nodes_y1[(node_index)] / nnodes_by_face;
-        face_c_z += nodes_z1[(node_index)] / nnodes_by_face;
-      }
+      vec_t face_c = {0.0, 0.0, 0.0};
+      calc_centroid(nnodes_by_face, nodes_x1, nodes_y1, nodes_z1,
+                    faces_to_nodes, face_to_nodes_off, &face_c);
 
       // Now we will sum the contributions at each of the nodes
       // TODO: THERE IS SOME SYMMETRY HERE THAT MEANS WE MIGHT BE ABLE TO
@@ -623,28 +610,30 @@ void lagrangian_phase(
                 : faces_to_nodes[(face_to_nodes_off)];
 
         // Get the halfway point on the right edge
-        const double half_edge_x =
-            0.5 * (nodes_x1[(current_node)] + nodes_x1[(next_node)]);
-        const double half_edge_y =
-            0.5 * (nodes_y1[(current_node)] + nodes_y1[(next_node)]);
-        const double half_edge_z =
-            0.5 * (nodes_z1[(current_node)] + nodes_z1[(next_node)]);
+        vec_t half_edge;
+        half_edge.x = 0.5 * (nodes_x1[(current_node)] + nodes_x1[(next_node)]);
+        half_edge.y = 0.5 * (nodes_y1[(current_node)] + nodes_y1[(next_node)]);
+        half_edge.z = 0.5 * (nodes_z1[(current_node)] + nodes_z1[(next_node)]);
 
         // Setup basis on plane of tetrahedron
-        const double a_x = (face_c_x - nodes_x1[(current_node)]);
-        const double a_y = (face_c_y - nodes_y1[(current_node)]);
-        const double a_z = (face_c_z - nodes_z1[(current_node)]);
-        const double b_x = (face_c_x - half_edge_x);
-        const double b_y = (face_c_y - half_edge_y);
-        const double b_z = (face_c_z - half_edge_z);
-        const double ab_x = (cell_centroids_x[(cc)] - face_c_x);
-        const double ab_y = (cell_centroids_y[(cc)] - face_c_y);
-        const double ab_z = (cell_centroids_z[(cc)] - face_c_z);
+        vec_t a;
+        a.x = (face_c.x - nodes_x1[(current_node)]);
+        a.y = (face_c.y - nodes_y1[(current_node)]);
+        a.z = (face_c.z - nodes_z1[(current_node)]);
+        vec_t b;
+        b.x = (face_c.x - half_edge.x);
+        b.y = (face_c.y - half_edge.y);
+        b.z = (face_c.z - half_edge.z);
+        vec_t ab;
+        ab.x = (cell_centroids_x[(cc)] - face_c.x);
+        ab.y = (cell_centroids_y[(cc)] - face_c.y);
+        ab.z = (cell_centroids_z[(cc)] - face_c.z);
 
         // Calculate the area vector S using cross product
-        double A_x = 0.5 * (a_y * b_z - a_z * b_y);
-        double A_y = -0.5 * (a_x * b_z - a_z * b_x);
-        double A_z = 0.5 * (a_x * b_y - a_y * b_x);
+        vec_t A;
+        A.x = 0.5 * (a.y * b.z - a.z * b.y);
+        A.y = -0.5 * (a.x * b.z - a.z * b.x);
+        A.z = 0.5 * (a.x * b.y - a.y * b.x);
 
         // TODO: I HATE SEARCHES LIKE THIS... CAN WE FIND SOME BETTER CLOSED
         // FORM SOLUTION?
@@ -661,19 +650,19 @@ void lagrangian_phase(
         // TODO: I HAVENT WORKED OUT A REASONABLE WAY TO ORDER THE NODES SO
         // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
         // CALCULATION
-        const int flip = (ab_x * A_x + ab_y * A_y + ab_z * A_z > 0.0);
+        const int flip = (ab.x * A.x + ab.y * A.y + ab.z * A.z > 0.0);
         subcell_force_x[(cell_to_nodes_off + node_off)] +=
-            pressure1[(cc)] * ((flip) ? -A_x : A_x);
+            pressure1[(cc)] * ((flip) ? -A.x : A.x);
         subcell_force_y[(cell_to_nodes_off + node_off)] +=
-            pressure1[(cc)] * ((flip) ? -A_y : A_y);
+            pressure1[(cc)] * ((flip) ? -A.y : A.y);
         subcell_force_z[(cell_to_nodes_off + node_off)] +=
-            pressure1[(cc)] * ((flip) ? -A_z : A_z);
+            pressure1[(cc)] * ((flip) ? -A.z : A.z);
         subcell_force_x[(cell_to_nodes_off + next_node_off)] +=
-            pressure1[(cc)] * ((flip) ? -A_x : A_x);
+            pressure1[(cc)] * ((flip) ? -A.x : A.x);
         subcell_force_y[(cell_to_nodes_off + next_node_off)] +=
-            pressure1[(cc)] * ((flip) ? -A_y : A_y);
+            pressure1[(cc)] * ((flip) ? -A.y : A.y);
         subcell_force_z[(cell_to_nodes_off + next_node_off)] +=
-            pressure1[(cc)] * ((flip) ? -A_z : A_z);
+            pressure1[(cc)] * ((flip) ? -A.z : A.z);
       }
     }
   }
@@ -694,9 +683,7 @@ void lagrangian_phase(
     const int ncells_by_node = nodes_offsets[(nn + 1)] - node_to_cells_off;
 
     // Consider all faces attached to node
-    double node_force_x0 = 0.0;
-    double node_force_y0 = 0.0;
-    double node_force_z0 = 0.0;
+    vec_t node_force = {0.0, 0.0, 0.0};
     for (int cc = 0; cc < ncells_by_node; ++cc) {
       const int cell_index = nodes_to_cells[(node_to_cells_off + cc)];
       const int cell_to_nodes_off = cells_offsets[(cell_index)];
@@ -710,15 +697,15 @@ void lagrangian_phase(
         }
       }
 
-      node_force_x0 += subcell_force_x[(cell_to_nodes_off + nn2)];
-      node_force_y0 += subcell_force_y[(cell_to_nodes_off + nn2)];
-      node_force_z0 += subcell_force_z[(cell_to_nodes_off + nn2)];
+      node_force.x += subcell_force_x[(cell_to_nodes_off + nn2)];
+      node_force.y += subcell_force_y[(cell_to_nodes_off + nn2)];
+      node_force.z += subcell_force_z[(cell_to_nodes_off + nn2)];
     }
 
     // Calculate the new velocities
-    velocity_x1[(nn)] += mesh->dt * node_force_x0 / nodal_mass[(nn)];
-    velocity_y1[(nn)] += mesh->dt * node_force_y0 / nodal_mass[(nn)];
-    velocity_z1[(nn)] += mesh->dt * node_force_z0 / nodal_mass[(nn)];
+    velocity_x1[(nn)] += mesh->dt * node_force.x / nodal_mass[(nn)];
+    velocity_y1[(nn)] += mesh->dt * node_force.y / nodal_mass[(nn)];
+    velocity_z1[(nn)] += mesh->dt * node_force.z / nodal_mass[(nn)];
 
     // Calculate the corrected time centered velocities
     velocity_x0[(nn)] = 0.5 * (velocity_x1[(nn)] + velocity_x0[(nn)]);
@@ -790,15 +777,9 @@ void lagrangian_phase(
           faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
 
       // Calculate the face center... SHOULD WE PRECOMPUTE?
-      double face_c_x = 0.0;
-      double face_c_y = 0.0;
-      double face_c_z = 0.0;
-      for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
-        const int node_index = faces_to_nodes[(face_to_nodes_off + nn2)];
-        face_c_x += nodes_x0[(node_index)] / nnodes_by_face;
-        face_c_y += nodes_y0[(node_index)] / nnodes_by_face;
-        face_c_z += nodes_z0[(node_index)] / nnodes_by_face;
-      }
+      vec_t face_c = {0.0, 0.0, 0.0};
+      calc_centroid(nnodes_by_face, nodes_x0, nodes_y0, nodes_z0,
+                    faces_to_nodes, face_to_nodes_off, &face_c);
 
       // Now we will sum the contributions at each of the nodes
       // TODO: THERE IS SOME SYMMETRY HERE THAT MEANS WE MIGHT BE ABLE TO
@@ -812,25 +793,26 @@ void lagrangian_phase(
                 : faces_to_nodes[(face_to_nodes_off)];
 
         // Get the halfway point on the right edge
-        const double half_edge_x =
-            0.5 * (nodes_x0[(current_node)] + nodes_x0[(next_node)]);
-        const double half_edge_y =
-            0.5 * (nodes_y0[(current_node)] + nodes_y0[(next_node)]);
-        const double half_edge_z =
-            0.5 * (nodes_z0[(current_node)] + nodes_z0[(next_node)]);
+        vec_t half_edge;
+        half_edge.x = 0.5 * (nodes_x0[(current_node)] + nodes_x0[(next_node)]);
+        half_edge.y = 0.5 * (nodes_y0[(current_node)] + nodes_y0[(next_node)]);
+        half_edge.z = 0.5 * (nodes_z0[(current_node)] + nodes_z0[(next_node)]);
 
         // Setup basis on plane of tetrahedron
-        const double a_x = (half_edge_x - face_c_x);
-        const double a_y = (half_edge_y - face_c_y);
-        const double a_z = (half_edge_z - face_c_z);
-        const double b_x = (cell_centroids_x[(cc)] - face_c_x);
-        const double b_y = (cell_centroids_y[(cc)] - face_c_y);
-        const double b_z = (cell_centroids_z[(cc)] - face_c_z);
+        vec_t a;
+        a.x = (half_edge.x - face_c.x);
+        a.y = (half_edge.y - face_c.y);
+        a.z = (half_edge.z - face_c.z);
+        vec_t b;
+        b.x = (cell_centroids_x[(cc)] - face_c.x);
+        b.y = (cell_centroids_y[(cc)] - face_c.y);
+        b.z = (cell_centroids_z[(cc)] - face_c.z);
 
         // Calculate the area vector S using cross product
-        const double S_x = 0.5 * (a_y * b_z - a_z * b_y);
-        const double S_y = -0.5 * (a_x * b_z - a_z * b_x);
-        const double S_z = 0.5 * (a_x * b_y - a_y * b_x);
+        vec_t S;
+        S.x = 0.5 * (a.y * b.z - a.z * b.y);
+        S.y = -0.5 * (a.x * b.z - a.z * b.x);
+        S.z = 0.5 * (a.x * b.y - a.y * b.x);
 
         // TODO: WE MULTIPLY BY 2 HERE BECAUSE WE ARE ADDING THE VOLUME TO
         // BOTH
@@ -838,9 +820,9 @@ void lagrangian_phase(
         // THE
         // 'HALF' TETRAHEDRONS
         cell_volume +=
-            fabs(2.0 * ((half_edge_x - nodes_x0[(current_node)]) * S_x +
-                        (half_edge_y - nodes_y0[(current_node)]) * S_y +
-                        (half_edge_z - nodes_z0[(current_node)]) * S_z) /
+            fabs(2.0 * ((half_edge.x - nodes_x0[(current_node)]) * S.x +
+                        (half_edge.y - nodes_y0[(current_node)]) * S.y +
+                        (half_edge.z - nodes_z0[(current_node)]) * S.z) /
                  3.0);
       }
     }
@@ -925,15 +907,14 @@ void gather_subcell_quantities(
     int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
     int* cells_to_faces_offsets, int* cells_to_faces) {
 
-  // Collect the sub-cell centered velocities
+// Collect the sub-cell centered velocities
+#pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
 
     // Calculate the weighted velocity at the sub-cell center
-    double uc_x = 0.0;
-    double uc_y = 0.0;
-    double uc_z = 0.0;
+    vec_t uc = {0.0, 0.0, 0.0};
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int node_index = (cells_to_nodes[(cell_to_nodes_off + nn)]);
       const int node_to_faces_off = nodes_to_faces_offsets[(node_index)];
@@ -941,9 +922,7 @@ void gather_subcell_quantities(
           nodes_to_faces_offsets[(node_index + 1)] - node_to_faces_off;
 
       int Sn = 0;
-      double b_x = 0.0;
-      double b_y = 0.0;
-      double b_z = 0.0;
+      vec_t b = {0.0, 0.0, 0.0};
       for (int ff = 0; ff < nfaces_by_node; ++ff) {
         const int face_index = nodes_to_faces[(node_to_faces_off + ff)];
         if ((faces_to_cells0[(face_index)] != cc &&
@@ -961,9 +940,7 @@ void gather_subcell_quantities(
 
         // Look at all of the nodes around a face
         int node;
-        double f_x = 0.0;
-        double f_y = 0.0;
-        double f_z = 0.0;
+        vec_t f = {0.0, 0.0, 0.0};
         double face_mass = 0.0;
         for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
           const int node_index0 = faces_to_nodes[(face_to_nodes_off + nn2)];
@@ -978,13 +955,13 @@ void gather_subcell_quantities(
 
           // Add the face center contributions
           double mass = subcell_mass[(cell_to_nodes_off + nn2)];
-          f_x += mass * (2.0 * velocity_x0[(node_index0)] -
+          f.x += mass * (2.0 * velocity_x0[(node_index0)] -
                          0.5 * velocity_x0[(node_l_index)] -
                          0.5 * velocity_x0[(node_r_index)]);
-          f_y += mass * (2.0 * velocity_y0[(node_index0)] -
+          f.y += mass * (2.0 * velocity_y0[(node_index0)] -
                          0.5 * velocity_y0[(node_l_index)] -
                          0.5 * velocity_y0[(node_r_index)]);
-          f_z += mass * (2.0 * velocity_z0[(node_index0)] -
+          f.z += mass * (2.0 * velocity_z0[(node_index0)] -
                          0.5 * velocity_z0[(node_l_index)] -
                          0.5 * velocity_z0[(node_r_index)]);
           face_mass += mass;
@@ -1003,20 +980,20 @@ void gather_subcell_quantities(
                 : faces_to_nodes[(face_to_nodes_off + node + 1)];
 
         // Add contributions for right, left, and face center
-        b_x += 0.5 * velocity_x0[(node_l_index)] +
-               0.5 * velocity_x0[(node_r_index)] + 2.0 * f_x / face_mass;
-        b_y += 0.5 * velocity_y0[(node_l_index)] +
-               0.5 * velocity_y0[(node_r_index)] + 2.0 * f_y / face_mass;
-        b_z += 0.5 * velocity_z0[(node_l_index)] +
-               0.5 * velocity_z0[(node_r_index)] + 2.0 * f_z / face_mass;
+        b.x += 0.5 * velocity_x0[(node_l_index)] +
+               0.5 * velocity_x0[(node_r_index)] + 2.0 * f.x / face_mass;
+        b.y += 0.5 * velocity_y0[(node_l_index)] +
+               0.5 * velocity_y0[(node_r_index)] + 2.0 * f.y / face_mass;
+        b.z += 0.5 * velocity_z0[(node_l_index)] +
+               0.5 * velocity_z0[(node_r_index)] + 2.0 * f.z / face_mass;
       }
 
       double mass = subcell_mass[(cell_to_nodes_off + nn)];
-      uc_x += mass * (2.5 * velocity_x0[(node_index)] - (b_x / Sn)) /
+      uc.x += mass * (2.5 * velocity_x0[(node_index)] - (b.x / Sn)) /
               cell_mass[(cc)];
-      uc_y += mass * (2.5 * velocity_y0[(node_index)] - (b_y / Sn)) /
+      uc.y += mass * (2.5 * velocity_y0[(node_index)] - (b.y / Sn)) /
               cell_mass[(cc)];
-      uc_z += mass * (2.5 * velocity_z0[(node_index)] - (b_z / Sn)) /
+      uc.z += mass * (2.5 * velocity_z0[(node_index)] - (b.z / Sn)) /
               cell_mass[(cc)];
     }
 
@@ -1027,9 +1004,7 @@ void gather_subcell_quantities(
           nodes_to_faces_offsets[(node_index + 1)] - node_to_faces_off;
 
       int Sn = 0;
-      double b_x = 0.0;
-      double b_y = 0.0;
-      double b_z = 0.0;
+      vec_t b = {0.0, 0.0, 0.0};
       for (int ff = 0; ff < nfaces_by_node; ++ff) {
         const int face_index = nodes_to_faces[(node_to_faces_off + ff)];
         if ((faces_to_cells0[(face_index)] != cc &&
@@ -1046,9 +1021,7 @@ void gather_subcell_quantities(
             faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
 
         int node;
-        double f_x = 0.0;
-        double f_y = 0.0;
-        double f_z = 0.0;
+        vec_t f = {0.0, 0.0, 0.0};
         double face_mass = 0.0;
         for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
 
@@ -1064,13 +1037,13 @@ void gather_subcell_quantities(
 
           // Add the face center contributions
           double mass = subcell_mass[(cell_to_nodes_off + nn2)];
-          f_x += mass * (2.0 * velocity_x0[(node_index0)] -
+          f.x += mass * (2.0 * velocity_x0[(node_index0)] -
                          0.5 * velocity_x0[(node_l_index)] -
                          0.5 * velocity_x0[(node_r_index)]);
-          f_y += mass * (2.0 * velocity_y0[(node_index0)] -
+          f.y += mass * (2.0 * velocity_y0[(node_index0)] -
                          0.5 * velocity_y0[(node_l_index)] -
                          0.5 * velocity_y0[(node_r_index)]);
-          f_z += mass * (2.0 * velocity_z0[(node_index0)] -
+          f.z += mass * (2.0 * velocity_z0[(node_index0)] -
                          0.5 * velocity_z0[(node_l_index)] -
                          0.5 * velocity_z0[(node_r_index)]);
           face_mass += mass;
@@ -1090,29 +1063,30 @@ void gather_subcell_quantities(
                 : faces_to_nodes[(face_to_nodes_off + node + 1)];
 
         // Add right and left node contributions
-        b_x += 0.5 * velocity_x0[(node_l_index)] +
-               0.5 * velocity_x0[(node_r_index)] + 2.0 * f_x / face_mass;
-        b_y += 0.5 * velocity_y0[(node_l_index)] +
-               0.5 * velocity_y0[(node_r_index)] + 2.0 * f_y / face_mass;
-        b_z += 0.5 * velocity_z0[(node_l_index)] +
-               0.5 * velocity_z0[(node_r_index)] + 2.0 * f_z / face_mass;
+        b.x += 0.5 * velocity_x0[(node_l_index)] +
+               0.5 * velocity_x0[(node_r_index)] + 2.0 * f.x / face_mass;
+        b.y += 0.5 * velocity_y0[(node_l_index)] +
+               0.5 * velocity_y0[(node_r_index)] + 2.0 * f.y / face_mass;
+        b.z += 0.5 * velocity_z0[(node_l_index)] +
+               0.5 * velocity_z0[(node_r_index)] + 2.0 * f.z / face_mass;
       }
 
       // Calculate the final sub-cell velocities
       subcell_velocity_x[(cell_to_nodes_off + nn)] =
-          0.25 * (1.5 * velocity_x0[(node_index)] + uc_x + b_x / Sn);
+          0.25 * (1.5 * velocity_x0[(node_index)] + uc.x + b.x / Sn);
       subcell_velocity_y[(cell_to_nodes_off + nn)] =
-          0.25 * (1.5 * velocity_y0[(node_index)] + uc_y + b_y / Sn);
+          0.25 * (1.5 * velocity_y0[(node_index)] + uc.y + b.y / Sn);
       subcell_velocity_z[(cell_to_nodes_off + nn)] =
-          0.25 * (1.5 * velocity_z0[(node_index)] + uc_z + b_z / Sn);
+          0.25 * (1.5 * velocity_z0[(node_index)] + uc.z + b.z / Sn);
     }
   }
 
-  /*
-  *      GATHERING STAGE OF THE REMAP
-  */
+/*
+*      GATHERING STAGE OF THE REMAP
+*/
 
-  // Calculate the sub-cell internal energies
+// Calculate the sub-cell internal energies
+#pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
     // Calculating the volume integrals necessary for the least squares
     // regression
@@ -1150,7 +1124,7 @@ void gather_subcell_quantities(
 
       // Calculate the weighted volume integral coefficients
       double vol = 0.0;
-      vec_t integrals;
+      vec_t integrals = {0.0, 0.0, 0.0};
       vec_t neighbour_centroid = {0.0, 0.0, 0.0};
       neighbour_centroid.x = cell_centroids_x[(neighbour_index)];
       neighbour_centroid.y = cell_centroids_y[(neighbour_index)];
@@ -1337,16 +1311,9 @@ void calc_artificial_viscosity(
       const int nnodes_by_face =
           faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
 
-      // Calculate the face center... SHOULD WE PRECOMPUTE?
-      double face_c_x = 0.0;
-      double face_c_y = 0.0;
-      double face_c_z = 0.0;
-      for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
-        const int node_index = faces_to_nodes[(face_to_nodes_off + nn2)];
-        face_c_x += nodes_x[(node_index)] / nnodes_by_face;
-        face_c_y += nodes_y[(node_index)] / nnodes_by_face;
-        face_c_z += nodes_z[(node_index)] / nnodes_by_face;
-      }
+      vec_t face_c = {0.0, 0.0, 0.0};
+      calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes,
+                    face_to_nodes_off, &face_c);
 
       // Now we will sum the contributions at each of the nodes
       // TODO: THERE IS SOME SYMMETRY HERE THAT MEANS WE MIGHT BE ABLE TO
@@ -1360,52 +1327,54 @@ void calc_artificial_viscosity(
                 : faces_to_nodes[(face_to_nodes_off)];
 
         // Get the halfway point on the right edge
-        const double half_edge_x =
-            0.5 * (nodes_x[(current_node)] + nodes_x[(next_node)]);
-        const double half_edge_y =
-            0.5 * (nodes_y[(current_node)] + nodes_y[(next_node)]);
-        const double half_edge_z =
-            0.5 * (nodes_z[(current_node)] + nodes_z[(next_node)]);
+        vec_t half_edge;
+        half_edge.x = 0.5 * (nodes_x[(current_node)] + nodes_x[(next_node)]);
+        half_edge.y = 0.5 * (nodes_y[(current_node)] + nodes_y[(next_node)]);
+        half_edge.z = 0.5 * (nodes_z[(current_node)] + nodes_z[(next_node)]);
 
         // Setup basis on plane of tetrahedron
-        const double a_x = (half_edge_x - face_c_x);
-        const double a_y = (half_edge_y - face_c_y);
-        const double a_z = (half_edge_z - face_c_z);
-        const double b_x = (cell_centroids_x[(cc)] - face_c_x);
-        const double b_y = (cell_centroids_y[(cc)] - face_c_y);
-        const double b_z = (cell_centroids_z[(cc)] - face_c_z);
-        const double ab_x = (nodes_x[(current_node)] - half_edge_x);
-        const double ab_y = (nodes_y[(current_node)] - half_edge_y);
-        const double ab_z = (nodes_z[(current_node)] - half_edge_z);
+        vec_t a;
+        a.x = (half_edge.x - face_c.x);
+        a.y = (half_edge.y - face_c.y);
+        a.z = (half_edge.z - face_c.z);
+        vec_t b;
+        b.x = (cell_centroids_x[(cc)] - face_c.x);
+        b.y = (cell_centroids_y[(cc)] - face_c.y);
+        b.z = (cell_centroids_z[(cc)] - face_c.z);
+        vec_t ab;
+        ab.x = (nodes_x[(current_node)] - half_edge.x);
+        ab.y = (nodes_y[(current_node)] - half_edge.y);
+        ab.z = (nodes_z[(current_node)] - half_edge.z);
 
         // Calculate the area vector S using cross product
-        double S_x = 0.5 * (a_y * b_z - a_z * b_y);
-        double S_y = -0.5 * (a_x * b_z - a_z * b_x);
-        double S_z = 0.5 * (a_x * b_y - a_y * b_x);
+        vec_t S;
+        S.x = 0.5 * (a.y * b.z - a.z * b.y);
+        S.y = -0.5 * (a.x * b.z - a.z * b.x);
+        S.z = 0.5 * (a.x * b.y - a.y * b.x);
 
         // TODO: I HAVENT WORKED OUT A REASONABLE WAY TO ORDER THE NODES SO
         // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
         // CALCULATION
-        if ((ab_x * S_x + ab_y * S_y + ab_z * S_z) > 0.0) {
-          S_x *= -1.0;
-          S_y *= -1.0;
-          S_z *= -1.0;
+        if ((ab.x * S.x + ab.y * S.y + ab.z * S.z) > 0.0) {
+          S.x *= -1.0;
+          S.y *= -1.0;
+          S.z *= -1.0;
         }
 
         // Calculate the velocity gradients
-        const double dvel_x =
-            velocity_x[(next_node)] - velocity_x[(current_node)];
-        const double dvel_y =
-            velocity_y[(next_node)] - velocity_y[(current_node)];
-        const double dvel_z =
-            velocity_z[(next_node)] - velocity_z[(current_node)];
+        vec_t dvel;
+        dvel.x = velocity_x[(next_node)] - velocity_x[(current_node)];
+        dvel.y = velocity_y[(next_node)] - velocity_y[(current_node)];
+        dvel.z = velocity_z[(next_node)] - velocity_z[(current_node)];
+
         const double dvel_mag =
-            sqrt(dvel_x * dvel_x + dvel_y * dvel_y + dvel_z * dvel_z);
+            sqrt(dvel.x * dvel.x + dvel.y * dvel.y + dvel.z * dvel.z);
 
         // Calculate the unit vectors of the velocity gradients
-        const double dvel_unit_x = (dvel_mag != 0.0) ? dvel_x / dvel_mag : 0.0;
-        const double dvel_unit_y = (dvel_mag != 0.0) ? dvel_y / dvel_mag : 0.0;
-        const double dvel_unit_z = (dvel_mag != 0.0) ? dvel_z / dvel_mag : 0.0;
+        vec_t dvel_unit;
+        dvel_unit.x = (dvel_mag != 0.0) ? dvel.x / dvel_mag : 0.0;
+        dvel_unit.y = (dvel_mag != 0.0) ? dvel.y / dvel_mag : 0.0;
+        dvel_unit.z = (dvel_mag != 0.0) ? dvel.z / dvel_mag : 0.0;
 
         // Get the edge-centered density
         double nodal_density0 =
@@ -1416,7 +1385,7 @@ void calc_artificial_viscosity(
                                     (nodal_density0 + nodal_density1);
 
         // Calculate the artificial viscous force term for the edge
-        double expansion_term = (dvel_x * S_x + dvel_y * S_y + dvel_z * S_z);
+        double expansion_term = (dvel.x * S.x + dvel.y * S.y + dvel.z * S.z);
 
         // If the cell is compressing, calculate the edge forces and add
         // their
@@ -1428,22 +1397,22 @@ void calc_artificial_viscosity(
           const double t = 0.25 * (GAM + 1.0);
           const double edge_visc_force_x =
               density_edge *
-              (visc_coeff2 * t * fabs(dvel_x) +
-               sqrt(visc_coeff2 * visc_coeff2 * t * t * dvel_x * dvel_x +
+              (visc_coeff2 * t * fabs(dvel.x) +
+               sqrt(visc_coeff2 * visc_coeff2 * t * t * dvel.x * dvel.x +
                     visc_coeff1 * visc_coeff1 * cs * cs)) *
-              (1.0 - limiter[(current_node)]) * expansion_term * dvel_unit_x;
+              (1.0 - limiter[(current_node)]) * expansion_term * dvel_unit.x;
           const double edge_visc_force_y =
               density_edge *
-              (visc_coeff2 * t * fabs(dvel_y) +
-               sqrt(visc_coeff2 * visc_coeff2 * t * t * dvel_y * dvel_y +
+              (visc_coeff2 * t * fabs(dvel.y) +
+               sqrt(visc_coeff2 * visc_coeff2 * t * t * dvel.y * dvel.y +
                     visc_coeff1 * visc_coeff1 * cs * cs)) *
-              (1.0 - limiter[(current_node)]) * expansion_term * dvel_unit_y;
+              (1.0 - limiter[(current_node)]) * expansion_term * dvel_unit.y;
           const double edge_visc_force_z =
               density_edge *
-              (visc_coeff2 * t * fabs(dvel_z) +
-               sqrt(visc_coeff2 * visc_coeff2 * t * t * dvel_z * dvel_z +
+              (visc_coeff2 * t * fabs(dvel.z) +
+               sqrt(visc_coeff2 * visc_coeff2 * t * t * dvel.z * dvel.z +
                     visc_coeff1 * visc_coeff1 * cs * cs)) *
-              (1.0 - limiter[(current_node)]) * expansion_term * dvel_unit_z;
+              (1.0 - limiter[(current_node)]) * expansion_term * dvel_unit.z;
 
           // TODO: I HATE SEARCHES LIKE THIS... CAN WE FIND SOME BETTER
           // CLOSED
@@ -1761,5 +1730,21 @@ void store_rezoned_mesh(const int nnodes, const double* nodes_x,
     rezoned_nodes_x[(nn)] = nodes_x[(nn)];
     rezoned_nodes_y[(nn)] = nodes_y[(nn)];
     rezoned_nodes_z[(nn)] = nodes_z[(nn)];
+  }
+}
+
+// Calculate the centroid
+void calc_centroid(const int nnodes, const double* nodes_x,
+                   const double* nodes_y, const double* nodes_z,
+                   const int* indirection, const int offset, vec_t* centroid) {
+
+  centroid->x = 0.0;
+  centroid->y = 0.0;
+  centroid->z = 0.0;
+  for (int nn2 = 0; nn2 < nnodes; ++nn2) {
+    const int node_index = indirection[(offset + nn2)];
+    centroid->x += nodes_x[(node_index)] / nnodes;
+    centroid->y += nodes_y[(node_index)] / nnodes;
+    centroid->z += nodes_z[(node_index)] / nnodes;
   }
 }

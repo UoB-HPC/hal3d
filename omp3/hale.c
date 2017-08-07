@@ -40,6 +40,19 @@ void solve_unstructured_hydro_2d(
     int* subcells_to_faces_offsets, int* subcells_to_faces,
     int* subcells_to_subcells) {
 
+  double total_mass = 0.0;
+#pragma omp parallel for reduction(+ : total_mass)
+  for (int cc = 0; cc < ncells; ++cc) {
+    total_mass += cell_mass[(cc)];
+  }
+  printf("total mass %.12f\n", total_mass);
+
+  // We are storing our original mesh to allow an Eulerian remap
+  store_rezoned_mesh(nnodes, nodes_x0, nodes_y0, nodes_z0, rezoned_nodes_x,
+                     rezoned_nodes_y, rezoned_nodes_z);
+
+  // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
+  // due to the pressure (ideal gas) and artificial viscous forces
   lagrangian_phase(
       mesh, ncells, nnodes, visc_coeff1, visc_coeff2, cell_centroids_x,
       cell_centroids_y, cell_centroids_z, cells_to_nodes, cells_offsets,
@@ -54,6 +67,8 @@ void solve_unstructured_hydro_2d(
       cells_to_faces_offsets, cells_to_faces);
 
 #if 0
+  // Gather the subcell quantities for mass, internal and kinetic energy
+  // density, and momentum
   gather_subcell_quantities(
       ncells, cell_centroids_x, cell_centroids_y, cell_centroids_z,
       cells_to_nodes, cells_offsets, nodes_x0, nodes_y0, nodes_z0, energy0,
@@ -63,20 +78,9 @@ void solve_unstructured_hydro_2d(
       subcell_integrals_y, subcell_integrals_z, nodes_to_faces_offsets,
       nodes_to_faces, faces_to_nodes, faces_to_nodes_offsets, faces_to_cells0,
       faces_to_cells1, cells_to_faces_offsets, cells_to_faces);
+#endif // if 0
 
-  double total_mass = 0.0;
-  for (int cc = 0; cc < ncells; ++cc) {
-    total_mass += cell_mass[(cc)];
-  }
-
-  printf("total mass %.12f\n", total_mass);
-
-  for (int nn = 0; nn < nnodes; ++nn) {
-    rezoned_nodes_x[(nn)] += 1.0;
-    rezoned_nodes_y[(nn)] += 1.0;
-    rezoned_nodes_z[(nn)] += 1.0;
-  }
-
+#if 0
 // Calculate the swept edge remap for each of the subcells.
 // TODO: There a again many different ways to crack this nut. One consideration
 // is that teh whole algorithm will allow you to precompute and store for
@@ -238,13 +242,13 @@ void solve_unstructured_hydro_2d(
         rz_half_edge_r.z = 0.5 * (rezoned_nodes_z[(subcell_node_index)] +
                                   rezoned_nodes_z[(node_r_index)]);
 
-/*
- * Construct the swept edge prism for the internal and external face
- * that is described by the above nodes, and determine the weighted
- * volume integrals
- */
+        /*
+         * Construct the swept edge prism for the internal and external face
+         * that is described by the above nodes, and determine the weighted
+         * volume integrals
+         */
 
-// Firstly we will determine the external swept region
+        // Firstly we will determine the external swept region
 
         prism_nodes_x[(0)] = nodes_x0[(subcell_node_index)];
         prism_nodes_y[(0)] = nodes_y0[(subcell_node_index)];
@@ -376,33 +380,6 @@ void solve_unstructured_hydro_2d(
         // Calculate the inverse of the coefficients for swept edge of all faces
         vec_t inv[3];
         calc_3x3_inverse(&coeff, &inv);
-
-        // Calculate the gradient for the internal energy density
-        vec_t rhs = {0.0, 0.0, 0.0};
-        for (int ss2 = 0; ss2 < nsubcells_by_subcell; ++ss2) {
-          const int neighbour_subcell_index =
-              subcells_to_subcells[(subcell_to_subcells_off + ss2)];
-
-          // Prepare differential
-          const double de = (subcell_ie_density[(neighbour_subcell_index)] -
-                             subcell_ie_density[(subcell_index)]);
-
-          // Calculate the subcell gradients for all of the variables
-          rhs.x += (2.0 * subcell_integrals_x[(cell_to_nodes_off + ss)] * de /
-                    subcell_volume[(cell_to_nodes_off + ss)]);
-          rhs.y += (2.0 * subcell_integrals_y[(cell_to_nodes_off + ss)] * de /
-                    subcell_volume[(cell_to_nodes_off + ss)]);
-          rhs.z += (2.0 * subcell_integrals_z[(cell_to_nodes_off + ss)] * de /
-                    subcell_volume[(cell_to_nodes_off + ss)]);
-        }
-
-        vec_t grad_ie_density;
-        grad_ie_density.x =
-            inv[0].x * rhs.x + inv[0].y * rhs.y + inv[0].z * rhs.z;
-        grad_ie_density.y =
-            inv[1].x * rhs.x + inv[1].y * rhs.y + inv[1].z * rhs.z;
-        grad_ie_density.z =
-            inv[2].x * rhs.x + inv[2].y * rhs.y + inv[2].z * rhs.z;
 
         // Calculate the gradient for the internal energy density
         vec_t rhs = {0.0, 0.0, 0.0};
