@@ -7,11 +7,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-// TODO: At this stage, there are so many additional fields required
-// to handle the sub-cell data for the remapping phase, there will be some use
-// in considering whether some of the fields could be shared or whether
-// adaptations to the algorithm are even necessary for this particular point
-
 // Solve a single timestep on the given mesh
 void solve_unstructured_hydro_2d(
     Mesh* mesh, const int ncells, const int nnodes, const double visc_coeff1,
@@ -69,10 +64,11 @@ void solve_unstructured_hydro_2d(
       cells_to_faces_offsets, cells_to_faces);
 #endif // if 0
 
+  // Shrink the mesh towards the origin
   for (int nn = 0; nn < nnodes; ++nn) {
-    rezoned_nodes_x[(nn)] += 0.1;
-    rezoned_nodes_y[(nn)] += 0.1;
-    rezoned_nodes_z[(nn)] += 0.1;
+    rezoned_nodes_x[nn] *= 0.5;
+    rezoned_nodes_y[nn] *= 0.5;
+    rezoned_nodes_z[nn] *= 0.5;
   }
 
 #if 0
@@ -101,32 +97,6 @@ void solve_unstructured_hydro_2d(
                          nodes_y0, nodes_z0, subcell_centroids_x,
                          subcell_centroids_y, subcell_centroids_z);
 
-// Calculate the swept edge remap for each of the subcells.
-// TODO: There a again many different ways to crack this nut. One
-// consideration
-// is that teh whole algorithm will allow you to precompute and store for
-// re-use, but artefacts such as the inverse coefficient matrix for the least
-// squares, which stays the same for all density calculations of a subcell,
-// are
-// essentially prohibitively large for storage.
-//
-// The approach I am currently taking here is to calculate the inverse
-// coefficient matrix and then perform the gradient calculations and swept
-// edge
-// remaps for all of the densities for a particular subcell in a single
-// timestep. The impplication is that the whole calculation will be repeated
-// many times, but it seems like this will be the case regardless and my
-// intuition is that this path leads to the fewest expensive and repetitious
-// calculations.
-//
-// The choices I can see are:
-//  (1) remap all of the variables for a subcell
-//  (2) remap each variable individually for every subcell
-//
-//  option (1) will have to recompute the gradient coefficients every time
-//  option (2) will have to recompute the gradients for local subcells every
-//  time
-
 #if 0
 #pragma omp parallel for
 #endif // if 0
@@ -145,7 +115,7 @@ void solve_unstructured_hydro_2d(
                   &rz_cell_centroid);
 
     /*
-     * Here we are constructing a reference subcell prism for the target face,
+    * Here we are constructing a reference subcell prism for the target face,
     * this reference element is used for all of the faces of the subcell, in
     * fact it's the same for all cells too, so this could be moved into some
     * global space it's going to spill anyway. The reference shape is by
@@ -172,7 +142,7 @@ void solve_unstructured_hydro_2d(
       const int subcell_to_subcells_off =
           subcells_to_faces_offsets[(subcell_index)] * 2;
 
-      // we will calculate the swept edge region for the internal and external
+      // We will calculate the swept edge region for the internal and external
       // face here, this relies on the faces being ordered in a ring.
       for (int ff = 0; ff < nfaces_by_subcell; ++ff) {
         const int face_index = subcells_to_faces[(subcell_to_faces_off + ff)];
@@ -188,7 +158,7 @@ void solve_unstructured_hydro_2d(
             faces_to_nodes_offsets[(face_index2 + 1)] - face2_to_nodes_off;
 
         /*
-         * determine all of the nodes for the swept edge region inside the
+         * Determine all of the nodes for the swept edge region inside the
          * current mesh and in the rezoned mesh
          */
 
@@ -218,7 +188,7 @@ void solve_unstructured_hydro_2d(
           }
         }
 
-        // the half edges are the points between the node at the subcell and the
+        // The half edges are the points between the node at the subcell and the
         // right and left nodes on our current face
         const int l_off = (sn_off == 0) ? nnodes_by_face - 1 : sn_off - 1;
         const int r_off = (sn_off == nnodes_by_face - 1) ? 0 : sn_off + 1;
@@ -267,6 +237,7 @@ void solve_unstructured_hydro_2d(
             &rz_half_edge_r, &face_c, &rz_face_c, &prism_centroid,
             prism_nodes_x, prism_nodes_y, prism_nodes_z);
 
+        // Determine the volume integrals for the prism
         vec_t swept_edge_integrals = {0.0, 0.0, 0.0};
         double swept_edge_vol = 0.0;
         calc_weighted_volume_integrals(
@@ -337,18 +308,18 @@ void solve_unstructured_hydro_2d(
         is_internal_sweep = ((sweep_direction.x * face_normal.x +
                               sweep_direction.y * face_normal.y +
                               sweep_direction.z * face_normal.z) > 0.0);
+
         sweep_subcell_index =
-            (is_internal_sweep ? subcell_index
-                               : subcells_to_subcells[(subcell_to_subcells_off +
-                                                       ff * 2 + 1)]);
-        printf("subcell %d sweeping from %d\n", subcell_index,
-               sweep_subcell_index);
+            (is_internal_sweep
+                 ? subcell_index
+                 : subcells_to_subcells[(subcell_to_subcells_off + ff * 2)]);
+#endif // if 0
+      }
+    }
+  }
+}
 
 /*
- * Calculate the coefficients for all density gradients
- * The gradient that we calculate may be for the external or the
- * internal cell.
- *
  * We can save improve performance here by caching the gradients in the
  * case that the swept edge region is primarily overlapping our current
  * cell. In the cases where it is not, presumably half of the
@@ -365,78 +336,33 @@ void solve_unstructured_hydro_2d(
  * here.
  */
 
-#if 0
-        // Calculate the inverse coefficient matrix for the least squares
-        // regression of the gradient, which is the same for all quantities.
-        vec_t inv[3];
-        int nsubcells_by_subcell;
-        int subcell_to_subcells_off;
-        calc_inverse_coefficient_matrix(
-            sweeping_subcell, subcells_to_faces_offsets, subcells_to_subcells,
-            subcell_integrals_x, subcell_integrals_y, subcell_integrals_z,
-            subcell_volume, &nsubcells_by_subcell, &subcell_to_subcells_off,
-            &inv);
+// Calculate the swept edge remap for each of the subcells.
+// TODO: There a again many different ways to crack this nut. One
+// consideration
+// is that teh whole algorithm will allow you to precompute and store for
+// re-use, but artefacts such as the inverse coefficient matrix for the least
+// squares, which stays the same for all density calculations of a subcell,
+// are
+// essentially prohibitively large for storage.
+//
+// The approach I am currently taking here is to calculate the inverse
+// coefficient matrix and then perform the gradient calculations and swept
+// edge
+// remaps for all of the densities for a particular subcell in a single
+// timestep. The impplication is that the whole calculation will be repeated
+// many times, but it seems like this will be the case regardless and my
+// intuition is that this path leads to the fewest expensive and repetitious
+// calculations.
+//
+// The choices I can see are:
+//  (1) remap all of the variables for a subcell
+//  (2) remap each variable individually for every subcell
+//
+//  option (1) will have to recompute the gradient coefficients every time
+//  option (2) will have to recompute the gradients for local subcells every
+//  time
 
-        // For all of the subcell centered quantities, determine the flux.
-        vec_t ie_gradient;
-        calc_gradient(sweeping_subcell, nsubcells_by_subcell,
-                      subcell_to_subcells_off, subcells_to_subcells,
-                      subcell_ie_density, subcell_integrals_x,
-                      subcell_integrals_y, subcell_integrals_z, subcell_volume,
-                      &inv, &ie_gradient);
-
-        // Calculate the flux for internal energy density in the subcell
-        const double ie_flux =
-            subcell_ie_density[(sweeping_subcell)] * swept_edge_vol +
-            ie_gradient.x * swept_edge_integrals.x -
-            ie_gradient.x * subcell_centroids_x[(sweeping_subcell)] +
-            ie_gradient.y * swept_edge_integrals.y -
-            ie_gradient.x * subcell_centroids_y[(sweeping_subcell)] +
-            ie_gradient.z * swept_edge_integrals.z -
-            ie_gradient.x * subcell_centroids_z[(sweeping_subcell)];
-
-        subcell_ie_density[(subcell_index)] -= ie_flux;
-
-        vec_t mass_gradient;
-        calc_gradient(sweeping_subcell, nsubcells_by_subcell,
-                      subcell_to_subcells_off, subcells_to_subcells,
-                      subcell_mass, subcell_integrals_x, subcell_integrals_y,
-                      subcell_integrals_z, subcell_volume, &inv,
-                      &mass_gradient);
-
-        vec_t ke_gradient;
-        calc_gradient(sweeping_subcell, nsubcells_by_subcell,
-                      subcell_to_subcells_off, subcells_to_subcells,
-                      subcell_kinetic_energy, subcell_integrals_x,
-                      subcell_integrals_y, subcell_integrals_z, subcell_volume,
-                      &inv, &ke_gradient);
-
-        vec_t xmomentum_gradient;
-        calc_gradient(sweeping_subcell, nsubcells_by_subcell,
-                      subcell_to_subcells_off, subcells_to_subcells,
-                      subcell_velocity_x, subcell_integrals_x,
-                      subcell_integrals_y, subcell_integrals_z, subcell_volume,
-                      &inv, &xmomentum_gradient);
-
-        vec_t ymomentum_gradient;
-        calc_gradient(sweeping_subcell, nsubcells_by_subcell,
-                      subcell_to_subcells_off, subcells_to_subcells,
-                      subcell_velocity_y, subcell_integrals_x,
-                      subcell_integrals_y, subcell_integrals_z, subcell_volume,
-                      &inv, &ymomentum_gradient);
-
-        vec_t zmomentum_gradient;
-        calc_gradient(sweeping_subcell, nsubcells_by_subcell,
-                      subcell_to_subcells_off, subcells_to_subcells,
-                      subcell_velocity_z, subcell_integrals_x,
-                      subcell_integrals_y, subcell_integrals_z, subcell_volume,
-                      &inv, &zmomentum_gradient);
-
-        /*
-         * Perform the swept edge remaps for the subcells...
-         */
-#endif // if 0
-      }
-    }
-  }
-}
+// TODO: At this stage, there are so many additional fields required
+// to handle the sub-cell data for the remapping phase, there will be some use
+// in considering whether some of the fields could be shared or whether
+// adaptations to the algorithm are even necessary for this particular point

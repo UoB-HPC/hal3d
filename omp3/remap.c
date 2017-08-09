@@ -798,8 +798,8 @@ void calc_inverse_coefficient_matrix(
     int* subcell_to_subcells_off, vec_t (*inv)[3]) {
 
   *subcell_to_subcells_off = subcells_to_faces_offsets[(subcell_index)] * 2;
-  *nsubcells_by_subcell =
-      subcells_to_subcells[(subcell_index + 1)] - *subcell_to_subcells_off;
+  *nsubcells_by_subcell = (subcells_to_faces_offsets[(subcell_index + 1)] * 2) -
+                          *subcell_to_subcells_off;
 
   // The coefficients of the 3x3 gradient coefficient matrix
   vec_t coeff[3] = {{0.0, 0.0, 0.0}};
