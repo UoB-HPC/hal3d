@@ -1,5 +1,6 @@
 #include "../../shared.h"
 #include "../hale_data.h"
+#include "hale.h"
 #include <math.h>
 
 // Initialises the cell mass, sub-cell mass and sub-cell volume
@@ -381,16 +382,19 @@ void init_subcells_to_subcells(
       int neighbour_index = 0;
       for (int ff = 0; ff < nfaces_by_subcell; ++ff) {
         const int face_index = subcells_to_faces[(subcell_to_faces_off + ff)];
-        const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-        const int nnodes_by_face =
-            faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+        const int face2_index =
+            (ff == nfaces_by_subcell - 1)
+                ? subcells_to_faces[(subcell_to_faces_off + 0)]
+                : subcells_to_faces[(subcell_to_faces_off + ff + 1)];
 
         // Determine the neighbouring cell
         const int neighbour_cell_index = (faces_to_cells0[(face_index)] == cc)
                                              ? faces_to_cells1[(face_index)]
                                              : faces_to_cells0[(face_index)];
 
-        // Pick the neighbouring subcell from the adjoining cell
+        /*
+         * Find the subcell that exists in the neighbouring cell on this face.
+         */
         if (neighbour_cell_index != -1) {
           const int neighbour_to_nodes_off =
               cells_offsets[(neighbour_cell_index)];
@@ -411,45 +415,38 @@ void init_subcells_to_subcells(
               -1;
         }
 
+        /*
+         * Find the subcell that is inside our current cell, and opposite the
+         * face, by looking at the right hand node of the next face.
+         */
+
         // We again need to determine the orientation in order to calculate the
         // correct right handed node
-        vec_t dn0 = {0.0, 0.0, 0.0};
-        vec_t dn1 = {0.0, 0.0, 0.0};
-        const int fn_off0 = faces_to_nodes[(face_to_nodes_off + 0)];
-        const int fn_off1 = faces_to_nodes[(face_to_nodes_off + 1)];
-        const int fn_off2 = faces_to_nodes[(face_to_nodes_off + 2)];
-        dn0.x = nodes_x[(fn_off2)] - nodes_x[(fn_off1)];
-        dn0.y = nodes_y[(fn_off2)] - nodes_y[(fn_off1)];
-        dn0.z = nodes_z[(fn_off2)] - nodes_z[(fn_off1)];
-        dn1.x = nodes_x[(fn_off1)] - nodes_x[(fn_off0)];
-        dn1.y = nodes_y[(fn_off1)] - nodes_y[(fn_off0)];
-        dn1.z = nodes_z[(fn_off1)] - nodes_z[(fn_off0)];
+        const int face2_to_nodes_off = faces_to_nodes_offsets[(face2_index)];
+        const int nnodes_by_face2 =
+            faces_to_nodes_offsets[(face2_index + 1)] - face2_to_nodes_off;
 
-        // Calculate a vector from face to cell centroid
-        vec_t ab;
-        ab.x = (cell_centroid.x - nodes_x[(fn_off0)]);
-        ab.y = (cell_centroid.y - nodes_y[(fn_off0)]);
-        ab.z = (cell_centroid.z - nodes_z[(fn_off0)]);
+        const int fn2_off0 = faces_to_nodes[(face2_to_nodes_off + 0)];
+        const int fn2_off1 = faces_to_nodes[(face2_to_nodes_off + 1)];
+        const int fn2_off2 = faces_to_nodes[(face2_to_nodes_off + 2)];
 
-        // Cross product to get the normal
         vec_t normal;
-        normal.x = (dn0.y * dn1.z - dn0.z * dn1.y);
-        normal.y = (dn0.z * dn1.x - dn0.x * dn1.z);
-        normal.z = (dn0.x * dn1.y - dn0.y * dn1.x);
-        const int face_rorientation =
-            (ab.x * normal.x + ab.y * normal.y + ab.z * normal.z < 0.0);
+        calc_normal(fn2_off0, fn2_off1, fn2_off2, nodes_x, nodes_y, nodes_z,
+                    &normal);
+        const int face_rorientation = check_normal_orientation(
+            fn2_off0, nodes_x, nodes_y, nodes_z, &cell_centroid, &normal);
 
         // Determine the right oriented next node after the subcell node on the
         // face that represents the subcell node in the cell
         int rnode;
-        for (int nn = 0; nn < nnodes_by_face; ++nn) {
-          if (faces_to_nodes[(face_to_nodes_off + nn)] ==
+        for (int nn = 0; nn < nnodes_by_face2; ++nn) {
+          if (faces_to_nodes[(face2_to_nodes_off + nn)] ==
               cells_to_nodes[(subcell_index)]) {
-            const int loff = ((nn == 0) ? nnodes_by_face - 1 : nn - 1);
-            const int roff = ((nn == nnodes_by_face - 1) ? 0 : nn + 1);
+            const int loff = ((nn == 0) ? nnodes_by_face2 - 1 : nn - 1);
+            const int roff = ((nn == nnodes_by_face2 - 1) ? 0 : nn + 1);
             rnode = (face_rorientation)
-                        ? faces_to_nodes[(face_to_nodes_off + roff)]
-                        : faces_to_nodes[(face_to_nodes_off + loff)];
+                        ? faces_to_nodes[(face2_to_nodes_off + loff)]
+                        : faces_to_nodes[(face2_to_nodes_off + roff)];
             break;
           }
         }

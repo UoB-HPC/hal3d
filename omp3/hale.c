@@ -79,6 +79,11 @@ void solve_unstructured_hydro_2d(
       nodes_to_faces, faces_to_nodes, faces_to_nodes_offsets, faces_to_cells0,
       faces_to_cells1, cells_to_faces_offsets, cells_to_faces);
 
+  // Calculate all of the subcell centroids, this is precomputed because the
+  // reconstruction of the subcell nodes from faces is quite expensive, and will
+  // require a significant amount of repetetive compute inside the remapping
+  // step due to the fact that the swept regions don't only take from the
+  // current subcell, but the neighbouring subcells too
   calc_subcell_centroids(ncells, cells_offsets, cell_centroids_x,
                          cell_centroids_y, cell_centroids_z, cells_to_nodes,
                          subcells_to_faces_offsets, subcells_to_faces,

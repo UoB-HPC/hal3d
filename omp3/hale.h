@@ -138,7 +138,7 @@ void calc_weighted_volume_integrals(
 
 // Calculate the inverse coefficient matrix for a subcell, in order to determine
 // the gradients of the subcell quantities using least squares.
-void calculate_inverse_coefficient_matrix(
+void calc_inverse_coefficient_matrix(
     const int subcell_index, const int* subcells_to_faces_offsets,
     const int* subcells_to_subcells, const double* subcell_integrals_x,
     const double* subcell_integrals_y, const double* subcell_integrals_z,
