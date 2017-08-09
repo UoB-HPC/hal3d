@@ -52,6 +52,7 @@ void solve_unstructured_hydro_2d(
   store_rezoned_mesh(nnodes, nodes_x0, nodes_y0, nodes_z0, rezoned_nodes_x,
                      rezoned_nodes_y, rezoned_nodes_z);
 
+#if 0
   // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
   // due to the pressure (ideal gas) and artificial viscous forces
   lagrangian_phase(
@@ -66,7 +67,15 @@ void solve_unstructured_hydro_2d(
       limiter, nodes_to_faces_offsets, nodes_to_faces, faces_to_nodes,
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
+#endif // if 0
 
+  for (int nn = 0; nn < nnodes; ++nn) {
+    rezoned_nodes_x[(nn)] += 0.1;
+    rezoned_nodes_y[(nn)] += 0.1;
+    rezoned_nodes_z[(nn)] += 0.1;
+  }
+
+#if 0
   // Gather the subcell quantities for mass, internal and kinetic energy
   // density, and momentum
   gather_subcell_quantities(
@@ -78,6 +87,7 @@ void solve_unstructured_hydro_2d(
       subcell_integrals_y, subcell_integrals_z, nodes_to_faces_offsets,
       nodes_to_faces, faces_to_nodes, faces_to_nodes_offsets, faces_to_cells0,
       faces_to_cells1, cells_to_faces_offsets, cells_to_faces);
+#endif // if 0
 
   // Calculate all of the subcell centroids, this is precomputed because the
   // reconstruction of the subcell nodes from faces is quite expensive, and will
@@ -91,16 +101,18 @@ void solve_unstructured_hydro_2d(
                          nodes_y0, nodes_z0, subcell_centroids_x,
                          subcell_centroids_y, subcell_centroids_z);
 
-#if 0
 // Calculate the swept edge remap for each of the subcells.
-// TODO: There a again many different ways to crack this nut. One consideration
+// TODO: There a again many different ways to crack this nut. One
+// consideration
 // is that teh whole algorithm will allow you to precompute and store for
 // re-use, but artefacts such as the inverse coefficient matrix for the least
-// squares, which stays the same for all density calculations of a subcell, are
+// squares, which stays the same for all density calculations of a subcell,
+// are
 // essentially prohibitively large for storage.
 //
 // The approach I am currently taking here is to calculate the inverse
-// coefficient matrix and then perform the gradient calculations and swept edge
+// coefficient matrix and then perform the gradient calculations and swept
+// edge
 // remaps for all of the densities for a particular subcell in a single
 // timestep. The impplication is that the whole calculation will be repeated
 // many times, but it seems like this will be the case regardless and my
@@ -114,7 +126,10 @@ void solve_unstructured_hydro_2d(
 //  option (1) will have to recompute the gradient coefficients every time
 //  option (2) will have to recompute the gradients for local subcells every
 //  time
+
+#if 0
 #pragma omp parallel for
+#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nsubcells_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
@@ -154,6 +169,8 @@ void solve_unstructured_hydro_2d(
           subcells_to_faces_offsets[(subcell_index)];
       const int nfaces_by_subcell =
           subcells_to_faces_offsets[(subcell_index + 1)] - subcell_to_faces_off;
+      const int subcell_to_subcells_off =
+          subcells_to_faces_offsets[(subcell_index)] * 2;
 
       // we will calculate the swept edge region for the internal and external
       // face here, this relies on the faces being ordered in a ring.
@@ -185,24 +202,21 @@ void solve_unstructured_hydro_2d(
 
         // calculate the subsequent face center for current and rezoned meshes
         vec_t rz_face_c = {0.0, 0.0, 0.0};
-        int sn_off;
-        for (int nn = 0; nn < nnodes_by_face; ++nn) {
-          const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
-          rz_face_c.x += rezoned_nodes_x[(node_index)] / nnodes_by_face;
-          rz_face_c.y += rezoned_nodes_y[(node_index)] / nnodes_by_face;
-          rz_face_c.z += rezoned_nodes_z[(node_index)] / nnodes_by_face;
-
-          // store the offset of our subcell's node on the face for
-          // calculating
-          // the half edges later
-          if (subcell_node_index == node_index) {
-            sn_off = nn;
-          }
-        }
+        calc_centroid(nnodes_by_face, rezoned_nodes_x, rezoned_nodes_y,
+                      rezoned_nodes_z, faces_to_nodes, face_to_nodes_off,
+                      &rz_face_c);
         vec_t rz_face2_c = {0.0, 0.0, 0.0};
         calc_centroid(nnodes_by_face2, rezoned_nodes_x, rezoned_nodes_y,
                       rezoned_nodes_z, faces_to_nodes, face2_to_nodes_off,
-                      &face2_c);
+                      &rz_face2_c);
+
+        // Determine the offset into the faces_to_nodes array
+        int sn_off;
+        for (int nn = 0; nn < nnodes_by_face; ++nn) {
+          if (subcell_node_index == faces_to_nodes[(face_to_nodes_off + nn)]) {
+            sn_off = nn;
+          }
+        }
 
         // the half edges are the points between the node at the subcell and the
         // right and left nodes on our current face
@@ -261,19 +275,37 @@ void solve_unstructured_hydro_2d(
             prism_nodes_z, &prism_centroid, &swept_edge_integrals,
             &swept_edge_vol);
 
+        // Choose three points on the face
+        int fn0 = faces_to_nodes[(face_to_nodes_off + 0)];
+        int fn1 = faces_to_nodes[(face_to_nodes_off + 1)];
+        int fn2 = faces_to_nodes[(face_to_nodes_off + 2)];
+
+        // Construct a vector from the mesh face to the rezoned face
+        vec_t sweep_direction = {rz_face_c.x - face_c.x, rz_face_c.y - face_c.y,
+                                 rz_face_c.z - face_c.z};
+
+        // The normal pointing outward from the face
+        vec_t face_normal;
+        calc_surface_normal(fn0, fn1, fn2, nodes_x0, nodes_y0, nodes_z0,
+                            &cell_centroid, &face_normal);
+
+        int is_internal_sweep = ((sweep_direction.x * face_normal.x +
+                                  sweep_direction.y * face_normal.y +
+                                  sweep_direction.z * face_normal.z) < 0.0);
+        int sweep_subcell_index =
+            (is_internal_sweep
+                 ? subcell_index
+                 : subcells_to_subcells[(subcell_to_subcells_off + ff * 2)]);
+        printf("subcell %d sweeping from %d\n", subcell_index,
+               sweep_subcell_index);
+
         // Secondly we will determine the internal swept region
 
-        // Choose threee points on the planar face
-        const int fn0 = faces_to_nodes[(face_to_nodes_off + 0)];
-        const int fn1 = faces_to_nodes[(face_to_nodes_off + 1)];
-        const int fn2 = faces_to_nodes[(face_to_nodes_off + 2)];
-
+        // TODO: Fairly sure that this returns the opposite value to what we
+        // are expecting later on...
+        // This is duplicated work
         vec_t normal;
         calc_normal(fn0, fn1, fn2, nodes_x0, nodes_y0, nodes_z0, &normal);
-
-        // TODO: Fairly sure that this returns the opposite value to what we
-        // are
-        // expecting later on...
         const int face_rorientation = check_normal_orientation(
             fn0, nodes_x0, nodes_y0, nodes_z0, &cell_centroid, &normal);
 
@@ -288,48 +320,58 @@ void solve_unstructured_hydro_2d(
             prism_nodes_z, &prism_centroid, &swept_edge_integrals,
             &swept_edge_vol);
 
-        /*
-         * Calculate the coefficients for all density gradients
-         * The gradient that we calculate may be for the external or the
-         * internal cell.
-         *
-         * We can save improve performance here by caching the gradients in
-         * the
-         * case that the swept edge region is primarily overlapping our
-         * current
-         * cell. In the cases where it is not, presumably half of the
-         * calculations, we have to perform redundant computation. My
-         * assumption
-         * here is that the calculation of the gradients is significantly
-         * cheaper than the calculation of the swept edge regions. If this
-         * turns
-         * out to be a faulty assumption, perhaps due to the computational
-         * intensity, then another of the three obvious algorithms for this
-         * step
-         * could be chosen.
-         *
-         * The best case algorithm in terms of reducing repeated or redundant
-         * computation will lead to a data race, and we may see that atomics
-         * are
-         * able to win out for some architectures instead of this approach
-         * here.
-         */
+        // Choose three points on the face
+        fn0 = faces_to_nodes[(face2_to_nodes_off + 0)];
+        fn1 = faces_to_nodes[(face2_to_nodes_off + 1)];
+        fn2 = faces_to_nodes[(face2_to_nodes_off + 2)];
 
-        /*
-         * TODO: We need to perform the test here to determine if the signed
-         * volume of the prism indicates that the swept region overlaps with
-         * the
-         * current cell or the neighbour.
-         */
+        // Construct a vector from the mesh face to the rezoned face
+        sweep_direction.x = rz_face_c.x - face_c.x;
+        sweep_direction.y = rz_face_c.y - face_c.y;
+        sweep_direction.z = rz_face_c.z - face_c.z;
 
-        const int sweeping_subcell = subcell_index;
+        // The normal pointing outward from the face
+        calc_surface_normal(fn0, fn1, fn2, nodes_x0, nodes_y0, nodes_z0,
+                            &cell_centroid, &face_normal);
 
+        is_internal_sweep = ((sweep_direction.x * face_normal.x +
+                              sweep_direction.y * face_normal.y +
+                              sweep_direction.z * face_normal.z) > 0.0);
+        sweep_subcell_index =
+            (is_internal_sweep ? subcell_index
+                               : subcells_to_subcells[(subcell_to_subcells_off +
+                                                       ff * 2 + 1)]);
+        printf("subcell %d sweeping from %d\n", subcell_index,
+               sweep_subcell_index);
+
+/*
+ * Calculate the coefficients for all density gradients
+ * The gradient that we calculate may be for the external or the
+ * internal cell.
+ *
+ * We can save improve performance here by caching the gradients in the
+ * case that the swept edge region is primarily overlapping our current
+ * cell. In the cases where it is not, presumably half of the
+ * calculations, we have to perform redundant computation. My assumption
+ * here is that the calculation of the gradients is significantly
+ * cheaper than the calculation of the swept edge regions. If this turns
+ * out to be a faulty assumption, perhaps due to the computational
+ * intensity, then another of the three obvious algorithms for this step
+ * could be chosen.
+ *
+ * The best case algorithm in terms of reducing repeated or redundant
+ * computation will lead to a data race, and we may see that atomics
+ * are able to win out for some architectures instead of this approach
+ * here.
+ */
+
+#if 0
         // Calculate the inverse coefficient matrix for the least squares
         // regression of the gradient, which is the same for all quantities.
         vec_t inv[3];
         int nsubcells_by_subcell;
         int subcell_to_subcells_off;
-        calculate_inverse_coefficient_matrix(
+        calc_inverse_coefficient_matrix(
             sweeping_subcell, subcells_to_faces_offsets, subcells_to_subcells,
             subcell_integrals_x, subcell_integrals_y, subcell_integrals_z,
             subcell_volume, &nsubcells_by_subcell, &subcell_to_subcells_off,
@@ -352,6 +394,8 @@ void solve_unstructured_hydro_2d(
             ie_gradient.x * subcell_centroids_y[(sweeping_subcell)] +
             ie_gradient.z * swept_edge_integrals.z -
             ie_gradient.x * subcell_centroids_z[(sweeping_subcell)];
+
+        subcell_ie_density[(subcell_index)] -= ie_flux;
 
         vec_t mass_gradient;
         calc_gradient(sweeping_subcell, nsubcells_by_subcell,
@@ -391,8 +435,8 @@ void solve_unstructured_hydro_2d(
         /*
          * Perform the swept edge remaps for the subcells...
          */
+#endif // if 0
       }
     }
   }
-#endif // if 0
 }
