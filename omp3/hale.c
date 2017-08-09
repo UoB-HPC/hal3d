@@ -138,10 +138,6 @@ void solve_unstructured_hydro_2d(
     for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
       const int subcell_index = (cell_to_nodes_off + ss);
       const int subcell_node_index = cells_to_nodes[(subcell_index)];
-      const int subcell_to_subcells_off =
-          subcells_to_faces_offsets[(subcell_index)] * 2;
-      const int nsubcells_by_subcell =
-          subcells_to_subcells[(subcell_index + 1)] - subcell_to_subcells_off;
       const int subcell_to_faces_off =
           subcells_to_faces_offsets[(subcell_index)];
       const int nfaces_by_subcell =
@@ -227,7 +223,7 @@ void solve_unstructured_hydro_2d(
         /*
          * Construct the swept edge prism for the internal and external face
          * that is described by the above nodes, and determine the weighted
-         * volume integrals
+         * volume swept_edge_integrals
          */
 
         // Firstly we will determine the external swept region
@@ -244,12 +240,13 @@ void solve_unstructured_hydro_2d(
             &rz_half_edge_r, &face_c, &rz_face_c, &prism_centroid,
             prism_nodes_x, prism_nodes_y, prism_nodes_z);
 
-        vec_t integrals = {0.0, 0.0, 0.0};
-        double vol = 0.0;
+        vec_t swept_edge_integrals = {0.0, 0.0, 0.0};
+        double swept_edge_vol = 0.0;
         calc_weighted_volume_integrals(
             0, NSUBCELL_FACES, prism_to_faces, prism_faces_to_nodes,
             prism_faces_to_nodes_offsets, prism_nodes_x, prism_nodes_y,
-            prism_nodes_z, &prism_centroid, &integrals, &vol);
+            prism_nodes_z, &prism_centroid, &swept_edge_integrals,
+            &swept_edge_vol);
 
         // Secondly we will determine the internal swept region
 
@@ -274,7 +271,8 @@ void solve_unstructured_hydro_2d(
         calc_weighted_volume_integrals(
             0, NSUBCELL_FACES, prism_to_faces, prism_faces_to_nodes,
             prism_faces_to_nodes_offsets, prism_nodes_x, prism_nodes_y,
-            prism_nodes_z, &prism_centroid, &integrals, &vol);
+            prism_nodes_z, &prism_centroid, &swept_edge_integrals,
+            &swept_edge_vol);
 
         /*
          * Calculate the coefficients for all density gradients
@@ -302,56 +300,71 @@ void solve_unstructured_hydro_2d(
          * current cell or the neighbour.
          */
 
-        // The coefficients of the 3x3 gradient coefficient matrix
-        vec_t coeff[3] = {{0.0, 0.0, 0.0}};
-        for (int ss2 = 0; ss2 < nsubcells_by_subcell; ++ss2) {
-          const int neighbour_subcell_index =
-              subcells_to_subcells[(subcell_to_subcells_off + ss2)];
+        const int sweeping_subcell = subcell_index;
 
-          const double ix = subcell_integrals_x[(neighbour_subcell_index)];
-          const double iy = subcell_integrals_y[(neighbour_subcell_index)];
-          const double iz = subcell_integrals_z[(neighbour_subcell_index)];
-          const double vol = subcell_volume[(neighbour_subcell_index)];
-
-          // Store the neighbouring cell's contribution to the coefficients
-          coeff[0].x += (2.0 * ix * ix) / (vol * vol);
-          coeff[0].y += (2.0 * ix * iy) / (vol * vol);
-          coeff[0].z += (2.0 * ix * iz) / (vol * vol);
-          coeff[1].x += (2.0 * iy * ix) / (vol * vol);
-          coeff[1].y += (2.0 * iy * iy) / (vol * vol);
-          coeff[1].z += (2.0 * iy * iz) / (vol * vol);
-          coeff[2].x += (2.0 * iz * ix) / (vol * vol);
-          coeff[2].y += (2.0 * iz * iy) / (vol * vol);
-          coeff[2].z += (2.0 * iz * iz) / (vol * vol);
-        }
-
-        // Calculate the inverse of the coefficients for swept edge of all faces
+        // Calculate the inverse coefficient matrix for the least squares
+        // regression of the gradient, which is the same for all quantities.
         vec_t inv[3];
-        calc_3x3_inverse(&coeff, &inv);
+        int nsubcells_by_subcell;
+        int subcell_to_subcells_off;
+        calculate_inverse_coefficient_matrix(
+            sweeping_subcell, subcells_to_faces_offsets, subcells_to_subcells,
+            subcell_integrals_x, subcell_integrals_y, subcell_integrals_z,
+            subcell_volume, &nsubcells_by_subcell, &subcell_to_subcells_off,
+            &inv);
 
-        // Calculate the gradient for the internal energy density
-        vec_t rhs = {0.0, 0.0, 0.0};
-        for (int ss2 = 0; ss2 < nsubcells_by_subcell; ++ss2) {
-          const int neighbour_subcell_index =
-              subcells_to_subcells[(subcell_to_subcells_off + ss2)];
+        // For all of the subcell centered quantities, determine the flux.
+        vec_t ie_gradient;
+        calc_gradient(sweeping_subcell, nsubcells_by_subcell,
+                      subcell_to_subcells_off, subcells_to_subcells,
+                      subcell_ie_density, subcell_integrals_x,
+                      subcell_integrals_y, subcell_integrals_z, subcell_volume,
+                      &inv, &ie_gradient);
 
-          // Prepare differential
-          const double de = (subcell_ie_density[(neighbour_subcell_index)] -
-                             subcell_ie_density[(subcell_index)]);
+        // Calculate the flux for internal energy density in the subcell
+        const double ie_flux =
+            subcell_ie_density[(sweeping_subcell)] * swept_edge_vol +
+            ie_gradient.x * swept_edge_integrals.x -
+            ie_gradient.x * subcell_centroid_x[(sweeping_subcell)] +
+            ie_gradient.y * swept_edge_integrals.y -
+            ie_gradient.x * subcell_centroid_y[(sweeping_subcell)] +
+            ie_gradient.z * swept_edge_integrals.z -
+            ie_gradient.x * subcell_centroid_z[(sweeping_subcell)];
 
-          // Calculate the subcell gradients for all of the variables
-          rhs.x += (2.0 * subcell_integrals_x[(cell_to_nodes_off + ss)] * de /
-                    subcell_volume[(cell_to_nodes_off + ss)]);
-          rhs.y += (2.0 * subcell_integrals_y[(cell_to_nodes_off + ss)] * de /
-                    subcell_volume[(cell_to_nodes_off + ss)]);
-          rhs.z += (2.0 * subcell_integrals_z[(cell_to_nodes_off + ss)] * de /
-                    subcell_volume[(cell_to_nodes_off + ss)]);
-        }
+        vec_t mass_gradient;
+        calc_gradient(sweeping_subcell, nsubcells_by_subcell,
+                      subcell_to_subcells_off, subcells_to_subcells,
+                      subcell_mass, subcell_integrals_x, subcell_integrals_y,
+                      subcell_integrals_z, subcell_volume, &inv,
+                      &mass_gradient);
 
-        vec_t grad_ie_density = {
-            inv[0].x * rhs.x + inv[0].y * rhs.y + inv[0].z * rhs.z,
-            inv[1].x * rhs.x + inv[1].y * rhs.y + inv[1].z * rhs.z,
-            inv[2].x * rhs.x + inv[2].y * rhs.y + inv[2].z * rhs.z};
+        vec_t ke_gradient;
+        calc_gradient(sweeping_subcell, nsubcells_by_subcell,
+                      subcell_to_subcells_off, subcells_to_subcells,
+                      subcell_kinetic_energy, subcell_integrals_x,
+                      subcell_integrals_y, subcell_integrals_z, subcell_volume,
+                      &inv, &ke_gradient);
+
+        vec_t xmomentum_gradient;
+        calc_gradient(sweeping_subcell, nsubcells_by_subcell,
+                      subcell_to_subcells_off, subcells_to_subcells,
+                      subcell_velocity_x, subcell_integrals_x,
+                      subcell_integrals_y, subcell_integrals_z, subcell_volume,
+                      &inv, &xmomentum_gradient);
+
+        vec_t ymomentum_gradient;
+        calc_gradient(sweeping_subcell, nsubcells_by_subcell,
+                      subcell_to_subcells_off, subcells_to_subcells,
+                      subcell_velocity_y, subcell_integrals_x,
+                      subcell_integrals_y, subcell_integrals_z, subcell_volume,
+                      &inv, &ymomentum_gradient);
+
+        vec_t zmomentum_gradient;
+        calc_gradient(sweeping_subcell, nsubcells_by_subcell,
+                      subcell_to_subcells_off, subcells_to_subcells,
+                      subcell_velocity_z, subcell_integrals_x,
+                      subcell_integrals_y, subcell_integrals_z, subcell_volume,
+                      &inv, &zmomentum_gradient);
 
         /*
          * Perform the swept edge remaps for the subcells...
@@ -360,123 +373,3 @@ void solve_unstructured_hydro_2d(
     }
   }
 }
-
-// Constructs the prism for swept region of a subcell face external to a cell
-void construct_external_swept_region(
-    const vec_t* nodes, const vec_t* rz_nodes, const vec_t* half_edge_l,
-    const vec_t* half_edge_r, const vec_t* rz_half_edge_l,
-    const vec_t* rz_half_edge_r, const vec_t* face_c, const vec_t* rz_face_c,
-    vec_t* prism_centroid, double* prism_nodes_x, double* prism_nodes_y,
-    double* prism_nodes_z) {
-
-  prism_nodes_x[(0)] = nodes->x;
-  prism_nodes_y[(0)] = nodes->y;
-  prism_nodes_z[(0)] = nodes->z;
-  prism_nodes_x[(1)] = half_edge_r->x;
-  prism_nodes_y[(1)] = half_edge_r->y;
-  prism_nodes_z[(1)] = half_edge_r->z;
-  prism_nodes_x[(2)] = face_c->x;
-  prism_nodes_y[(2)] = face_c->y;
-  prism_nodes_z[(2)] = face_c->z;
-  prism_nodes_x[(3)] = half_edge_l->x;
-  prism_nodes_y[(3)] = half_edge_l->y;
-  prism_nodes_z[(3)] = half_edge_l->z;
-  prism_nodes_x[(4)] = rz_nodes->x;
-  prism_nodes_y[(4)] = rz_nodes->y;
-  prism_nodes_z[(4)] = rz_nodes->z;
-  prism_nodes_x[(5)] = rz_half_edge_r->x;
-  prism_nodes_y[(5)] = rz_half_edge_r->y;
-  prism_nodes_z[(5)] = rz_half_edge_r->z;
-  prism_nodes_x[(6)] = rz_face_c->x;
-  prism_nodes_y[(6)] = rz_face_c->y;
-  prism_nodes_z[(6)] = rz_face_c->z;
-  prism_nodes_x[(7)] = rz_half_edge_l->x;
-  prism_nodes_y[(7)] = rz_half_edge_l->y;
-  prism_nodes_z[(7)] = rz_half_edge_l->z;
-
-  prism_centroid->x = 0.0;
-  prism_centroid->y = 0.0;
-  prism_centroid->z = 0.0;
-  for (int pp = 0; pp < NSUBCELL_NODES; ++pp) {
-    prism_centroid->x += prism_nodes_x[(pp)] / NSUBCELL_NODES;
-    prism_centroid->y += prism_nodes_y[(pp)] / NSUBCELL_NODES;
-    prism_centroid->z += prism_nodes_z[(pp)] / NSUBCELL_NODES;
-  }
-}
-
-// Constructs the prism for swept region of a subcell face internal to a cell
-void construct_internal_swept_region(
-    const int face_rorientation, const vec_t* half_edge_l,
-    const vec_t* half_edge_r, const vec_t* rz_half_edge_l,
-    const vec_t* rz_half_edge_r, const vec_t* face_c, const vec_t* face2_c,
-    const vec_t* rz_face_c, const vec_t* rz_face2_c, const vec_t* cell_centroid,
-    const vec_t* rz_cell_centroid, vec_t* prism_centroid, double* prism_nodes_x,
-    double* prism_nodes_y, double* prism_nodes_z) {
-
-  // Constructing a prism from all known points in mesh and rezoned mesh
-  prism_nodes_x[(0)] = face_rorientation ? half_edge_r->x : half_edge_l->x;
-  prism_nodes_y[(0)] = face_rorientation ? half_edge_r->y : half_edge_l->y;
-  prism_nodes_z[(0)] = face_rorientation ? half_edge_r->z : half_edge_l->z;
-  prism_nodes_x[(1)] = face2_c->x;
-  prism_nodes_y[(1)] = face2_c->y;
-  prism_nodes_z[(1)] = face2_c->z;
-  prism_nodes_x[(2)] = cell_centroid->x;
-  prism_nodes_y[(2)] = cell_centroid->y;
-  prism_nodes_z[(2)] = cell_centroid->z;
-  prism_nodes_x[(3)] = face_c->x;
-  prism_nodes_y[(3)] = face_c->y;
-  prism_nodes_z[(3)] = face_c->z;
-  prism_nodes_x[(4)] =
-      face_rorientation ? rz_half_edge_r->x : rz_half_edge_l->x;
-  prism_nodes_y[(4)] =
-      face_rorientation ? rz_half_edge_r->y : rz_half_edge_l->y;
-  prism_nodes_z[(4)] =
-      face_rorientation ? rz_half_edge_r->z : rz_half_edge_l->z;
-  prism_nodes_x[(5)] = rz_face2_c->x;
-  prism_nodes_y[(5)] = rz_face2_c->y;
-  prism_nodes_z[(5)] = rz_face2_c->z;
-  prism_nodes_x[(6)] = rz_cell_centroid->x;
-  prism_nodes_y[(6)] = rz_cell_centroid->y;
-  prism_nodes_z[(6)] = rz_cell_centroid->z;
-  prism_nodes_x[(7)] = rz_face_c->x;
-  prism_nodes_y[(7)] = rz_face_c->y;
-  prism_nodes_z[(7)] = rz_face_c->z;
-
-  // Determine the prism's centroid
-  prism_centroid->x = 0.0;
-  prism_centroid->y = 0.0;
-  prism_centroid->z = 0.0;
-  for (int pp = 0; pp < NSUBCELL_NODES; ++pp) {
-    prism_centroid->x += prism_nodes_x[(pp)] / NSUBCELL_NODES;
-    prism_centroid->y += prism_nodes_y[(pp)] / NSUBCELL_NODES;
-    prism_centroid->z += prism_nodes_z[(pp)] / NSUBCELL_NODES;
-  }
-}
-
-#if 0
-// A test where a single cell would expand evenly.
-  rezoned_nodes_x[(0)] -= 0.1;
-  rezoned_nodes_y[(0)] -= 0.1;
-  rezoned_nodes_z[(0)] -= 0.1;
-  rezoned_nodes_x[(1)] += 0.1;
-  rezoned_nodes_y[(1)] -= 0.1;
-  rezoned_nodes_z[(1)] -= 0.1;
-  rezoned_nodes_x[(2)] += 0.1;
-  rezoned_nodes_y[(2)] += 0.1;
-  rezoned_nodes_z[(2)] -= 0.1;
-  rezoned_nodes_x[(3)] -= 0.1;
-  rezoned_nodes_y[(3)] += 0.1;
-  rezoned_nodes_z[(3)] -= 0.1;
-  rezoned_nodes_x[(4)] -= 0.1;
-  rezoned_nodes_y[(4)] -= 0.1;
-  rezoned_nodes_z[(4)] += 0.1;
-  rezoned_nodes_x[(5)] += 0.1;
-  rezoned_nodes_y[(5)] -= 0.1;
-  rezoned_nodes_z[(5)] += 0.1;
-  rezoned_nodes_x[(6)] += 0.1;
-  rezoned_nodes_y[(6)] += 0.1;
-  rezoned_nodes_z[(6)] += 0.1;
-  rezoned_nodes_x[(7)] -= 0.1;
-  rezoned_nodes_y[(7)] += 0.1;
-  rezoned_nodes_z[(7)] += 0.1;
-#endif // if 0
