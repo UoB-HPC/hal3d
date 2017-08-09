@@ -806,22 +806,29 @@ void calc_inverse_coefficient_matrix(
   for (int ss2 = 0; ss2 < *nsubcells_by_subcell; ++ss2) {
     const int neighbour_subcell_index =
         subcells_to_subcells[(*subcell_to_subcells_off + ss2)];
+    if (neighbour_subcell_index == -1) {
+      continue;
+    }
 
     const double ix = subcell_integrals_x[(neighbour_subcell_index)];
     const double iy = subcell_integrals_y[(neighbour_subcell_index)];
     const double iz = subcell_integrals_z[(neighbour_subcell_index)];
-    const double swept_edge_vol = subcell_volume[(neighbour_subcell_index)];
+    const double vol = subcell_volume[(neighbour_subcell_index)];
 
     // Store the neighbouring cell's contribution to the coefficients
-    coeff[0].x += (2.0 * ix * ix) / (swept_edge_vol * swept_edge_vol);
-    coeff[0].y += (2.0 * ix * iy) / (swept_edge_vol * swept_edge_vol);
-    coeff[0].z += (2.0 * ix * iz) / (swept_edge_vol * swept_edge_vol);
-    coeff[1].x += (2.0 * iy * ix) / (swept_edge_vol * swept_edge_vol);
-    coeff[1].y += (2.0 * iy * iy) / (swept_edge_vol * swept_edge_vol);
-    coeff[1].z += (2.0 * iy * iz) / (swept_edge_vol * swept_edge_vol);
-    coeff[2].x += (2.0 * iz * ix) / (swept_edge_vol * swept_edge_vol);
-    coeff[2].y += (2.0 * iz * iy) / (swept_edge_vol * swept_edge_vol);
-    coeff[2].z += (2.0 * iz * iz) / (swept_edge_vol * swept_edge_vol);
+    coeff[0].x += (2.0 * ix * ix) / (vol * vol);
+    coeff[0].y += (2.0 * ix * iy) / (vol * vol);
+    coeff[0].z += (2.0 * ix * iz) / (vol * vol);
+    coeff[1].x += (2.0 * iy * ix) / (vol * vol);
+    coeff[1].y += (2.0 * iy * iy) / (vol * vol);
+    coeff[1].z += (2.0 * iy * iz) / (vol * vol);
+    coeff[2].x += (2.0 * iz * ix) / (vol * vol);
+    coeff[2].y += (2.0 * iz * iy) / (vol * vol);
+    coeff[2].z += (2.0 * iz * iz) / (vol * vol);
+  }
+
+  for (int ii = 0; ii < 3; ++ii) {
+    printf("coeff (%.6f %.6f %.6f)\n", coeff[ii].x, coeff[ii].y, coeff[ii].z);
   }
 
   calc_3x3_inverse(&coeff, inv);
