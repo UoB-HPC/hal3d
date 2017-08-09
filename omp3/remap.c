@@ -859,3 +859,99 @@ void calc_gradient(const int subcell_index, const int nsubcells_by_subcell,
   gradient->y = (*inv)[1].x * rhs.x + (*inv)[1].y * rhs.y + (*inv)[1].z * rhs.z;
   gradient->z = (*inv)[2].x * rhs.x + (*inv)[2].y * rhs.y + (*inv)[2].z * rhs.z;
 }
+
+// Calculates the subcells of all centroids
+void calc_subcell_centroids(
+    const int ncells, const int* cells_offsets, const double* cell_centroids_x,
+    const double* cell_centroids_y, const double* cell_centroids_z,
+    const int* cells_to_nodes, const int* subcells_to_faces_offsets,
+    const int* subcells_to_faces, const int* faces_to_nodes_offsets,
+    const int* faces_to_nodes, const double* nodes_x0, const double* nodes_y0,
+    const double* nodes_z0, double* subcell_centroids_x,
+    double* subcell_centroids_y, double* subcell_centroids_z) {
+
+// This is a lot of heavy lifting to repetetively perform so precomputing
+#pragma omp parallel for
+  for (int cc = 0; cc < ncells; ++cc) {
+    const int cell_to_nodes_off = cells_offsets[(cc)];
+    const int nsubcells_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+
+    vec_t cell_centroid;
+    cell_centroid.x = cell_centroids_x[(cc)];
+    cell_centroid.y = cell_centroids_y[(cc)];
+    cell_centroid.z = cell_centroids_z[(cc)];
+
+    for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
+      const int subcell_index = (cell_to_nodes_off + ss);
+      const int subcell_node_index = cells_to_nodes[(subcell_index)];
+      const int subcell_to_faces_off =
+          subcells_to_faces_offsets[(subcell_index)];
+      const int nfaces_by_subcell =
+          subcells_to_faces_offsets[(subcell_index + 1)] - subcell_to_faces_off;
+
+      for (int ff = 0; ff < nfaces_by_subcell; ++ff) {
+        const int face_index = subcells_to_faces[(subcell_to_faces_off + ff)];
+        const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+        const int nnodes_by_face =
+            faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+
+        // Sum the face center of all subcell faces
+        vec_t face_c = {0.0, 0.0, 0.0};
+        calc_centroid(nnodes_by_face, nodes_x0, nodes_y0, nodes_z0,
+                      faces_to_nodes, face_to_nodes_off, &face_c);
+        subcell_centroids_x[(subcell_index)] += face_c.x;
+        subcell_centroids_y[(subcell_index)] += face_c.y;
+        subcell_centroids_z[(subcell_index)] += face_c.z;
+
+        // calculate the subsequent face center for current and rezoned meshes
+        int sn_off;
+        for (int nn = 0; nn < nnodes_by_face; ++nn) {
+          if (subcell_node_index == faces_to_nodes[(face_to_nodes_off + nn)]) {
+            sn_off = nn;
+          }
+        }
+
+        // Choose threee points on the planar face
+        const int fn0 = faces_to_nodes[(face_to_nodes_off + 0)];
+        const int fn1 = faces_to_nodes[(face_to_nodes_off + 1)];
+        const int fn2 = faces_to_nodes[(face_to_nodes_off + 2)];
+
+        vec_t normal;
+        calc_normal(fn0, fn1, fn2, nodes_x0, nodes_y0, nodes_z0, &normal);
+        const int face_rorientation = check_normal_orientation(
+            fn0, nodes_x0, nodes_y0, nodes_z0, &cell_centroid, &normal);
+
+        const int l_off = (sn_off == 0) ? nnodes_by_face - 1 : sn_off - 1;
+        const int r_off = (sn_off == nnodes_by_face - 1) ? 0 : sn_off + 1;
+        const int next_node_index =
+            face_rorientation ? faces_to_nodes[(face_to_nodes_off + r_off)]
+                              : faces_to_nodes[(face_to_nodes_off + l_off)];
+
+        subcell_centroids_x[(subcell_index)] +=
+            0.5 *
+            (nodes_x0[(subcell_node_index)] + nodes_x0[(next_node_index)]);
+        subcell_centroids_y[(subcell_index)] +=
+            0.5 *
+            (nodes_y0[(subcell_node_index)] + nodes_y0[(next_node_index)]);
+        subcell_centroids_z[(subcell_index)] +=
+            0.5 *
+            (nodes_z0[(subcell_node_index)] + nodes_z0[(next_node_index)]);
+      }
+
+      // Add corner node
+      subcell_centroids_x[(subcell_index)] += nodes_x0[(subcell_node_index)];
+      subcell_centroids_y[(subcell_index)] += nodes_y0[(subcell_node_index)];
+      subcell_centroids_z[(subcell_index)] += nodes_z0[(subcell_node_index)];
+
+      // Add cell centroid
+      subcell_centroids_x[(subcell_index)] += cell_centroid.x;
+      subcell_centroids_y[(subcell_index)] += cell_centroid.y;
+      subcell_centroids_z[(subcell_index)] += cell_centroid.z;
+
+      // Take the average of all the subcell nodes
+      subcell_centroids_x[(subcell_index)] /= (nfaces_by_subcell * 2 + 2);
+      subcell_centroids_y[(subcell_index)] /= (nfaces_by_subcell * 2 + 2);
+      subcell_centroids_z[(subcell_index)] /= (nfaces_by_subcell * 2 + 2);
+    }
+  }
+}

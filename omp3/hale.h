@@ -154,3 +154,13 @@ void calc_gradient(const int subcell_index, const int nsubcells_by_subcell,
                    const double* subcell_integrals_z,
                    const double* subcell_volume, const vec_t (*inv)[3],
                    vec_t* gradient);
+
+// Calculates the subcells of all centroids
+void calc_subcell_centroids(
+    const int ncells, const int* cells_offsets, const double* cell_centroids_x,
+    const double* cell_centroids_y, const double* cell_centroids_z,
+    const int* cells_to_nodes, const int* subcells_to_faces_offsets,
+    const int* subcells_to_faces, const int* faces_to_nodes_offsets,
+    const int* faces_to_nodes, const double* nodes_x0, const double* nodes_y0,
+    const double* nodes_z0, double* subcell_centroids_x,
+    double* subcell_centroids_y, double* subcell_centroids_z);

@@ -63,6 +63,12 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
   allocated += allocate_data(&hale_data->subcell_force_x, hale_data->nsubcells);
   allocated += allocate_data(&hale_data->subcell_force_y, hale_data->nsubcells);
   allocated += allocate_data(&hale_data->subcell_force_z, hale_data->nsubcells);
+  allocated +=
+      allocate_data(&hale_data->subcell_centroids_x, hale_data->nsubcells);
+  allocated +=
+      allocate_data(&hale_data->subcell_centroids_y, hale_data->nsubcells);
+  allocated +=
+      allocate_data(&hale_data->subcell_centroids_z, hale_data->nsubcells);
 
   // In hale, the fundamental principle is that the mass at the cell and
   // sub-cell are conserved, so we can initialise them from the mesh

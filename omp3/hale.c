@@ -32,8 +32,9 @@ void solve_unstructured_hydro_2d(
     double* subcell_velocity_x, double* subcell_velocity_y,
     double* subcell_velocity_z, double* subcell_integrals_x,
     double* subcell_integrals_y, double* subcell_integrals_z,
-    double* subcell_kinetic_energy, double* rezoned_nodes_x,
-    double* rezoned_nodes_y, double* rezoned_nodes_z,
+    double* subcell_centroids_x, double* subcell_centroids_y,
+    double* subcell_centroids_z, double* subcell_kinetic_energy,
+    double* rezoned_nodes_x, double* rezoned_nodes_y, double* rezoned_nodes_z,
     int* nodes_to_faces_offsets, int* nodes_to_faces, int* faces_to_nodes,
     int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
     int* cells_to_faces_offsets, int* cells_to_faces,
@@ -66,7 +67,6 @@ void solve_unstructured_hydro_2d(
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
 
-#if 0
   // Gather the subcell quantities for mass, internal and kinetic energy
   // density, and momentum
   gather_subcell_quantities(
@@ -78,8 +78,15 @@ void solve_unstructured_hydro_2d(
       subcell_integrals_y, subcell_integrals_z, nodes_to_faces_offsets,
       nodes_to_faces, faces_to_nodes, faces_to_nodes_offsets, faces_to_cells0,
       faces_to_cells1, cells_to_faces_offsets, cells_to_faces);
-#endif // if 0
 
+  calc_subcell_centroids(ncells, cells_offsets, cell_centroids_x,
+                         cell_centroids_y, cell_centroids_z, cells_to_nodes,
+                         subcells_to_faces_offsets, subcells_to_faces,
+                         faces_to_nodes_offsets, faces_to_nodes, nodes_x0,
+                         nodes_y0, nodes_z0, subcell_centroids_x,
+                         subcell_centroids_y, subcell_centroids_z);
+
+#if 0
 // Calculate the swept edge remap for each of the subcells.
 // TODO: There a again many different ways to crack this nut. One consideration
 // is that teh whole algorithm will allow you to precompute and store for
@@ -143,7 +150,7 @@ void solve_unstructured_hydro_2d(
       const int nfaces_by_subcell =
           subcells_to_faces_offsets[(subcell_index + 1)] - subcell_to_faces_off;
 
-      // We will calculate the swept edge region for the internal and external
+      // we will calculate the swept edge region for the internal and external
       // face here, this relies on the faces being ordered in a ring.
       for (int ff = 0; ff < nfaces_by_subcell; ++ff) {
         const int face_index = subcells_to_faces[(subcell_to_faces_off + ff)];
@@ -159,11 +166,11 @@ void solve_unstructured_hydro_2d(
             faces_to_nodes_offsets[(face_index2 + 1)] - face2_to_nodes_off;
 
         /*
-         * Determine all of the nodes for the swept edge region inside the
+         * determine all of the nodes for the swept edge region inside the
          * current mesh and in the rezoned mesh
          */
 
-        // Calculate the face center for the current and rezoned meshes
+        // calculate the face center for the current and rezoned meshes
         vec_t face_c = {0.0, 0.0, 0.0};
         calc_centroid(nnodes_by_face, nodes_x0, nodes_y0, nodes_z0,
                       faces_to_nodes, face_to_nodes_off, &face_c);
@@ -171,7 +178,7 @@ void solve_unstructured_hydro_2d(
         calc_centroid(nnodes_by_face2, nodes_x0, nodes_y0, nodes_z0,
                       faces_to_nodes, face2_to_nodes_off, &face2_c);
 
-        // Calculate the subsequent face center for current and rezoned meshes
+        // calculate the subsequent face center for current and rezoned meshes
         vec_t rz_face_c = {0.0, 0.0, 0.0};
         int sn_off;
         for (int nn = 0; nn < nnodes_by_face; ++nn) {
@@ -180,7 +187,8 @@ void solve_unstructured_hydro_2d(
           rz_face_c.y += rezoned_nodes_y[(node_index)] / nnodes_by_face;
           rz_face_c.z += rezoned_nodes_z[(node_index)] / nnodes_by_face;
 
-          // Store the offset of our subcell's node on the face for calculating
+          // store the offset of our subcell's node on the face for
+          // calculating
           // the half edges later
           if (subcell_node_index == node_index) {
             sn_off = nn;
@@ -191,7 +199,7 @@ void solve_unstructured_hydro_2d(
                       rezoned_nodes_z, faces_to_nodes, face2_to_nodes_off,
                       &face2_c);
 
-        // The half edges are the points between the node at the subcell and the
+        // the half edges are the points between the node at the subcell and the
         // right and left nodes on our current face
         const int l_off = (sn_off == 0) ? nnodes_by_face - 1 : sn_off - 1;
         const int r_off = (sn_off == nnodes_by_face - 1) ? 0 : sn_off + 1;
@@ -258,7 +266,8 @@ void solve_unstructured_hydro_2d(
         vec_t normal;
         calc_normal(fn0, fn1, fn2, nodes_x0, nodes_y0, nodes_z0, &normal);
 
-        // TODO: Fairly sure that this returns the opposite value to what we are
+        // TODO: Fairly sure that this returns the opposite value to what we
+        // are
         // expecting later on...
         const int face_rorientation = check_normal_orientation(
             fn0, nodes_x0, nodes_y0, nodes_z0, &cell_centroid, &normal);
@@ -279,24 +288,32 @@ void solve_unstructured_hydro_2d(
          * The gradient that we calculate may be for the external or the
          * internal cell.
          *
-         * We can save improve performance here by caching the gradients in the
-         * case that the swept edge region is primarily overlapping our current
+         * We can save improve performance here by caching the gradients in
+         * the
+         * case that the swept edge region is primarily overlapping our
+         * current
          * cell. In the cases where it is not, presumably half of the
-         * calculations, we have to perform redundant computation. My assumption
+         * calculations, we have to perform redundant computation. My
+         * assumption
          * here is that the calculation of the gradients is significantly
-         * cheaper than the calculation of the swept edge regions. If this turns
+         * cheaper than the calculation of the swept edge regions. If this
+         * turns
          * out to be a faulty assumption, perhaps due to the computational
-         * intensity, then another of the three obvious algorithms for this step
+         * intensity, then another of the three obvious algorithms for this
+         * step
          * could be chosen.
          *
          * The best case algorithm in terms of reducing repeated or redundant
-         * computation will lead to a data race, and we may see that atomics are
-         * able to win out for some architectures instead of this approach here.
+         * computation will lead to a data race, and we may see that atomics
+         * are
+         * able to win out for some architectures instead of this approach
+         * here.
          */
 
         /*
          * TODO: We need to perform the test here to determine if the signed
-         * volume of the prism indicates that the swept region overlaps with the
+         * volume of the prism indicates that the swept region overlaps with
+         * the
          * current cell or the neighbour.
          */
 
@@ -325,11 +342,11 @@ void solve_unstructured_hydro_2d(
         const double ie_flux =
             subcell_ie_density[(sweeping_subcell)] * swept_edge_vol +
             ie_gradient.x * swept_edge_integrals.x -
-            ie_gradient.x * subcell_centroid_x[(sweeping_subcell)] +
+            ie_gradient.x * subcell_centroids_x[(sweeping_subcell)] +
             ie_gradient.y * swept_edge_integrals.y -
-            ie_gradient.x * subcell_centroid_y[(sweeping_subcell)] +
+            ie_gradient.x * subcell_centroids_y[(sweeping_subcell)] +
             ie_gradient.z * swept_edge_integrals.z -
-            ie_gradient.x * subcell_centroid_z[(sweeping_subcell)];
+            ie_gradient.x * subcell_centroids_z[(sweeping_subcell)];
 
         vec_t mass_gradient;
         calc_gradient(sweeping_subcell, nsubcells_by_subcell,
@@ -372,4 +389,5 @@ void solve_unstructured_hydro_2d(
       }
     }
   }
+#endif // if 0
 }

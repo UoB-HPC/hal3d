@@ -82,6 +82,9 @@ typedef struct {
   double* subcell_velocity_x;
   double* subcell_velocity_y;
   double* subcell_velocity_z;
+  double* subcell_centroids_x;
+  double* subcell_centroids_y;
+  double* subcell_centroids_z;
   double* subcell_force_x;
   double* subcell_force_y;
   double* subcell_force_z;
