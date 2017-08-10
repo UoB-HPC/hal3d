@@ -142,8 +142,9 @@ void calc_inverse_coefficient_matrix(
     const int subcell_index, const int* subcells_to_faces_offsets,
     const int* subcells_to_subcells, const double* subcell_integrals_x,
     const double* subcell_integrals_y, const double* subcell_integrals_z,
-    const double* subcell_volume, int* nsubcells_by_subcell,
-    int* subcell_to_subcells_off, vec_t (*inv)[3]);
+    const double* subcell_centroids_x, const double* subcell_centroids_y,
+    const double* subcell_centroids_z, const double* subcell_volume,
+    int* nsubcells_by_subcell, int* subcell_to_subcells_off, vec_t (*inv)[3]);
 
 // Calculate the gradient for the
 void calc_gradient(const int subcell_index, const int nsubcells_by_subcell,

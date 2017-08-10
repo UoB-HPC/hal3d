@@ -368,10 +368,6 @@ void gather_subcell_quantities(
               subcell_faces_to_nodes_offsets, subcell_nodes_x, subcell_nodes_y,
               subcell_nodes_z, &subcell_centroid, &integrals, &vol);
 
-          // TODO: THIS MIGHT BE A STUPID WAY TO DO THIS.
-          // WE ARE LOOKING AT ALL OF THE SUBCELL TETRAHEDRONS, WHEN WE COULD BE
-          // LOOKING AT A SINGLE CORNER SUBCELL PER NODE
-
           // Store the weighted integrals
           subcell_integrals_x[(cell_to_nodes_off + nn2)] += integrals.x;
           subcell_integrals_y[(cell_to_nodes_off + nn2)] += integrals.y;
@@ -794,8 +790,9 @@ void calc_inverse_coefficient_matrix(
     const int subcell_index, const int* subcells_to_faces_offsets,
     const int* subcells_to_subcells, const double* subcell_integrals_x,
     const double* subcell_integrals_y, const double* subcell_integrals_z,
-    const double* subcell_volume, int* nsubcells_by_subcell,
-    int* subcell_to_subcells_off, vec_t (*inv)[3]) {
+    const double* subcell_centroids_x, const double* subcell_centroids_y,
+    const double* subcell_centroids_z, const double* subcell_volume,
+    int* nsubcells_by_subcell, int* subcell_to_subcells_off, vec_t (*inv)[3]) {
 
   *subcell_to_subcells_off = subcells_to_faces_offsets[(subcell_index)] * 2;
   *nsubcells_by_subcell = (subcells_to_faces_offsets[(subcell_index + 1)] * 2) -
@@ -810,10 +807,16 @@ void calc_inverse_coefficient_matrix(
       continue;
     }
 
-    const double ix = subcell_integrals_x[(neighbour_subcell_index)];
-    const double iy = subcell_integrals_y[(neighbour_subcell_index)];
-    const double iz = subcell_integrals_z[(neighbour_subcell_index)];
+    double ix = subcell_integrals_x[(neighbour_subcell_index)];
+    double iy = subcell_integrals_y[(neighbour_subcell_index)];
+    double iz = subcell_integrals_z[(neighbour_subcell_index)];
+
     const double vol = subcell_volume[(neighbour_subcell_index)];
+
+    // Complete the integral coefficient as a distance
+    ix -= subcell_centroids_x[(subcell_index)] * vol;
+    iy -= subcell_centroids_y[(subcell_index)] * vol;
+    iz -= subcell_centroids_z[(subcell_index)] * vol;
 
     // Store the neighbouring cell's contribution to the coefficients
     coeff[0].x += (2.0 * ix * ix) / (vol * vol);
