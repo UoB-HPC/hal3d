@@ -47,6 +47,7 @@ void solve_unstructured_hydro_2d(
   store_rezoned_mesh(nnodes, nodes_x0, nodes_y0, nodes_z0, rezoned_nodes_x,
                      rezoned_nodes_y, rezoned_nodes_z);
 
+#if 0
   // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
   // due to the pressure (ideal gas) and artificial viscous forces
   lagrangian_phase(

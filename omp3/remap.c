@@ -217,16 +217,25 @@ void gather_subcell_quantities(
     vec_t coeff[3] = {{0.0, 0.0, 0.0}};
     vec_t rhs = {0.0, 0.0, 0.0};
 
+    const double cell_ie = density0[(cc)] * energy0[(cc)];
+
     // Determine the weighted volume integrals for neighbouring cells
+    double gmax = -DBL_MAX;
+    double gmin = DBL_MAX;
+
     for (int ff = 0; ff < nfaces_by_cell; ++ff) {
       const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
       const int neighbour_index = (faces_to_cells0[(face_index)] == cc)
                                       ? faces_to_cells1[(face_index)]
                                       : faces_to_cells0[(face_index)];
+
       // Check if boundary face
       if (neighbour_index == -1) {
         continue;
       }
+
+      const double neighbour_ie =
+          density0[(neighbour_index)] * energy0[(neighbour_index)];
 
       const int neighbour_to_faces_off =
           cells_to_faces_offsets[(neighbour_index)];
@@ -264,8 +273,11 @@ void gather_subcell_quantities(
       coeff[2].y += (2.0 * integrals.z * integrals.y) / (vol * vol);
       coeff[2].z += (2.0 * integrals.z * integrals.z) / (vol * vol);
 
+      gmax = max(gmax, neighbour_ie);
+      gmin = min(gmin, neighbour_ie);
+
       // Prepare the RHS, which includes energy differential
-      const double de = (energy0[(neighbour_index)] - energy0[(cc)]);
+      const double de = (neighbour_ie - cell_ie);
       rhs.x += (2.0 * integrals.x * de / vol);
       rhs.y += (2.0 * integrals.y * de / vol);
       rhs.z += (2.0 * integrals.z * de / vol);
@@ -280,6 +292,30 @@ void gather_subcell_quantities(
     grad_energy.x = inv[0].x * rhs.x + inv[0].y * rhs.y + inv[0].z * rhs.z;
     grad_energy.y = inv[1].x * rhs.x + inv[1].y * rhs.y + inv[1].z * rhs.z;
     grad_energy.z = inv[2].x * rhs.x + inv[2].y * rhs.y + inv[2].z * rhs.z;
+
+    // We now limit the gradient
+    double limiter = DBL_MAX;
+    for (int nn = 0; nn < nnodes_by_cell; ++nn) {
+      double g_unlimited =
+          cell_ie +
+          grad_energy.x *
+              (nodes_x0[(cell_to_nodes_off + nn)] - cell_centroid.x) +
+          grad_energy.y *
+              (nodes_y0[(cell_to_nodes_off + nn)] - cell_centroid.y) +
+          grad_energy.z *
+              (nodes_z0[(cell_to_nodes_off + nn)] - cell_centroid.z);
+
+      double node_limiter = 1.0;
+      if (g_unlimited > cell_ie) {
+        node_limiter = min(1.0, (gmax - cell_ie) / (g_unlimited - cell_ie));
+      } else if (g_unlimited < cell_ie) {
+        node_limiter = min(1.0, (gmin - cell_ie) / (g_unlimited - cell_ie));
+      }
+      limiter = min(limiter, node_limiter);
+    }
+    grad_energy.x *= limiter;
+    grad_energy.y *= limiter;
+    grad_energy.z *= limiter;
 
     // Describe the connectivity for a simple tetrahedron, the sub-cell shape
     const int subcell_faces_to_nodes_offsets[NTET_FACES + 1] = {0, 3, 6, 9, 12};
@@ -302,17 +338,14 @@ void gather_subcell_quantities(
       const int nnodes_by_face =
           faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
 
-      // TODO: SHOULD WE PRECOMPUTE THE FACE CENTROID???
       // The face centroid is the same for all nodes on the face
-      subcell_nodes_x[2] = 0.0;
-      subcell_nodes_y[2] = 0.0;
-      subcell_nodes_z[2] = 0.0;
-      for (int nn = 0; nn < nnodes_by_face; ++nn) {
-        const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
-        subcell_nodes_x[2] += nodes_x0[(node_index)] / nnodes_by_face;
-        subcell_nodes_y[2] += nodes_y0[(node_index)] / nnodes_by_face;
-        subcell_nodes_z[2] += nodes_z0[(node_index)] / nnodes_by_face;
-      }
+      vec_t face_c = {0.0, 0.0, 0.0};
+      calc_centroid(nnodes_by_face, nodes_x0, nodes_y0, nodes_z0,
+                    faces_to_nodes, face_to_nodes_off, &face_c);
+
+      subcell_nodes_x[2] = face_c.x;
+      subcell_nodes_y[2] = face_c.y;
+      subcell_nodes_z[2] = face_c.z;
 
       // Each face/node pair has two sub-cells
       for (int nn = 0; nn < nnodes_by_face; ++nn) {
@@ -327,8 +360,7 @@ void gather_subcell_quantities(
           }
         }
 
-// The left and right nodes on the face for this anchor node
-#define NNEIGHBOUR_NODES 2
+        // The left and right nodes on the face for this anchor node
         int nodes_a[NNEIGHBOUR_NODES];
         nodes_a[0] =
             (nn == 0) ? faces_to_nodes[(face_to_nodes_off + nnodes_by_face - 1)]

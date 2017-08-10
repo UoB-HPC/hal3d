@@ -17,6 +17,7 @@
 #define ARCH_ROOT_PARAMS "../arch.params"
 #define HALE_PARAMS "hale.params"
 #define HALE_TESTS "hale.tests"
+#define NNEIGHBOUR_NODES 2
 
 // Describes the corner subcells
 #define NSUBCELL_NODES 8
