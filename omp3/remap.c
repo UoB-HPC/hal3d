@@ -267,6 +267,7 @@ void gather_subcell_quantities(
       neighbour_centroid.x = cell_centroids_x[(neighbour_index)];
       neighbour_centroid.y = cell_centroids_y[(neighbour_index)];
       neighbour_centroid.z = cell_centroids_z[(neighbour_index)];
+
       calc_weighted_volume_integrals(
           neighbour_to_faces_off, nfaces_by_neighbour, cells_to_faces,
           faces_to_nodes, faces_to_nodes_offsets, nodes_x0, nodes_y0, nodes_z0,
@@ -333,6 +334,8 @@ void gather_subcell_quantities(
     grad_energy.x *= limiter;
     grad_energy.y *= limiter;
     grad_energy.z *= limiter;
+
+    printf("%.12f %.12f %.12f\n", grad_energy.x, grad_energy.y, grad_energy.z);
 
     // Describe the connectivity for a simple tetrahedron, the sub-cell shape
     const int subcell_faces_to_nodes_offsets[NTET_FACES + 1] = {0, 3, 6, 9, 12};
@@ -452,10 +455,10 @@ int check_normal_orientation(const int n0, const double* nodes_x,
 }
 
 // Calculates the surface normal of a vector pointing outwards
-void calc_surface_normal(const int n0, const int n1, const int n2,
-                         const double* nodes_x, const double* nodes_y,
-                         const double* nodes_z, const vec_t* cell_centroid,
-                         vec_t* normal) {
+int calc_surface_normal(const int n0, const int n1, const int n2,
+                        const double* nodes_x, const double* nodes_y,
+                        const double* nodes_z, const vec_t* cell_centroid,
+                        vec_t* normal) {
 
   // Calculate the unit normal vector
   calc_unit_normal(n0, n1, n2, nodes_x, nodes_y, nodes_z, normal);
@@ -468,6 +471,8 @@ void calc_surface_normal(const int n0, const int n1, const int n2,
   normal->x *= (flip ? -1.0 : 1.0);
   normal->y *= (flip ? -1.0 : 1.0);
   normal->z *= (flip ? -1.0 : 1.0);
+
+  return flip;
 }
 
 // Calculate the normal vector from the provided nodes
@@ -513,8 +518,8 @@ void calc_normal(const int n0, const int n1, const int n2,
 // Calculates the face integral for the provided face, projected onto
 // the two-dimensional basis
 void calc_projections(const int nnodes_by_face, const int face_to_nodes_off,
-                      const int* faces_to_nodes, const double* alpha,
-                      const double* beta, pi_t* pi) {
+                      const int* faces_to_nodes, const int face_orientation,
+                      const double* alpha, const double* beta, pi_t* pi) {
 
   double pione = 0.0;
   double pialpha = 0.0;
@@ -553,7 +558,7 @@ void calc_projections(const int nnodes_by_face, const int face_to_nodes_off,
 
   // Store the final coefficients, flipping all results if we went through
   // in a clockwise order and got a negative area
-  const double flip = 1.0; //(pione > 0.0 ? 1.0 : -1.0);
+  const double flip = (face_orientation > 0.0 ? 1.0 : -1.0);
   pi->one += flip * pione;
   pi->alpha += flip * pialpha;
   pi->alpha2 += flip * pialpha2;
@@ -562,21 +567,25 @@ void calc_projections(const int nnodes_by_face, const int face_to_nodes_off,
   pi->alpha_beta += flip * pialphabeta;
 
 #if 0
-  printf("pi %.12f %.12f %.12f %.12f %.12f\n", pialpha, pialpha2, pibeta,
-         pibeta2, pialphabeta);
+  printf("pi %.12f %.12f %.12f %.12f %.12f\n", pi->alpha, pi->alpha2, pi->beta,
+         pi->beta2, pi->alpha_beta);
 #endif // if 0
 }
 
 // Resolves the volume integrals in alpha-beta-gamma basis
 void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
-                         const int orientation, const double omega,
-                         const int* faces_to_nodes, const double* nodes_alpha,
-                         const double* nodes_beta, vec_t normal, vec_t* T,
-                         double* vol) {
+                         const int basis, const int face_orientation,
+                         const double omega, const int* faces_to_nodes,
+                         const double* nodes_alpha, const double* nodes_beta,
+                         vec_t normal, vec_t* T, double* vol) {
 
   pi_t pi = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
   calc_projections(nnodes_by_face, face_to_nodes_off, faces_to_nodes,
-                   nodes_alpha, nodes_beta, &pi);
+                   face_orientation, nodes_alpha, nodes_beta, &pi);
+
+#if 0
+  printf("normal %.12f %.12f %.12f\n", normal.x, normal.y, normal.z);
+#endif // if 0
 
   // Finalise the weighted face integrals
   const double Falpha = pi.alpha / normal.z;
@@ -595,27 +604,35 @@ void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
                 omega * pi.one)) /
       (normal.z * normal.z * normal.z);
 
+#if 0
   printf("F %.12f %.12f %.12f %.12f %.12f %.12f\n", Falpha, Fbeta, Fgamma,
          Falpha2, Fbeta2, Fgamma2);
+#endif // if 0
 
   // Accumulate the weighted volume integrals
-  if (orientation == XYZ) {
+  if (basis == XYZ) {
     T->x += 0.5 * normal.x * Falpha2;
     T->y += 0.5 * normal.y * Fbeta2;
     T->z += 0.5 * normal.z * Fgamma2;
+#if 0
     printf("T xyz %.12f %.12f %.12f\n", T->x * 2.0, T->y * 2.0, T->z * 2.0);
+#endif // if 0
     *vol += normal.x * Falpha;
-  } else if (orientation == YZX) {
+  } else if (basis == YZX) {
     T->y += 0.5 * normal.x * Falpha2;
     T->z += 0.5 * normal.y * Fbeta2;
     T->x += 0.5 * normal.z * Fgamma2;
+#if 0
     printf("T yzx %.12f %.12f %.12f\n", T->y * 2.0, T->z * 2.0, T->x * 2.0);
+#endif // if 0
     *vol += normal.z * Fgamma;
-  } else if (orientation == ZXY) {
+  } else if (basis == ZXY) {
     T->z += 0.5 * normal.x * Falpha2;
     T->x += 0.5 * normal.y * Fbeta2;
     T->y += 0.5 * normal.z * Fgamma2;
+#if 0
     printf("T zxy %.12f %.12f %.12f\n", T->z * 2.0, T->x * 2.0, T->y * 2.0);
+#endif // if 0
     *vol += normal.y * Fbeta;
   }
 }
@@ -649,19 +666,19 @@ void calc_weighted_volume_integrals(
 
     // Determine the outward facing unit normal vector
     vec_t normal = {0.0, 0.0, 0.0};
-    calc_surface_normal(n0, n1, n2, nodes_x, nodes_y, nodes_z, cell_centroid,
-                        &normal);
+    const int face_orientation = calc_surface_normal(
+        n0, n1, n2, nodes_x, nodes_y, nodes_z, cell_centroid, &normal);
 
     // The projection of the normal vector onto a point on the face
     double omega = -(normal.x * nodes_x[(n0)] + normal.y * nodes_y[(n0)] +
                      normal.z * nodes_z[(n0)]);
 
     // Select the orientation based on the face area
-    int orientation;
+    int basis;
     if (fabs(normal.x) > fabs(normal.y)) {
-      orientation = (fabs(normal.x) > fabs(normal.z)) ? YZX : XYZ;
+      basis = (fabs(normal.x) > fabs(normal.z)) ? YZX : XYZ;
     } else {
-      orientation = (fabs(normal.z) > fabs(normal.y)) ? XYZ : ZXY;
+      basis = (fabs(normal.z) > fabs(normal.y)) ? XYZ : ZXY;
     }
 
     // The orientation determines which order we pass the nodes by axes
@@ -669,19 +686,22 @@ void calc_weighted_volume_integrals(
     // face in the alpha-beta-gamma basis
     // The weighted integrals essentially provide the center of mass
     // coordinates for the polyhedra
-    if (orientation == XYZ) {
-      calc_face_integrals(nnodes_by_face, face_to_nodes_off, orientation, omega,
-                          faces_to_nodes, nodes_x, nodes_y, normal, T, vol);
-    } else if (orientation == YZX) {
+    if (basis == XYZ) {
+      calc_face_integrals(nnodes_by_face, face_to_nodes_off, basis,
+                          face_orientation, omega, faces_to_nodes, nodes_x,
+                          nodes_y, normal, T, vol);
+    } else if (basis == YZX) {
       dswap(normal.x, normal.y);
       dswap(normal.y, normal.z);
-      calc_face_integrals(nnodes_by_face, face_to_nodes_off, orientation, omega,
-                          faces_to_nodes, nodes_y, nodes_z, normal, T, vol);
-    } else if (orientation == ZXY) {
+      calc_face_integrals(nnodes_by_face, face_to_nodes_off, basis,
+                          face_orientation, omega, faces_to_nodes, nodes_y,
+                          nodes_z, normal, T, vol);
+    } else if (basis == ZXY) {
       dswap(normal.x, normal.y);
       dswap(normal.x, normal.z);
-      calc_face_integrals(nnodes_by_face, face_to_nodes_off, orientation, omega,
-                          faces_to_nodes, nodes_z, nodes_x, normal, T, vol);
+      calc_face_integrals(nnodes_by_face, face_to_nodes_off, basis,
+                          face_orientation, omega, faces_to_nodes, nodes_z,
+                          nodes_x, normal, T, vol);
     }
   }
 }

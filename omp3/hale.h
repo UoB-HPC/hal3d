@@ -65,10 +65,10 @@ int check_normal_orientation(const int n0, const double* nodes_x,
                              const vec_t* cell_centroid, vec_t* normal);
 
 // Calculates the surface normal of a vector pointing outwards
-void calc_surface_normal(const int n0, const int n1, const int n2,
-                         const double* nodes_x, const double* nodes_y,
-                         const double* nodes_z, const vec_t* cell_centroid,
-                         vec_t* normal);
+int calc_surface_normal(const int n0, const int n1, const int n2,
+                        const double* nodes_x, const double* nodes_y,
+                        const double* nodes_z, const vec_t* cell_centroid,
+                        vec_t* normal);
 
 // Calculate the normal vector from the provided nodes
 void calc_unit_normal(const int n0, const int n1, const int n2,
@@ -86,15 +86,15 @@ void calc_normal(const int n0, const int n1, const int n2,
 // Calculates the face integral for the provided face, projected onto
 // the two-dimensional basis
 void calc_projections(const int nnodes_by_face, const int face_to_nodes_off,
-                      const int* faces_to_nodes, const double* alpha,
-                      const double* beta, pi_t* pi);
+                      const int* faces_to_nodes, const int face_orientation,
+                      const double* alpha, const double* beta, pi_t* pi);
 
 // Resolves the volume integrals in alpha-beta-gamma basis
 void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
-                         const int orientation, const double omega,
-                         const int* faces_to_nodes, const double* nodes_alpha,
-                         const double* nodes_beta, vec_t normal, vec_t* T,
-                         double* vol);
+                         const int basis, const int face_orientation,
+                         const double omega, const int* faces_to_nodes,
+                         const double* nodes_alpha, const double* nodes_beta,
+                         vec_t normal, vec_t* T, double* vol);
 
 // Calculate the centroid
 void calc_centroid(const int nnodes, const double* nodes_x,
