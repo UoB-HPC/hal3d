@@ -239,7 +239,6 @@ void gather_subcell_quantities(
     // Determine the weighted volume integrals for neighbouring cells
     double gmax = -DBL_MAX;
     double gmin = DBL_MAX;
-
     for (int ff = 0; ff < nfaces_by_cell; ++ff) {
       const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
       const int neighbour_index = (faces_to_cells0[(face_index)] == cc)
@@ -334,8 +333,6 @@ void gather_subcell_quantities(
     grad_energy.x *= limiter;
     grad_energy.y *= limiter;
     grad_energy.z *= limiter;
-
-    printf("%.12f %.12f %.12f\n", grad_energy.x, grad_energy.y, grad_energy.z);
 
     // Describe the connectivity for a simple tetrahedron, the sub-cell shape
     const int subcell_faces_to_nodes_offsets[NTET_FACES + 1] = {0, 3, 6, 9, 12};
@@ -565,11 +562,6 @@ void calc_projections(const int nnodes_by_face, const int face_to_nodes_off,
   pi->beta += flip * pibeta;
   pi->beta2 += flip * pibeta2;
   pi->alpha_beta += flip * pialphabeta;
-
-#if 0
-  printf("pi %.12f %.12f %.12f %.12f %.12f\n", pi->alpha, pi->alpha2, pi->beta,
-         pi->beta2, pi->alpha_beta);
-#endif // if 0
 }
 
 // Resolves the volume integrals in alpha-beta-gamma basis
@@ -582,10 +574,6 @@ void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
   pi_t pi = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
   calc_projections(nnodes_by_face, face_to_nodes_off, faces_to_nodes,
                    face_orientation, nodes_alpha, nodes_beta, &pi);
-
-#if 0
-  printf("normal %.12f %.12f %.12f\n", normal.x, normal.y, normal.z);
-#endif // if 0
 
   // Finalise the weighted face integrals
   const double Falpha = pi.alpha / normal.z;
@@ -604,35 +592,21 @@ void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
                 omega * pi.one)) /
       (normal.z * normal.z * normal.z);
 
-#if 0
-  printf("F %.12f %.12f %.12f %.12f %.12f %.12f\n", Falpha, Fbeta, Fgamma,
-         Falpha2, Fbeta2, Fgamma2);
-#endif // if 0
-
   // Accumulate the weighted volume integrals
   if (basis == XYZ) {
     T->x += 0.5 * normal.x * Falpha2;
     T->y += 0.5 * normal.y * Fbeta2;
     T->z += 0.5 * normal.z * Fgamma2;
-#if 0
-    printf("T xyz %.12f %.12f %.12f\n", T->x * 2.0, T->y * 2.0, T->z * 2.0);
-#endif // if 0
     *vol += normal.x * Falpha;
   } else if (basis == YZX) {
     T->y += 0.5 * normal.x * Falpha2;
     T->z += 0.5 * normal.y * Fbeta2;
     T->x += 0.5 * normal.z * Fgamma2;
-#if 0
-    printf("T yzx %.12f %.12f %.12f\n", T->y * 2.0, T->z * 2.0, T->x * 2.0);
-#endif // if 0
     *vol += normal.z * Fgamma;
   } else if (basis == ZXY) {
     T->z += 0.5 * normal.x * Falpha2;
     T->x += 0.5 * normal.y * Fbeta2;
     T->y += 0.5 * normal.z * Fgamma2;
-#if 0
-    printf("T zxy %.12f %.12f %.12f\n", T->z * 2.0, T->x * 2.0, T->y * 2.0);
-#endif // if 0
     *vol += normal.y * Fbeta;
   }
 }
@@ -728,7 +702,7 @@ void calc_3x3_inverse(vec_t (*a)[3], vec_t (*inv)[3]) {
     (*inv)[1].z = ((*a)[0].z * (*a)[1].x - (*a)[0].x * (*a)[1].z) / det;
 
     (*inv)[2].x = ((*a)[1].x * (*a)[2].y - (*a)[1].y * (*a)[2].x) / det;
-    (*inv)[2].y = ((*a)[0].x * (*a)[2].x - (*a)[0].x * (*a)[2].y) / det;
+    (*inv)[2].y = ((*a)[0].y * (*a)[2].x - (*a)[0].x * (*a)[2].y) / det;
     (*inv)[2].z = ((*a)[0].x * (*a)[1].y - (*a)[0].y * (*a)[1].x) / det;
   }
 }
@@ -901,10 +875,6 @@ void calc_inverse_coefficient_matrix(
     coeff[2].x += (2.0 * iz * ix) / (vol * vol);
     coeff[2].y += (2.0 * iz * iy) / (vol * vol);
     coeff[2].z += (2.0 * iz * iz) / (vol * vol);
-  }
-
-  for (int ii = 0; ii < 3; ++ii) {
-    printf("coeff (%.6f %.6f %.6f)\n", coeff[ii].x, coeff[ii].y, coeff[ii].z);
   }
 
   calc_3x3_inverse(&coeff, inv);

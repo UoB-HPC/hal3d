@@ -107,6 +107,11 @@ int main(int argc, char** argv) {
                umesh.cells_to_faces, umesh.faces_to_nodes_offsets,
                umesh.faces_to_nodes);
 
+  // We are storing our original mesh to allow an Eulerian remap
+  store_rezoned_mesh(umesh.nnodes, umesh.nodes_x0, umesh.nodes_y0,
+                     umesh.nodes_z0, hale_data.rezoned_nodes_x,
+                     hale_data.rezoned_nodes_y, hale_data.rezoned_nodes_z);
+
   // Main timestep loop
   int tt;
   for (tt = 0; tt < mesh.niters; ++tt) {
