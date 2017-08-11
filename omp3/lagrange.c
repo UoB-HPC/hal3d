@@ -1034,8 +1034,7 @@ void calc_artificial_viscosity(
               (1.0 - limiter[(current_node)]) * expansion_term * dvel_unit.z;
 
           // TODO: I HATE SEARCHES LIKE THIS... CAN WE FIND SOME BETTER
-          // CLOSED
-          // FORM SOLUTION?
+          // CLOSED FORM SOLUTION?
           int node_off;
           int next_node_off;
           for (int nn3 = 0; nn3 < nnodes_by_cell; ++nn3) {

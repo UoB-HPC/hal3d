@@ -33,19 +33,10 @@ void init_mesh_mass(const int ncells, const int* cells_offsets,
           faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
 
       // Calculate the face center... SHOULD WE PRECOMPUTE?
-      double face_c_x = 0.0;
-      double face_c_y = 0.0;
-      double face_c_z = 0.0;
-      for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
-        const int node_index = faces_to_nodes[(face_to_nodes_off + nn2)];
-        face_c_x += nodes_x[(node_index)] / nnodes_by_face;
-        face_c_y += nodes_y[(node_index)] / nnodes_by_face;
-        face_c_z += nodes_z[(node_index)] / nnodes_by_face;
-      }
+      vec_t face_c = {0.0, 0.0, 0.0};
+      calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes,
+                    face_to_nodes_off, &face_c);
 
-      // Now we will sum the contributions at each of the nodes
-      // TODO: THERE IS SOME SYMMETRY HERE THAT MEANS WE MIGHT BE ABLE TO
-      // OPTIMISE
       for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
         // Fetch the nodes attached to our current node on the current face
         const int current_node = faces_to_nodes[(face_to_nodes_off + nn2)];
@@ -63,12 +54,12 @@ void init_mesh_mass(const int ncells, const int* cells_offsets,
             0.5 * (nodes_z[(current_node)] + nodes_z[(next_node)]);
 
         // Setup basis on plane of tetrahedron
-        const double a_x = (half_edge_x - face_c_x);
-        const double a_y = (half_edge_y - face_c_y);
-        const double a_z = (half_edge_z - face_c_z);
-        const double b_x = (cell_centroids_x[(cc)] - face_c_x);
-        const double b_y = (cell_centroids_y[(cc)] - face_c_y);
-        const double b_z = (cell_centroids_z[(cc)] - face_c_z);
+        const double a_x = (half_edge_x - face_c.x);
+        const double a_y = (half_edge_y - face_c.y);
+        const double a_z = (half_edge_z - face_c.z);
+        const double b_x = (cell_centroids_x[(cc)] - face_c.x);
+        const double b_y = (cell_centroids_y[(cc)] - face_c.y);
+        const double b_z = (cell_centroids_z[(cc)] - face_c.z);
 
         // Calculate the area vector S using cross product
         const double S_x = 0.5 * (a_y * b_z - a_z * b_y);
@@ -76,10 +67,8 @@ void init_mesh_mass(const int ncells, const int* cells_offsets,
         const double S_z = 0.5 * (a_x * b_y - a_y * b_x);
 
         // TODO: WE MULTIPLY BY 2 HERE BECAUSE WE ARE ADDING THE VOLUME TO
-        // BOTH
-        // THE CURRENT AND NEXT NODE, OTHERWISE WE ONLY ACCOUNT FOR HALF OF
-        // THE
-        // 'HALF' TETRAHEDRONS
+        // BOTH THE CURRENT AND NEXT NODE, OTHERWISE WE ONLY ACCOUNT FOR HALF OF
+        // THE 'HALF' TETRAHEDRONS
         double subcell_volume =
             fabs(2.0 * ((half_edge_x - nodes_x[(current_node)]) * S_x +
                         (half_edge_y - nodes_y[(current_node)]) * S_y +
@@ -136,6 +125,7 @@ void init_cell_centroids(const int ncells, const int* cells_offsets,
   STOP_PROFILING(&compute_profile, __func__);
 }
 
+#if 0
 // Initialise the subcells to faces connectivity list
 void init_subcells_to_faces(
     const int ncells, const int* cells_offsets, const int* cells_to_nodes,
@@ -144,7 +134,7 @@ void init_subcells_to_faces(
     const double* cell_centroids_x, const double* cell_centroids_y,
     const double* cell_centroids_z, const double* nodes_x,
     const double* nodes_y, const double* nodes_z,
-    int* subcells_to_faces_offsets, int* subcells_to_faces) {
+    int* subcells_to_subcells_offsets, int* subcells_to_faces) {
 
 // NOTE: Some of these steps might be mergable, but I feel liek the current
 // implementation leads to a better read through of the code
@@ -179,7 +169,7 @@ void init_subcells_to_faces(
         }
       }
 
-      subcells_to_faces_offsets[(cell_to_nodes_off + ss + 1)] = nfaces_on_node;
+      subcells_to_subcells_offsets[(cell_to_nodes_off + ss + 1)] = nfaces_on_node;
     }
   }
 
@@ -192,8 +182,8 @@ void init_subcells_to_faces(
 
     // We will calculate the flux at every face of the subcells
     for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
-      subcells_to_faces_offsets[(cell_to_subcells_off + ss + 1)] +=
-          subcells_to_faces_offsets[(cell_to_subcells_off + ss)];
+      subcells_to_subcells_offsets[(cell_to_subcells_off + ss + 1)] +=
+          subcells_to_subcells_offsets[(cell_to_subcells_off + ss)];
     }
   }
 
@@ -278,9 +268,9 @@ void init_subcells_to_faces(
       }
 
       const int subcell_to_faces_off =
-          subcells_to_faces_offsets[(cell_to_nodes_off + ss)];
+          subcells_to_subcells_offsets[(cell_to_nodes_off + ss)];
       const int nfaces_by_subcell =
-          subcells_to_faces_offsets[(cell_to_nodes_off + ss + 1)] -
+          subcells_to_subcells_offsets[(cell_to_nodes_off + ss + 1)] -
           subcell_to_faces_off;
 
       // Look at all of the faces we have discovered so far and see if
@@ -340,6 +330,7 @@ void init_subcells_to_faces(
     }
   }
 }
+#endif // if 0
 
 // Initialises the list of neighbours to a subcell
 void init_subcells_to_subcells(
@@ -348,36 +339,131 @@ void init_subcells_to_subcells(
     const int* faces_to_cells0, const int* faces_to_cells1,
     const int* faces_to_nodes_offsets, const int* faces_to_nodes,
     const double* cell_centroids_x, const double* cell_centroids_y,
-    const double* cell_centroids_z, const int* subcells_to_faces_offsets,
-    const int* subcells_to_faces, int* subcells_to_subcells) {
+    const double* cell_centroids_z, int* cells_to_faces_offsets,
+    int* cells_to_faces, int* subcells_to_subcells, int* subcell_face_offsets) {
 
+#pragma omp parallel for
+  for (int cc = 0; cc < ncells; ++cc) {
+    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
+    const int nfaces_by_cell =
+        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
+
+    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
+      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
+      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+      const int nnodes_by_face =
+          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+      subcell_face_offsets[(cell_to_faces_off + ff)] = nnodes_by_face;
+    }
+  }
+
+  // TODO: Can only do serially at the moment... Fix this ideally
+  for (int cc = 0; cc < ncells; ++cc) {
+    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
+    const int nfaces_by_cell =
+        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
+
+    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
+      subcell_face_offsets[(cell_to_faces_off + ff + 1)] +=
+          subcell_face_offsets[(cell_to_faces_off + ff)];
+    }
+  }
+
+#if 0
 // This routine uses the previously described subcell faces to determine a ring
 // ordering for the subcell neighbours. Essentially, each subcell has a pair of
 // neighbours for every external face, and those neighbours are stored in the
 // same order as the faces.
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nsubcells_in_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
+    const int nfaces_by_cell =
+        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
 
     vec_t cell_centroid;
     cell_centroid.x = cell_centroids_x[(cc)];
     cell_centroid.y = cell_centroids_y[(cc)];
     cell_centroid.z = cell_centroids_z[(cc)];
 
+    int subcell_offset = 0;
+    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
+      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
+      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+      const int nnodes_by_face =
+          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+
+      const int neighbour_cell_index = (faces_to_cells0[(face_index)] == cc)
+                                           ? faces_to_cells1[(face_index)]
+                                           : faces_to_cells0[(face_index)];
+
+      // TODO: LOOK AT ALL USES OF THIS... IT IS NOT CORRECT!
+      const subcell_to_subcells_off = subcells_to_subcells_offsets[(
+          subcell_to_subcells_off + subcell_offset + ff)];
+
+      /*
+       * Find the subcell that exists in the neighbouring cell on this face.
+       */
+
+      // We have a subcell per node on a face
+      for (int nn = 0; nn < nnodes_by_face; ++nn) {
+        int is_neighbour_boundary = 0;
+        if (neighbour_cell_index != -1) {
+          const int neighbour_to_faces_off =
+              cells_to_faces_offsets[(neighbour_cell_index)];
+          const int nfaces_by_neighbour =
+              cells_to_faces_offsets[(neighbour_cell_index + 1)] -
+              neighbour_to_faces_off;
+
+          // Look at all of the faces on the neighbour cell
+          for (int ff2 = 0; ff2 < nfaces_by_neighbour; ++ff2) {
+            const int neighbour_face_index =
+                cells_to_faces[(neighbour_to_faces_off + ff2)];
+            const int neighbour_face_to_nodes_off =
+                faces_to_nodes_offsets[(neighbour_face_index)];
+            const int nnodes_by_neighbour_face =
+                faces_to_nodes_offset[(neighbour_face_index + 1)] -
+                neighbour_face_to_nodes_off;
+
+            // We have found the adjoining face in the neighbour cell
+            if (face_index == neighbour_face_index) {
+              for (int nn2 = 0; nn2 < nnodes_by_neighbour_face; ++nn2) {
+                if (faces_to_nodes[(neighbour_face_to_nodes_off + nn2)] ==
+                    faces_to_nodes_offsets[(face_to_nodes_off + 0)]) {
+                  subcells_to_subcells[(subcell_to_subcells_off +
+                                        subcell_offset++)] = nn;
+                }
+              }
+            }
+          }
+        } else {
+          is_neighbour_boundary = 1;
+        }
+
+        if (is_neighbour_boundary) {
+          subcells_to_subcells[(subcell_to_subcells_off + subcell_offset +
+                                nn)] = -1;
+        } else {
+          subcells_to_subcells[(subcell_to_subcells_off + subcell_offset +
+                                nn)] =
+        }
+      }
+    }
+
     // For every face on a subcell we have a pair of neighbours that are
     // attached
     for (int ss = 0; ss < nsubcells_in_cell; ++ss) {
       const int subcell_index = (cell_to_nodes_off + ss);
       const int subcell_to_faces_off =
-          subcells_to_faces_offsets[(subcell_index)];
+          subcells_to_subcells_offsets[(subcell_index)];
       const int nfaces_by_subcell =
-          subcells_to_faces_offsets[(subcell_index + 1)] - subcell_to_faces_off;
+          subcells_to_subcells_offsets[(subcell_index + 1)] -
+          subcell_to_faces_off;
 
       // For every face there are two faces
       const int subcell_to_subcells_off = subcell_to_faces_off * 2;
 
-      // Look at all of the faces to find the pair of neighbours associated with
+      // Look at all of the faces to find the pair of neighbours associated
+      // with
       // each of them
       int neighbour_index = 0;
       for (int ff = 0; ff < nfaces_by_subcell; ++ff) {
@@ -420,7 +506,8 @@ void init_subcells_to_subcells(
          * face, by looking at the right hand node of the next face.
          */
 
-        // We again need to determine the orientation in order to calculate the
+        // We again need to determine the orientation in order to calculate
+        // the
         // correct right handed node
         const int face2_to_nodes_off = faces_to_nodes_offsets[(face2_index)];
         const int nnodes_by_face2 =
@@ -436,7 +523,8 @@ void init_subcells_to_subcells(
         const int face_rorientation = check_normal_orientation(
             fn2_off0, nodes_x, nodes_y, nodes_z, &cell_centroid, &normal);
 
-        // Determine the right oriented next node after the subcell node on the
+        // Determine the right oriented next node after the subcell node on
+        // the
         // face that represents the subcell node in the cell
         int rnode;
         for (int nn = 0; nn < nnodes_by_face2; ++nn) {
@@ -463,4 +551,5 @@ void init_subcells_to_subcells(
       }
     }
   }
+#endif // if 0
 }

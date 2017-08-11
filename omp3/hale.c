@@ -32,8 +32,7 @@ void solve_unstructured_hydro_2d(
     double* rezoned_nodes_x, double* rezoned_nodes_y, double* rezoned_nodes_z,
     int* nodes_to_faces_offsets, int* nodes_to_faces, int* faces_to_nodes,
     int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
-    int* cells_to_faces_offsets, int* cells_to_faces,
-    int* subcells_to_faces_offsets, int* subcells_to_faces,
+    int* cells_to_faces_offsets, int* cells_to_faces, int* subcell_face_offsets,
     int* subcells_to_subcells) {
 
 #if 0
@@ -124,7 +123,7 @@ void solve_unstructured_hydro_2d(
   // current subcell, but the neighbouring subcells too
   calc_subcell_centroids(ncells, cells_offsets, cell_centroids_x,
                          cell_centroids_y, cell_centroids_z, cells_to_nodes,
-                         subcells_to_faces_offsets, subcells_to_faces,
+                         subcell_face_offsets, subcells_to_faces,
                          faces_to_nodes_offsets, faces_to_nodes, nodes_x0,
                          nodes_y0, nodes_z0, subcell_centroids_x,
                          subcell_centroids_y, subcell_centroids_z);
@@ -165,11 +164,11 @@ void solve_unstructured_hydro_2d(
       const int subcell_index = (cell_to_nodes_off + ss);
       const int subcell_node_index = cells_to_nodes[(subcell_index)];
       const int subcell_to_faces_off =
-          subcells_to_faces_offsets[(subcell_index)];
+          subcell_face_offsets[(subcell_index)];
       const int nfaces_by_subcell =
-          subcells_to_faces_offsets[(subcell_index + 1)] - subcell_to_faces_off;
+          subcell_face_offsets[(subcell_index + 1)] - subcell_to_faces_off;
       const int subcell_to_subcells_off =
-          subcells_to_faces_offsets[(subcell_index)] * 2;
+          subcell_face_offsets[(subcell_index)] * 2;
 
       // We will calculate the swept edge region for the internal and external
       // face here, this relies on the faces being ordered in a ring.
@@ -317,7 +316,7 @@ void solve_unstructured_hydro_2d(
           int nsubcells_by_subcell;
           int subcell_to_subcells_off;
           calc_inverse_coefficient_matrix(
-              sweep_subcell_index, subcells_to_faces_offsets,
+              sweep_subcell_index, subcell_face_offsets,
               subcells_to_subcells, subcell_integrals_x, subcell_integrals_y,
               subcell_integrals_z, subcell_centroids_x, subcell_centroids_y,
               subcell_centroids_z, subcell_volume, &nsubcells_by_subcell,

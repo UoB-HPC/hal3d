@@ -36,16 +36,11 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
   allocated += allocate_data(&hale_data->rezoned_nodes_z, umesh->nnodes);
 
   // TODO: This constant is the number of subcells that might neighbour a
-  // subcell, which is at most 8 for a prism!
+  // subcell, which is the number of subcell faces
   allocated += allocate_int_data(&hale_data->subcells_to_subcells,
-                                 hale_data->nsubcells * 8);
-  // TODO: This constant is essentially making a guess about the maximum number
-  // of faces we will see attached to a subcell. The number is determined from
-  // the prism shape, which connects a single node with four on the base.
-  allocated += allocate_int_data(&hale_data->subcells_to_faces,
                                  hale_data->nsubcells * 4);
-  allocated += allocate_int_data(&hale_data->subcells_to_faces_offsets,
-                                 hale_data->nsubcells);
+  allocated += allocate_int_data(&hale_data->subcell_face_offsets,
+                                 umesh->ncells * nfaces_by_cell);
 
   allocated +=
       allocate_data(&hale_data->subcell_velocity_x, hale_data->nsubcells);
@@ -92,21 +87,14 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
                  umesh->cells_to_faces, umesh->faces_to_nodes_offsets,
                  umesh->faces_to_nodes);
 
-  init_subcells_to_faces(
-      umesh->ncells, umesh->cells_offsets, umesh->cells_to_nodes,
-      umesh->cells_to_faces_offsets, umesh->cells_to_faces,
-      umesh->faces_to_nodes_offsets, umesh->faces_to_nodes,
-      umesh->cell_centroids_x, umesh->cell_centroids_y, umesh->cell_centroids_z,
-      umesh->nodes_x0, umesh->nodes_y0, umesh->nodes_z0,
-      hale_data->subcells_to_faces_offsets, hale_data->subcells_to_faces);
-
   init_subcells_to_subcells(
       umesh->ncells, umesh->nodes_x0, umesh->nodes_y0, umesh->nodes_z0,
       umesh->cells_offsets, umesh->cells_to_nodes, umesh->faces_to_cells0,
       umesh->faces_to_cells1, umesh->faces_to_nodes_offsets,
       umesh->faces_to_nodes, umesh->cell_centroids_x, umesh->cell_centroids_y,
-      umesh->cell_centroids_z, hale_data->subcells_to_faces_offsets,
-      hale_data->subcells_to_faces, hale_data->subcells_to_subcells);
+      umesh->cell_centroids_z, umesh->cells_to_faces_offsets,
+      umesh->cells_to_faces, hale_data->subcells_to_subcells,
+      hale_data->subcell_face_offsets);
 
   store_rezoned_mesh(umesh->nnodes, umesh->nodes_x0, umesh->nodes_y0,
                      umesh->nodes_z0, hale_data->rezoned_nodes_x,

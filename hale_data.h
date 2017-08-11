@@ -72,8 +72,7 @@ typedef struct {
   double* limiter;
 
   int* subcells_to_subcells;
-  int* subcells_to_faces;
-  int* subcells_to_faces_offsets;
+  int* subcell_face_offsets;
 
   // TODO: These are large arrays, which definitely aren't used all at the same
   // time and so there are some potential capacity reclaiming optimisations
@@ -132,8 +131,8 @@ void init_subcells_to_subcells(
     const int* faces_to_cells0, const int* faces_to_cells1,
     const int* faces_to_nodes_offsets, const int* faces_to_nodes,
     const double* cell_centroids_x, const double* cell_centroids_y,
-    const double* cell_centroids_z, const int* subcells_to_faces_offsets,
-    const int* subcells_to_faces, int* subcells_to_subcells);
+    const double* cell_centroids_z, int* cells_to_faces_offsets,
+    int* cells_to_faces, int* subcells_to_subcells, int* subcell_face_offsets);
 
 // Initialise the subcells to faces connectivity list
 void init_subcells_to_faces(

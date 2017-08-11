@@ -182,8 +182,8 @@ int main(int argc, char** argv) {
         umesh.nodes_to_faces, umesh.faces_to_nodes,
         umesh.faces_to_nodes_offsets, umesh.faces_to_cells0,
         umesh.faces_to_cells1, umesh.cells_to_faces_offsets,
-        umesh.cells_to_faces, hale_data.subcells_to_faces_offsets,
-        hale_data.subcells_to_faces, hale_data.subcells_to_subcells);
+        umesh.cells_to_faces, hale_data.subcell_face_offsets,
+        hale_data.subcells_to_subcells);
 
     wallclock += omp_get_wtime() - w0;
     elapsed_sim_time += mesh.dt;

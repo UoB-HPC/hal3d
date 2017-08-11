@@ -834,15 +834,15 @@ void construct_internal_swept_region(
 // Calculate the inverse coefficient matrix for a subcell, in order to determine
 // the gradients of the subcell quantities using least squares.
 void calc_inverse_coefficient_matrix(
-    const int subcell_index, const int* subcells_to_faces_offsets,
+    const int subcell_index, const int* subcell_face_offsets,
     const int* subcells_to_subcells, const double* subcell_integrals_x,
     const double* subcell_integrals_y, const double* subcell_integrals_z,
     const double* subcell_centroids_x, const double* subcell_centroids_y,
     const double* subcell_centroids_z, const double* subcell_volume,
     int* nsubcells_by_subcell, int* subcell_to_subcells_off, vec_t (*inv)[3]) {
 
-  *subcell_to_subcells_off = subcells_to_faces_offsets[(subcell_index)] * 2;
-  *nsubcells_by_subcell = (subcells_to_faces_offsets[(subcell_index + 1)] * 2) -
+  *subcell_to_subcells_off = subcell_face_offsets[(subcell_index)] * 2;
+  *nsubcells_by_subcell = (subcell_face_offsets[(subcell_index + 1)] * 2) -
                           *subcell_to_subcells_off;
 
   // The coefficients of the 3x3 gradient coefficient matrix
@@ -917,7 +917,7 @@ void calc_gradient(const int subcell_index, const int nsubcells_by_subcell,
 void calc_subcell_centroids(
     const int ncells, const int* cells_offsets, const double* cell_centroids_x,
     const double* cell_centroids_y, const double* cell_centroids_z,
-    const int* cells_to_nodes, const int* subcells_to_faces_offsets,
+    const int* cells_to_nodes, const int* subcell_face_offsets,
     const int* subcells_to_faces, const int* faces_to_nodes_offsets,
     const int* faces_to_nodes, const double* nodes_x0, const double* nodes_y0,
     const double* nodes_z0, double* subcell_centroids_x,
@@ -937,10 +937,9 @@ void calc_subcell_centroids(
     for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
       const int subcell_index = (cell_to_nodes_off + ss);
       const int subcell_node_index = cells_to_nodes[(subcell_index)];
-      const int subcell_to_faces_off =
-          subcells_to_faces_offsets[(subcell_index)];
+      const int subcell_to_faces_off = subcell_face_offsets[(subcell_index)];
       const int nfaces_by_subcell =
-          subcells_to_faces_offsets[(subcell_index + 1)] - subcell_to_faces_off;
+          subcell_face_offsets[(subcell_index + 1)] - subcell_to_faces_off;
 
       for (int ff = 0; ff < nfaces_by_subcell; ++ff) {
         const int face_index = subcells_to_faces[(subcell_to_faces_off + ff)];
