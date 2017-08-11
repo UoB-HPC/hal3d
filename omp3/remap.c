@@ -461,15 +461,15 @@ int calc_surface_normal(const int n0, const int n1, const int n2,
   calc_unit_normal(n0, n1, n2, nodes_x, nodes_y, nodes_z, normal);
 
   // Determine the orientation of the normal
-  const int flip = check_normal_orientation(n0, nodes_x, nodes_y, nodes_z,
-                                            cell_centroid, normal);
+  const int face_clockwise = check_normal_orientation(
+      n0, nodes_x, nodes_y, nodes_z, cell_centroid, normal);
 
   // Flip the vector if necessary
-  normal->x *= (flip ? -1.0 : 1.0);
-  normal->y *= (flip ? -1.0 : 1.0);
-  normal->z *= (flip ? -1.0 : 1.0);
+  normal->x *= (face_clockwise ? -1.0 : 1.0);
+  normal->y *= (face_clockwise ? -1.0 : 1.0);
+  normal->z *= (face_clockwise ? -1.0 : 1.0);
 
-  return flip;
+  return face_clockwise;
 }
 
 // Calculate the normal vector from the provided nodes
@@ -515,7 +515,7 @@ void calc_normal(const int n0, const int n1, const int n2,
 // Calculates the face integral for the provided face, projected onto
 // the two-dimensional basis
 void calc_projections(const int nnodes_by_face, const int face_to_nodes_off,
-                      const int* faces_to_nodes, const int face_orientation,
+                      const int* faces_to_nodes, const int face_clockwise,
                       const double* alpha, const double* beta, pi_t* pi) {
 
   double pione = 0.0;
@@ -555,7 +555,7 @@ void calc_projections(const int nnodes_by_face, const int face_to_nodes_off,
 
   // Store the final coefficients, flipping all results if we went through
   // in a clockwise order and got a negative area
-  const double flip = (face_orientation > 0.0 ? 1.0 : -1.0);
+  const double flip = (face_clockwise ? 1.0 : -1.0);
   pi->one += flip * pione;
   pi->alpha += flip * pialpha;
   pi->alpha2 += flip * pialpha2;
@@ -566,14 +566,14 @@ void calc_projections(const int nnodes_by_face, const int face_to_nodes_off,
 
 // Resolves the volume integrals in alpha-beta-gamma basis
 void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
-                         const int basis, const int face_orientation,
+                         const int basis, const int face_clockwise,
                          const double omega, const int* faces_to_nodes,
                          const double* nodes_alpha, const double* nodes_beta,
                          vec_t normal, vec_t* T, double* vol) {
 
   pi_t pi = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
   calc_projections(nnodes_by_face, face_to_nodes_off, faces_to_nodes,
-                   face_orientation, nodes_alpha, nodes_beta, &pi);
+                   face_clockwise, nodes_alpha, nodes_beta, &pi);
 
   // Finalise the weighted face integrals
   const double Falpha = pi.alpha / normal.z;
@@ -640,7 +640,7 @@ void calc_weighted_volume_integrals(
 
     // Determine the outward facing unit normal vector
     vec_t normal = {0.0, 0.0, 0.0};
-    const int face_orientation = calc_surface_normal(
+    const int face_clockwise = calc_surface_normal(
         n0, n1, n2, nodes_x, nodes_y, nodes_z, cell_centroid, &normal);
 
     // The projection of the normal vector onto a point on the face
@@ -662,19 +662,19 @@ void calc_weighted_volume_integrals(
     // coordinates for the polyhedra
     if (basis == XYZ) {
       calc_face_integrals(nnodes_by_face, face_to_nodes_off, basis,
-                          face_orientation, omega, faces_to_nodes, nodes_x,
+                          face_clockwise, omega, faces_to_nodes, nodes_x,
                           nodes_y, normal, T, vol);
     } else if (basis == YZX) {
       dswap(normal.x, normal.y);
       dswap(normal.y, normal.z);
       calc_face_integrals(nnodes_by_face, face_to_nodes_off, basis,
-                          face_orientation, omega, faces_to_nodes, nodes_y,
+                          face_clockwise, omega, faces_to_nodes, nodes_y,
                           nodes_z, normal, T, vol);
     } else if (basis == ZXY) {
       dswap(normal.x, normal.y);
       dswap(normal.x, normal.z);
       calc_face_integrals(nnodes_by_face, face_to_nodes_off, basis,
-                          face_orientation, omega, faces_to_nodes, nodes_z,
+                          face_clockwise, omega, faces_to_nodes, nodes_z,
                           nodes_x, normal, T, vol);
     }
   }
@@ -784,7 +784,7 @@ void construct_external_swept_region(
 
 // Constructs the prism for swept region of a subcell face internal to a cell
 void construct_internal_swept_region(
-    const int face_rorientation, const vec_t* half_edge_l,
+    const int face_clockwise, const vec_t* half_edge_l,
     const vec_t* half_edge_r, const vec_t* rz_half_edge_l,
     const vec_t* rz_half_edge_r, const vec_t* face_c, const vec_t* face2_c,
     const vec_t* rz_face_c, const vec_t* rz_face2_c, const vec_t* cell_centroid,
@@ -792,9 +792,9 @@ void construct_internal_swept_region(
     double* prism_nodes_y, double* prism_nodes_z) {
 
   // Constructing a prism from all known points in mesh and rezoned mesh
-  prism_nodes_x[(0)] = face_rorientation ? half_edge_r->x : half_edge_l->x;
-  prism_nodes_y[(0)] = face_rorientation ? half_edge_r->y : half_edge_l->y;
-  prism_nodes_z[(0)] = face_rorientation ? half_edge_r->z : half_edge_l->z;
+  prism_nodes_x[(0)] = face_clockwise ? half_edge_r->x : half_edge_l->x;
+  prism_nodes_y[(0)] = face_clockwise ? half_edge_r->y : half_edge_l->y;
+  prism_nodes_z[(0)] = face_clockwise ? half_edge_r->z : half_edge_l->z;
   prism_nodes_x[(1)] = face2_c->x;
   prism_nodes_y[(1)] = face2_c->y;
   prism_nodes_z[(1)] = face2_c->z;
@@ -804,12 +804,9 @@ void construct_internal_swept_region(
   prism_nodes_x[(3)] = face_c->x;
   prism_nodes_y[(3)] = face_c->y;
   prism_nodes_z[(3)] = face_c->z;
-  prism_nodes_x[(4)] =
-      face_rorientation ? rz_half_edge_r->x : rz_half_edge_l->x;
-  prism_nodes_y[(4)] =
-      face_rorientation ? rz_half_edge_r->y : rz_half_edge_l->y;
-  prism_nodes_z[(4)] =
-      face_rorientation ? rz_half_edge_r->z : rz_half_edge_l->z;
+  prism_nodes_x[(4)] = face_clockwise ? rz_half_edge_r->x : rz_half_edge_l->x;
+  prism_nodes_y[(4)] = face_clockwise ? rz_half_edge_r->y : rz_half_edge_l->y;
+  prism_nodes_z[(4)] = face_clockwise ? rz_half_edge_r->z : rz_half_edge_l->z;
   prism_nodes_x[(5)] = rz_face2_c->x;
   prism_nodes_y[(5)] = rz_face2_c->y;
   prism_nodes_z[(5)] = rz_face2_c->z;
@@ -970,14 +967,14 @@ void calc_subcell_centroids(
 
         vec_t normal;
         calc_normal(fn0, fn1, fn2, nodes_x0, nodes_y0, nodes_z0, &normal);
-        const int face_rorientation = check_normal_orientation(
+        const int face_clockwise = check_normal_orientation(
             fn0, nodes_x0, nodes_y0, nodes_z0, &cell_centroid, &normal);
 
         const int l_off = (sn_off == 0) ? nnodes_by_face - 1 : sn_off - 1;
         const int r_off = (sn_off == nnodes_by_face - 1) ? 0 : sn_off + 1;
         const int next_node_index =
-            face_rorientation ? faces_to_nodes[(face_to_nodes_off + r_off)]
-                              : faces_to_nodes[(face_to_nodes_off + l_off)];
+            face_clockwise ? faces_to_nodes[(face_to_nodes_off + r_off)]
+                           : faces_to_nodes[(face_to_nodes_off + l_off)];
 
         subcell_centroids_x[(subcell_index)] +=
             0.5 *

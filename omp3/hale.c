@@ -419,11 +419,11 @@ void solve_unstructured_hydro_2d(
         // This is duplicated work
         vec_t normal;
         calc_normal(fn0, fn1, fn2, nodes_x0, nodes_y0, nodes_z0, &normal);
-        const int face_rorientation = check_normal_orientation(
+        const int face_clockwise = check_normal_orientation(
             fn0, nodes_x0, nodes_y0, nodes_z0, &cell_centroid, &normal);
 
         construct_internal_swept_region(
-            face_rorientation, &half_edge_l, &half_edge_r, &rz_half_edge_l,
+            face_clockwise, &half_edge_l, &half_edge_r, &rz_half_edge_l,
             &rz_half_edge_r, &face_c, &face2_c, &rz_face_c, &rz_face2_c,
             &cell_centroid, &rz_cell_centroid, &prism_centroid, prism_nodes_x,
             prism_nodes_y, prism_nodes_z);

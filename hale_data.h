@@ -19,6 +19,8 @@
 #define HALE_TESTS "hale.tests"
 #define NNEIGHBOUR_NODES 2
 
+#define NSUBCELL_NEIGHBOURS 4
+
 // Describes the corner subcells
 #define NSUBCELL_NODES 8
 #define NSUBCELL_FACES 6
@@ -73,6 +75,7 @@ typedef struct {
 
   int* subcells_to_subcells;
   int* subcell_face_offsets;
+  int* subcell_to_neighbour_face;
 
   // TODO: These are large arrays, which definitely aren't used all at the same
   // time and so there are some potential capacity reclaiming optimisations
@@ -132,7 +135,8 @@ void init_subcells_to_subcells(
     const int* faces_to_nodes_offsets, const int* faces_to_nodes,
     const double* cell_centroids_x, const double* cell_centroids_y,
     const double* cell_centroids_z, int* cells_to_faces_offsets,
-    int* cells_to_faces, int* subcells_to_subcells, int* subcell_face_offsets);
+    int* cells_to_faces, int* subcells_to_subcells, int* subcell_face_offsets,
+    int* subcell_to_neighbour_face);
 
 // Initialise the subcells to faces connectivity list
 void init_subcells_to_faces(
