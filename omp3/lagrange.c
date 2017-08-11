@@ -24,6 +24,13 @@ void lagrangian_phase(
     int* faces_to_cells0, int* faces_to_cells1, int* cells_to_faces_offsets,
     int* cells_to_faces) {
 
+  double total_mass = 0.0;
+#pragma omp parallel for reduction(+ : total_mass)
+  for (int cc = 0; cc < ncells; ++cc) {
+    total_mass += cell_mass[(cc)];
+  }
+  printf("total mass %.12f\n", total_mass);
+
   /*
    *    PREDICTOR
    */
@@ -395,6 +402,9 @@ void lagrangian_phase(
         half_edge.x = 0.5 * (nodes_x1[(current_node)] + nodes_x1[(next_node)]);
         half_edge.y = 0.5 * (nodes_y1[(current_node)] + nodes_y1[(next_node)]);
         half_edge.z = 0.5 * (nodes_z1[(current_node)] + nodes_z1[(next_node)]);
+
+        // TODO: THIS VOLUME CALCLUATION SEEMS TO HAVE A BUG SOMEWHERE. I AM NOT
+        // CONVINCED THAT THE VOLUME IS BEING ACCURATELY CALCULATED.
 
         // Setup basis on plane of tetrahedron
         vec_t a;

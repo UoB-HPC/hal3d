@@ -193,14 +193,31 @@ void gather_subcell_quantities(
     }
   }
 
+// Zero all of the arrays ready to accumulate into them
+#pragma omp parallel for
+  for (int cc = 0; cc < ncells; ++cc) {
+    const int cell_to_nodes_off = cells_offsets[(cc)];
+    const int nsubcells_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+    for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
+      const int subcell_index = (cell_to_nodes_off + ss);
+      subcell_integrals_x[(subcell_index)] = 0.0;
+      subcell_integrals_y[(subcell_index)] = 0.0;
+      subcell_integrals_z[(subcell_index)] = 0.0;
+      subcell_volume[(subcell_index)] = 0.0;
+      subcell_ie_density[(subcell_index)] = 0.0;
+    }
+  }
+
 /*
 *      GATHERING STAGE OF THE REMAP
 */
 
 // Calculate the sub-cell internal energies
+#if 0
 #pragma omp parallel for
+#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
-    // Calculating the volume integrals necessary for the least squares
+    // calculating the volume integrals necessary for the least squares
     // regression
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
@@ -213,7 +230,7 @@ void gather_subcell_quantities(
     cell_centroid.y = cell_centroids_y[(cc)];
     cell_centroid.z = cell_centroids_z[(cc)];
 
-    // The coefficients of the 3x3 gradient coefficient matrix
+    // the coefficients of the 3x3 gradient coefficient matrix
     vec_t coeff[3] = {{0.0, 0.0, 0.0}};
     vec_t rhs = {0.0, 0.0, 0.0};
 
@@ -408,120 +425,14 @@ void gather_subcell_quantities(
 
           // Determine subcell energy from linear function at cell
           subcell_ie_density[(cell_to_nodes_off + nn2)] +=
-              vol * (density0[(cc)] * energy0[(cc)] -
-                     (grad_energy.x * cell_centroid.x +
-                      grad_energy.y * cell_centroid.y +
-                      grad_energy.z * cell_centroid.z)) +
+              vol * (cell_ie - (grad_energy.x * cell_centroid.x +
+                                grad_energy.y * cell_centroid.y +
+                                grad_energy.z * cell_centroid.z)) +
               grad_energy.x * integrals.x + grad_energy.y * integrals.y +
               grad_energy.z * integrals.z;
         }
       }
     }
-  }
-}
-
-// Calculates the face integral for the provided face, projected onto
-// the two-dimensional basis
-void calc_projections(const int nnodes_by_face, const int face_to_nodes_off,
-                      const int* faces_to_nodes, const double* alpha,
-                      const double* beta, pi_t* pi) {
-
-  double pione = 0.0;
-  double pialpha = 0.0;
-  double pialpha2 = 0.0;
-  double pibeta = 0.0;
-  double pibeta2 = 0.0;
-  double pialphabeta = 0.0;
-
-  // Calculate the coefficients for the projected face integral
-  for (int nn = 0; nn < nnodes_by_face; ++nn) {
-    const int n0 = faces_to_nodes[(face_to_nodes_off + nn)];
-    const int n1 = (nn == nnodes_by_face - 1)
-                       ? faces_to_nodes[(face_to_nodes_off)]
-                       : faces_to_nodes[(face_to_nodes_off + nn + 1)];
-
-    // Calculate all of the coefficients
-    const double a0 = alpha[(n0)];
-    const double a1 = alpha[(n1)];
-    const double b0 = beta[(n0)];
-    const double b1 = beta[(n1)];
-    const double dalpha = a1 - a0;
-    const double dbeta = b1 - b0;
-    const double Calpha = a1 * (a1 + a0) + a0 * a0;
-    const double Cbeta = b1 * b1 + b1 * b0 + b0 * b0;
-    const double Calphabeta = 3.0 * a1 * a1 + 2.0 * a1 * a0 + a0 * a0;
-    const double Kalphabeta = a1 * a1 + 2.0 * a1 * a0 + 3.0 * a0 * a0;
-
-    // Accumulate the projection integrals
-    pione += dbeta * (a1 + a0) / 2.0;
-    pialpha += dbeta * (Calpha) / 6.0;
-    pialpha2 += dbeta * (a1 * Calpha + a0 * a0 * a0) / 12.0;
-    pibeta -= dalpha * (Cbeta) / 6.0;
-    pibeta2 -= dalpha * (b1 * Cbeta + b0 * b0 * b0) / 12.0;
-    pialphabeta += dbeta * (b1 * Calphabeta + b0 * Kalphabeta) / 24.0;
-  }
-
-  // Store the final coefficients, flipping all results if we went through
-  // in a clockwise order and got a negative area
-  const double flip = (pione > 0.0 ? 1.0 : -1.0);
-  pi->one += flip * pione;
-  pi->alpha += flip * pialpha;
-  pi->alpha2 += flip * pialpha2;
-  pi->beta += flip * pibeta;
-  pi->beta2 += flip * pibeta2;
-  pi->alpha_beta += flip * pialphabeta;
-}
-
-// Resolves the volume integrals in alpha-beta-gamma basis
-void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
-                         const int orientation, const int n0,
-                         const int* faces_to_nodes, const double* nodes_alpha,
-                         const double* nodes_beta, const double* nodes_gamma,
-                         vec_t normal, vec_t* T, double* vol) {
-
-  pi_t pi = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-  calc_projections(nnodes_by_face, face_to_nodes_off, faces_to_nodes,
-                   nodes_alpha, nodes_beta, &pi);
-
-  // The projection of the normal vector onto a point on the face
-  double omega = -(normal.x * nodes_alpha[(n0)] + normal.y * nodes_beta[(n0)] +
-                   normal.z * nodes_gamma[(n0)]);
-
-  // Finalise the weighted face integrals
-  const double Falpha = pi.alpha / fabs(normal.z);
-  const double Fbeta = pi.beta / fabs(normal.z);
-  const double Fgamma =
-      -(normal.x * pi.alpha + normal.y * pi.beta + omega * pi.one) /
-      (fabs(normal.z) * normal.z);
-
-  const double Falpha2 = pi.alpha2 / fabs(normal.z);
-  const double Fbeta2 = pi.beta2 / fabs(normal.z);
-  const double Fgamma2 =
-      (normal.x * normal.x * pi.alpha2 +
-       2.0 * normal.x * normal.y * pi.alpha_beta +
-       normal.y * normal.y * pi.beta2 + 2.0 * normal.x * omega * pi.alpha +
-       2.0 * normal.y * omega * pi.beta + omega * omega * pi.one) /
-      (fabs(normal.z) * normal.z * normal.z);
-
-  // TODO: STUPID HACK UNTIL I FIND THE CULPRIT!
-  // x-y-z and the volumes are in the wrong order..
-
-  // Accumulate the weighted volume integrals
-  if (orientation == XYZ) {
-    T->y += 0.5 * normal.x * Falpha2;
-    T->x += 0.5 * normal.y * Fbeta2;
-    T->z += 0.5 * normal.z * Fgamma2;
-    *vol += normal.y * Fbeta;
-  } else if (orientation == YZX) {
-    T->y += 0.5 * normal.y * Fbeta2;
-    T->x += 0.5 * normal.z * Fgamma2;
-    T->z += 0.5 * normal.x * Falpha2;
-    *vol += normal.x * Falpha;
-  } else if (orientation == ZXY) {
-    T->y += 0.5 * normal.z * Fgamma2;
-    T->x += 0.5 * normal.x * Falpha2;
-    T->z += 0.5 * normal.y * Fbeta2;
-    *vol += normal.z * Fgamma;
   }
 }
 
@@ -599,6 +510,116 @@ void calc_normal(const int n0, const int n1, const int n2,
   normal->z = (dn0.x * dn1.y - dn0.y * dn1.x);
 }
 
+// Calculates the face integral for the provided face, projected onto
+// the two-dimensional basis
+void calc_projections(const int nnodes_by_face, const int face_to_nodes_off,
+                      const int* faces_to_nodes, const double* alpha,
+                      const double* beta, pi_t* pi) {
+
+  double pione = 0.0;
+  double pialpha = 0.0;
+  double pialpha2 = 0.0;
+  double pibeta = 0.0;
+  double pibeta2 = 0.0;
+  double pialphabeta = 0.0;
+
+  // Calculate the coefficients for the projected face integral
+  for (int nn = 0; nn < nnodes_by_face; ++nn) {
+    const int n0 = faces_to_nodes[(face_to_nodes_off + nn)];
+    const int n1 = (nn == nnodes_by_face - 1)
+                       ? faces_to_nodes[(face_to_nodes_off)]
+                       : faces_to_nodes[(face_to_nodes_off + nn + 1)];
+
+    // Calculate all of the coefficients
+    const double a0 = alpha[(n0)];
+    const double a1 = alpha[(n1)];
+    const double b0 = beta[(n0)];
+    const double b1 = beta[(n1)];
+    const double dalpha = a1 - a0;
+    const double dbeta = b1 - b0;
+    const double Calpha = a1 * (a1 + a0) + a0 * a0;
+    const double Cbeta = b1 * (b1 + b0) + b0 * b0;
+    const double Calphabeta = 3.0 * a1 * a1 + 2.0 * a1 * a0 + a0 * a0;
+    const double Kalphabeta = a1 * a1 + 2.0 * a1 * a0 + 3.0 * a0 * a0;
+
+    // Accumulate the projection integrals
+    pione += dbeta * (a1 + a0) / 2.0;
+    pialpha += dbeta * (Calpha) / 6.0;
+    pialpha2 += dbeta * (a1 * Calpha + a0 * a0 * a0) / 12.0;
+    pibeta -= dalpha * (Cbeta) / 6.0;
+    pibeta2 -= dalpha * (b1 * Cbeta + b0 * b0 * b0) / 12.0;
+    pialphabeta += dbeta * (b1 * Calphabeta + b0 * Kalphabeta) / 24.0;
+  }
+
+  // Store the final coefficients, flipping all results if we went through
+  // in a clockwise order and got a negative area
+  const double flip = 1.0; //(pione > 0.0 ? 1.0 : -1.0);
+  pi->one += flip * pione;
+  pi->alpha += flip * pialpha;
+  pi->alpha2 += flip * pialpha2;
+  pi->beta += flip * pibeta;
+  pi->beta2 += flip * pibeta2;
+  pi->alpha_beta += flip * pialphabeta;
+
+#if 0
+  printf("pi %.12f %.12f %.12f %.12f %.12f\n", pialpha, pialpha2, pibeta,
+         pibeta2, pialphabeta);
+#endif // if 0
+}
+
+// Resolves the volume integrals in alpha-beta-gamma basis
+void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
+                         const int orientation, const double omega,
+                         const int* faces_to_nodes, const double* nodes_alpha,
+                         const double* nodes_beta, vec_t normal, vec_t* T,
+                         double* vol) {
+
+  pi_t pi = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+  calc_projections(nnodes_by_face, face_to_nodes_off, faces_to_nodes,
+                   nodes_alpha, nodes_beta, &pi);
+
+  // Finalise the weighted face integrals
+  const double Falpha = pi.alpha / normal.z;
+  const double Fbeta = pi.beta / normal.z;
+  const double Fgamma =
+      -(normal.x * pi.alpha + normal.y * pi.beta + omega * pi.one) /
+      (normal.z * normal.z);
+
+  const double Falpha2 = pi.alpha2 / normal.z;
+  const double Fbeta2 = pi.beta2 / normal.z;
+  const double Fgamma2 =
+      (normal.x * normal.x * pi.alpha2 +
+       2.0 * normal.x * normal.y * pi.alpha_beta +
+       normal.y * normal.y * pi.beta2 +
+       omega * (2.0 * (normal.x * pi.alpha + normal.y * pi.beta) +
+                omega * pi.one)) /
+      (normal.z * normal.z * normal.z);
+
+  printf("F %.12f %.12f %.12f %.12f %.12f %.12f\n", Falpha, Fbeta, Fgamma,
+         Falpha2, Fbeta2, Fgamma2);
+
+  // Accumulate the weighted volume integrals
+  if (orientation == XYZ) {
+    T->x += 0.5 * normal.x * Falpha2;
+    T->y += 0.5 * normal.y * Fbeta2;
+    T->z += 0.5 * normal.z * Fgamma2;
+    printf("T xyz %.12f %.12f %.12f\n", T->x * 2.0, T->y * 2.0, T->z * 2.0);
+    *vol += normal.x * Falpha;
+  } else if (orientation == YZX) {
+    T->y += 0.5 * normal.x * Falpha2;
+    T->z += 0.5 * normal.y * Fbeta2;
+    T->x += 0.5 * normal.z * Fgamma2;
+    printf("T yzx %.12f %.12f %.12f\n", T->y * 2.0, T->z * 2.0, T->x * 2.0);
+    *vol += normal.z * Fgamma;
+  } else if (orientation == ZXY) {
+    T->z += 0.5 * normal.x * Falpha2;
+    T->x += 0.5 * normal.y * Fbeta2;
+    T->y += 0.5 * normal.z * Fgamma2;
+    printf("T zxy %.12f %.12f %.12f\n", T->z * 2.0, T->x * 2.0, T->y * 2.0);
+    *vol += normal.y * Fbeta;
+  }
+}
+
 // Calculates the weighted volume integrals for a provided cell along x-y-z
 void calc_weighted_volume_integrals(
     const int cell_to_faces_off, const int nfaces_by_cell,
@@ -631,6 +652,10 @@ void calc_weighted_volume_integrals(
     calc_surface_normal(n0, n1, n2, nodes_x, nodes_y, nodes_z, cell_centroid,
                         &normal);
 
+    // The projection of the normal vector onto a point on the face
+    double omega = -(normal.x * nodes_x[(n0)] + normal.y * nodes_y[(n0)] +
+                     normal.z * nodes_z[(n0)]);
+
     // Select the orientation based on the face area
     int orientation;
     if (fabs(normal.x) > fabs(normal.y)) {
@@ -643,24 +668,20 @@ void calc_weighted_volume_integrals(
     // We calculate the individual face integrals and the unit normal to the
     // face in the alpha-beta-gamma basis
     // The weighted integrals essentially provide the center of mass
-    // coordinates
-    // for the polyhedra
+    // coordinates for the polyhedra
     if (orientation == XYZ) {
-      calc_face_integrals(nnodes_by_face, face_to_nodes_off, orientation, n0,
-                          faces_to_nodes, nodes_x, nodes_y, nodes_z, normal, T,
-                          vol);
+      calc_face_integrals(nnodes_by_face, face_to_nodes_off, orientation, omega,
+                          faces_to_nodes, nodes_x, nodes_y, normal, T, vol);
     } else if (orientation == YZX) {
       dswap(normal.x, normal.y);
       dswap(normal.y, normal.z);
-      calc_face_integrals(nnodes_by_face, face_to_nodes_off, orientation, n0,
-                          faces_to_nodes, nodes_y, nodes_z, nodes_x, normal, T,
-                          vol);
+      calc_face_integrals(nnodes_by_face, face_to_nodes_off, orientation, omega,
+                          faces_to_nodes, nodes_y, nodes_z, normal, T, vol);
     } else if (orientation == ZXY) {
       dswap(normal.x, normal.y);
       dswap(normal.x, normal.z);
-      calc_face_integrals(nnodes_by_face, face_to_nodes_off, orientation, n0,
-                          faces_to_nodes, nodes_z, nodes_x, nodes_y, normal, T,
-                          vol);
+      calc_face_integrals(nnodes_by_face, face_to_nodes_off, orientation, omega,
+                          faces_to_nodes, nodes_z, nodes_x, normal, T, vol);
     }
   }
 }

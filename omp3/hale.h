@@ -91,10 +91,10 @@ void calc_projections(const int nnodes_by_face, const int face_to_nodes_off,
 
 // Resolves the volume integrals in alpha-beta-gamma basis
 void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
-                         const int orientation, const int n0,
+                         const int orientation, const double omega,
                          const int* faces_to_nodes, const double* nodes_alpha,
-                         const double* nodes_beta, const double* nodes_gamma,
-                         vec_t normal, vec_t* T, double* vol);
+                         const double* nodes_beta, vec_t normal, vec_t* T,
+                         double* vol);
 
 // Calculate the centroid
 void calc_centroid(const int nnodes, const double* nodes_x,
