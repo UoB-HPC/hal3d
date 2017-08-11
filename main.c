@@ -20,6 +20,7 @@ int main(int argc, char** argv) {
 
   // Store some of the generic mesh meta data
   Mesh mesh = {0};
+
   const char* hale_params = argv[1];
   mesh.niters = get_int_parameter("iterations", hale_params);
   mesh.max_dt = get_double_parameter("max_dt", ARCH_ROOT_PARAMS);
@@ -27,6 +28,7 @@ int main(int argc, char** argv) {
   mesh.global_nx = get_int_parameter("nx", hale_params);
   mesh.global_ny = get_int_parameter("ny", hale_params);
   mesh.global_nz = get_int_parameter("nz", hale_params);
+  mesh.pad = 0;
   mesh.local_nx = mesh.global_nx + 2 * mesh.pad;
   mesh.local_ny = mesh.global_ny + 2 * mesh.pad;
   mesh.local_nz = mesh.global_nz + 2 * mesh.pad;
@@ -39,6 +41,37 @@ int main(int argc, char** argv) {
   mesh.nranks = 1;
   const int visit_dump = get_int_parameter("visit_dump", hale_params);
   const int read_umesh = get_int_parameter("read_umesh", hale_params);
+
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  mesh.width = 3.0;
+  mesh.height = 3.0;
+  mesh.depth = 3.0;
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
 
   double i0 = omp_get_wtime();
 
@@ -134,9 +167,9 @@ int main(int argc, char** argv) {
         hale_data.density0, hale_data.density1, hale_data.pressure0,
         hale_data.pressure1, hale_data.velocity_x0, hale_data.velocity_y0,
         hale_data.velocity_z0, hale_data.velocity_x1, hale_data.velocity_y1,
-        hale_data.velocity_z1, hale_data.subcell_force_x,
-        hale_data.subcell_force_y, hale_data.subcell_force_z,
-        hale_data.cell_mass, hale_data.nodal_mass, hale_data.nodal_volumes,
+        hale_data.velocity_z1, hale_data.corner_force_x,
+        hale_data.corner_force_y, hale_data.corner_force_z, hale_data.cell_mass,
+        hale_data.nodal_mass, hale_data.nodal_volumes,
         hale_data.nodal_soundspeed, hale_data.limiter, hale_data.subcell_volume,
         hale_data.subcell_ie_density, hale_data.subcell_mass,
         hale_data.subcell_velocity_x, hale_data.subcell_velocity_y,

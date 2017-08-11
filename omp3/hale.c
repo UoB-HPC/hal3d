@@ -37,23 +37,10 @@ void solve_unstructured_hydro_2d(
     int* subcells_to_subcells) {
 
 #if 0
-  // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
-  // due to the pressure (ideal gas) and artificial viscous forces
-  lagrangian_phase(
-      mesh, ncells, nnodes, visc_coeff1, visc_coeff2, cell_centroids_x,
-      cell_centroids_y, cell_centroids_z, cells_to_nodes, cells_offsets,
-      nodes_to_cells, nodes_offsets, nodes_x0, nodes_y0, nodes_z0, nodes_x1,
-      nodes_y1, nodes_z1, boundary_index, boundary_type, boundary_normal_x,
-      boundary_normal_y, boundary_normal_z, energy0, energy1, density0,
-      density1, pressure0, pressure1, velocity_x0, velocity_y0, velocity_z0,
-      velocity_x1, velocity_y1, velocity_z1, subcell_force_x, subcell_force_y,
-      subcell_force_z, cell_mass, nodal_mass, nodal_volumes, nodal_soundspeed,
-      limiter, nodes_to_faces_offsets, nodes_to_faces, faces_to_nodes,
-      faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
-      cells_to_faces_offsets, cells_to_faces);
-#endif // if 0
-
-  nodes_x0[0] += 0.1;
+  nodes_x0[0] += 0.3;
+  nodes_x0[1] += 0.3;
+  nodes_x0[2] += 0.3;
+  nodes_x0[3] += 0.3;
 
   init_cell_centroids(ncells, cells_offsets, cells_to_nodes, nodes_x0, nodes_y0,
                       nodes_z0, cell_centroids_x, cell_centroids_y,
@@ -78,6 +65,24 @@ void solve_unstructured_hydro_2d(
 
     density0[(cc)] = cell_mass[(cc)] / vol;
   }
+#endif // if 0
+
+#if 0
+  // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
+  // due to the pressure (ideal gas) and artificial viscous forces
+  lagrangian_phase(
+      mesh, ncells, nnodes, visc_coeff1, visc_coeff2, cell_centroids_x,
+      cell_centroids_y, cell_centroids_z, cells_to_nodes, cells_offsets,
+      nodes_to_cells, nodes_offsets, nodes_x0, nodes_y0, nodes_z0, nodes_x1,
+      nodes_y1, nodes_z1, boundary_index, boundary_type, boundary_normal_x,
+      boundary_normal_y, boundary_normal_z, energy0, energy1, density0,
+      density1, pressure0, pressure1, velocity_x0, velocity_y0, velocity_z0,
+      velocity_x1, velocity_y1, velocity_z1, subcell_force_x, subcell_force_y,
+      subcell_force_z, cell_mass, nodal_mass, nodal_volumes, nodal_soundspeed,
+      limiter, nodes_to_faces_offsets, nodes_to_faces, faces_to_nodes,
+      faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
+      cells_to_faces_offsets, cells_to_faces);
+#endif // if 0
 
   // Gather the subcell quantities for mass, internal and kinetic energy
   // density, and momentum
@@ -107,7 +112,7 @@ void solve_unstructured_hydro_2d(
     }
     total_ie += cell_mass[cc] * energy0[cc];
     total_ie_subcell += subcell_sum;
-    printf("ie : %.12f = %.12f\n\n", cell_mass[cc] * energy0[cc], subcell_sum);
+    printf("ie : %.12f = %.12f\n", cell_mass[cc] * energy0[cc], subcell_sum);
   }
   printf("total ie %.12f = %.12f\n", total_ie, total_ie_subcell);
 
@@ -458,167 +463,25 @@ void solve_unstructured_hydro_2d(
 #endif // if 0
 }
 
-/*
- * We can save improve performance here by caching the gradients in the
- * case that the swept edge region is primarily overlapping our current
- * cell. In the cases where it is not, presumably half of the
- * calculations, we have to perform redundant computation. My assumption
- * here is that the calculation of the gradients is significantly
- * cheaper than the calculation of the swept edge regions. If this turns
- * out to be a faulty assumption, perhaps due to the computational
- * intensity, then another of the three obvious algorithms for this step
- * could be chosen.
- *
- * The best case algorithm in terms of reducing repeated or redundant
- * computation will lead to a data race, and we may see that atomics
- * are able to win out for some architectures instead of this approach
- * here.
- */
-
-// Calculate the swept edge remap for each of the subcells.
-// TODO: There a again many different ways to crack this nut. One
-// consideration
-// is that teh whole algorithm will allow you to precompute and store for
-// re-use, but artefacts such as the inverse coefficient matrix for the least
-// squares, which stays the same for all density calculations of a subcell,
-// are
-// essentially prohibitively large for storage.
-//
-// The approach I am currently taking here is to calculate the inverse
-// coefficient matrix and then perform the gradient calculations and swept
-// edge
-// remaps for all of the densities for a particular subcell in a single
-// timestep. The impplication is that the whole calculation will be repeated
-// many times, but it seems like this will be the case regardless and my
-// intuition is that this path leads to the fewest expensive and repetitious
-// calculations.
-//
-// The choices I can see are:
-//  (1) remap all of the variables for a subcell
-//  (2) remap each variable individually for every subcell
-//
-//  option (1) will have to recompute the gradient coefficients every time
-//  option (2) will have to recompute the gradients for local subcells every
-//  time
-
-// TODO: At this stage, there are so many additional fields required
-// to handle the sub-cell data for the remapping phase, there will be some use
-// in considering whether some of the fields could be shared or whether
-// adaptations to the algorithm are even necessary for this particular point
-
 #if 0
-  for (int ii = 0; ii < mesh->local_nz; ++ii) {
-    for (int jj = 0; jj < mesh->local_ny; ++jj) {
-      for (int kk = 0; kk < mesh->local_nx; ++kk) {
-        const int cell_index =
-            ii * mesh->local_nx * mesh->local_ny + jj * mesh->local_nx + kk;
+const int tet_faces_to_nodes_offsets[] = {0, 4, 8, 12, 16, 20, 24};
+const int tet_faces_to_nodes[] = {0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 5, 4,
+  6, 2, 3, 7, 1, 2, 6, 5, 0, 4, 7, 3};
+const int tet_to_faces[] = {0, 1, 2, 3, 4, 5};
+double tet_nodes_x[] = {1.0, 2.0, 2.0, 1.0, 1.0, 2.0, 2.0, 1.0};
+double tet_nodes_y[] = {1.0, 1.0, 2.0, 2.0, 1.0, 1.0, 2.0, 2.0};
+double tet_nodes_z[] = {1.1, 1.1, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0};
 
-        if (ii == 0 && kk < mesh->local_nx)
-          density0[(cell_index)] = 1.111111111111111111;
-      }
-    }
-  }
-#endif // if 0
-#if 0
-  for (int ii = 0; ii < mesh->local_nz + 1; ++ii) {
-    for (int jj = 0; jj < mesh->local_ny + 1; ++jj) {
-      for (int kk = 0; kk < mesh->local_nx + 1; ++kk) {
-        const int node_index =
-            ii * (mesh->local_nx + 1) * (mesh->local_ny + 1) +
-            jj * (mesh->local_nx + 1) + kk;
+vec_t tet_integrals;
+vec_t tet_centroid = {1.5, 1.5, 1.5};
+double vol;
+calc_weighted_volume_integrals(0, NSUBCELL_FACES, tet_to_faces,
+    tet_faces_to_nodes, tet_faces_to_nodes_offsets,
+    tet_nodes_x, tet_nodes_y, tet_nodes_z,
+    &tet_centroid, &tet_integrals, &vol);
 
-        if (ii == 0 && kk < mesh->local_nx + 1)
-          nodes_z0[(node_index)] += 0.1;
-      }
-    }
-  }
+printf("%.12f %.12f %.12f %.12f\n", tet_integrals.x, tet_integrals.y,
+    tet_integrals.z, vol);
 
-  double cell_volume[200];
-  for (int cc = 0; cc < ncells; ++cc) {
-    cell_volume[cc] = 0.0;
-  }
-
-  for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
-    const int nfaces_by_cell =
-        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
-    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
-      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
-      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-      const int nnodes_by_face =
-          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-      vec_t face_c = {0.0, 0.0, 0.0};
-      calc_centroid(nnodes_by_face, nodes_x0, nodes_y0, nodes_z0,
-                    faces_to_nodes, face_to_nodes_off, &face_c);
-      for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
-        const int current_node = faces_to_nodes[(face_to_nodes_off + nn2)];
-        const int next_node =
-            (nn2 + 1 < nnodes_by_face)
-                ? faces_to_nodes[(face_to_nodes_off + nn2 + 1)]
-                : faces_to_nodes[(face_to_nodes_off)];
-        vec_t half_edge;
-        half_edge.x = 0.5 * (nodes_x0[(current_node)] + nodes_x0[(next_node)]);
-        half_edge.y = 0.5 * (nodes_y0[(current_node)] + nodes_y0[(next_node)]);
-        half_edge.z = 0.5 * (nodes_z0[(current_node)] + nodes_z0[(next_node)]);
-        vec_t a;
-        a.x = (half_edge.x - face_c.x);
-        a.y = (half_edge.y - face_c.y);
-        a.z = (half_edge.z - face_c.z);
-        vec_t b;
-        b.x = (cell_centroids_x[(cc)] - face_c.x);
-        b.y = (cell_centroids_y[(cc)] - face_c.y);
-        b.z = (cell_centroids_z[(cc)] - face_c.z);
-        vec_t S;
-        S.x = 0.5 * (a.y * b.z - a.z * b.y);
-        S.y = -0.5 * (a.x * b.z - a.z * b.x);
-        S.z = 0.5 * (a.x * b.y - a.y * b.x);
-        cell_volume[(cc)] +=
-            fabs(2.0 * ((half_edge.x - nodes_x0[(current_node)]) * S.x +
-                        (half_edge.y - nodes_y0[(current_node)]) * S.y +
-                        (half_edge.z - nodes_z0[(current_node)]) * S.z) /
-                 3.0);
-      }
-    }
-    density0[(cc)] = cell_mass[(cc)] / cell_volume[cc];
-  }
-#endif // if 0
-#if 0
-  for (int ii = 0; ii < mesh->local_nz + 1; ++ii) {
-    for (int jj = 0; jj < mesh->local_ny + 1; ++jj) {
-      for (int kk = 0; kk < mesh->local_nx + 1; ++kk) {
-        const int node_index =
-            ii * (mesh->local_nx + 1) * (mesh->local_ny + 1) +
-            jj * (mesh->local_nx + 1) + kk;
-        printf("(%.4f,%.4f,%.4f) ", nodes_x0[node_index], nodes_y0[node_index],
-               nodes_z0[node_index]);
-
-        if (ii == 0 && kk < mesh->local_nx + 1)
-          nodes_z0[(node_index)] += 0.1 * (double)jj;
-      }
-      printf("\n");
-    }
-    printf("\n");
-  }
-#endif // if 0
-#if 0
-  const int tet_faces_to_nodes_offsets[] = {0, 4, 8, 12, 16, 20, 24};
-  const int tet_faces_to_nodes[] = {0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 5, 4,
-                                    6, 2, 3, 7, 1, 2, 6, 5, 0, 4, 7, 3};
-  const int tet_to_faces[] = {0, 1, 2, 3, 4, 5};
-  double tet_nodes_x[] = {1.1, 2.0, 2.0, 1.0, 1.0, 2.0, 2.0, 1.0};
-  double tet_nodes_y[] = {1.0, 1.0, 2.0, 2.0, 1.0, 1.0, 2.0, 2.0};
-  double tet_nodes_z[] = {1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0};
-
-  vec_t tet_integrals;
-  vec_t tet_centroid = {1.5, 1.5, 1.5};
-  double vol;
-  calc_weighted_volume_integrals(0, NSUBCELL_FACES, tet_to_faces,
-                                 tet_faces_to_nodes, tet_faces_to_nodes_offsets,
-                                 tet_nodes_x, tet_nodes_y, tet_nodes_z,
-                                 &tet_centroid, &tet_integrals, &vol);
-
-  printf("%.12f %.12f %.12f %.12f\n", tet_integrals.x, tet_integrals.y,
-         tet_integrals.z, vol);
-
-  return;
+return;
 #endif // if 0

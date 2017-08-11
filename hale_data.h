@@ -86,9 +86,9 @@ typedef struct {
   double* subcell_centroids_x;
   double* subcell_centroids_y;
   double* subcell_centroids_z;
-  double* subcell_force_x;
-  double* subcell_force_y;
-  double* subcell_force_z;
+  double* corner_force_x;
+  double* corner_force_y;
+  double* corner_force_z;
   double* subcell_kinetic_energy;
   double* subcell_integrals_x;
   double* subcell_integrals_y;

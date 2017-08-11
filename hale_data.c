@@ -10,7 +10,10 @@
 
 // Initialises the shared_data variables for two dimensional applications
 size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
-  hale_data->nsubcells = umesh->ncells * umesh->nnodes_by_cell;
+  const int nfaces_by_cell = 6;
+  const int nnodes_by_face = 4;
+  const int nnodes_by_cell = 8;
+  hale_data->nsubcells = umesh->ncells * nfaces_by_cell * nnodes_by_face;
   hale_data->nsubcell_edges = 4;
 
   size_t allocated = allocate_data(&hale_data->pressure0, umesh->ncells);
@@ -60,9 +63,12 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
       allocate_data(&hale_data->subcell_ie_density, hale_data->nsubcells);
   allocated += allocate_data(&hale_data->subcell_volume, hale_data->nsubcells);
   allocated += allocate_data(&hale_data->subcell_mass, hale_data->nsubcells);
-  allocated += allocate_data(&hale_data->subcell_force_x, hale_data->nsubcells);
-  allocated += allocate_data(&hale_data->subcell_force_y, hale_data->nsubcells);
-  allocated += allocate_data(&hale_data->subcell_force_z, hale_data->nsubcells);
+  allocated +=
+      allocate_data(&hale_data->corner_force_x, umesh->ncells * nnodes_by_cell);
+  allocated +=
+      allocate_data(&hale_data->corner_force_y, umesh->ncells * nnodes_by_cell);
+  allocated +=
+      allocate_data(&hale_data->corner_force_z, umesh->ncells * nnodes_by_cell);
   allocated +=
       allocate_data(&hale_data->subcell_centroids_x, hale_data->nsubcells);
   allocated +=
