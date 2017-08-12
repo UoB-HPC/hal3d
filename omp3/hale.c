@@ -36,37 +36,6 @@ void solve_unstructured_hydro_2d(
     int* subcells_to_subcells) {
 
 #if 0
-  nodes_x0[0] += 0.3;
-  nodes_x0[1] += 0.3;
-  nodes_x0[2] += 0.3;
-  nodes_x0[3] += 0.3;
-
-  init_cell_centroids(ncells, cells_offsets, cells_to_nodes, nodes_x0, nodes_y0,
-                      nodes_z0, cell_centroids_x, cell_centroids_y,
-                      cell_centroids_z);
-
-  for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
-    const int nfaces_by_cell =
-        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
-
-    vec_t cell_centroid;
-    cell_centroid.x = cell_centroids_x[(cc)];
-    cell_centroid.y = cell_centroids_y[(cc)];
-    cell_centroid.z = cell_centroids_z[(cc)];
-
-    vec_t integrals = {0.0, 0.0, 0.0};
-    double vol = 0.0;
-    calc_weighted_volume_integrals(cell_to_faces_off, nfaces_by_cell,
-                                   cells_to_faces, faces_to_nodes,
-                                   faces_to_nodes_offsets, nodes_x0, nodes_y0,
-                                   nodes_z0, &cell_centroid, &integrals, &vol);
-
-    density0[(cc)] = cell_mass[(cc)] / vol;
-  }
-#endif // if 0
-
-#if 0
   // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
   // due to the pressure (ideal gas) and artificial viscous forces
   lagrangian_phase(
@@ -483,4 +452,35 @@ printf("%.12f %.12f %.12f %.12f\n", tet_integrals.x, tet_integrals.y,
     tet_integrals.z, vol);
 
 return;
+#if 0
+  nodes_x0[0] += 0.3;
+  nodes_x0[1] += 0.3;
+  nodes_x0[2] += 0.3;
+  nodes_x0[3] += 0.3;
+
+  init_cell_centroids(ncells, cells_offsets, cells_to_nodes, nodes_x0, nodes_y0,
+                      nodes_z0, cell_centroids_x, cell_centroids_y,
+                      cell_centroids_z);
+
+  for (int cc = 0; cc < ncells; ++cc) {
+    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
+    const int nfaces_by_cell =
+        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
+
+    vec_t cell_centroid;
+    cell_centroid.x = cell_centroids_x[(cc)];
+    cell_centroid.y = cell_centroids_y[(cc)];
+    cell_centroid.z = cell_centroids_z[(cc)];
+
+    vec_t integrals = {0.0, 0.0, 0.0};
+    double vol = 0.0;
+    calc_weighted_volume_integrals(cell_to_faces_off, nfaces_by_cell,
+                                   cells_to_faces, faces_to_nodes,
+                                   faces_to_nodes_offsets, nodes_x0, nodes_y0,
+                                   nodes_z0, &cell_centroid, &integrals, &vol);
+
+    density0[(cc)] = cell_mass[(cc)] / vol;
+  }
+#endif // if 0
+
 #endif // if 0

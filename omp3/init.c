@@ -230,7 +230,7 @@ void init_subcells_to_subcells(
             // Find the node that determines the subcell on this neighbour
             for (int nn2 = 0; nn2 < nnodes_by_neighbour_face; ++nn2) {
               if (faces_to_nodes[(neighbour_face_to_nodes_off + nn2)] ==
-                  faces_to_nodes_offsets[(face_to_nodes_off + 0)]) {
+                  faces_to_nodes[(face_to_nodes_off + nn)]) {
                 const int neighbour_subcell_index =
                     subcell_face_offsets[(neighbour_to_faces_off + ff)] + nn2;
                 subcells_to_subcells[(subcell_index * NSUBCELL_NEIGHBOURS)] =
@@ -324,18 +324,6 @@ void init_subcells_to_subcells(
           printf("%d ", subcells_to_subcells[index]);
         }
         printf("\n");
-      }
-      printf("\n");
-    }
-    printf("\n");
-  }
-
-  printf("\n\n");
-  for (int cc = 0; cc < ncells; ++cc) {
-    for (int ff = 0; ff < 6; ++ff) {
-      for (int nn = 0; nn < 4; ++nn) {
-        const int index = cc * 6 * 4 + ff * 4 + nn;
-        printf("%d ", subcell_to_neighbour_face[index]);
       }
       printf("\n");
     }
