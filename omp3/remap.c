@@ -499,12 +499,14 @@ void calc_normal(const int n0, const int n1, const int n2,
   // Get two vectors on the face plane
   vec_t dn0 = {0.0, 0.0, 0.0};
   vec_t dn1 = {0.0, 0.0, 0.0};
-  dn0.x = nodes_x[(n2)] - nodes_x[(n1)];
-  dn0.y = nodes_y[(n2)] - nodes_y[(n1)];
-  dn0.z = nodes_z[(n2)] - nodes_z[(n1)];
-  dn1.x = nodes_x[(n1)] - nodes_x[(n0)];
-  dn1.y = nodes_y[(n1)] - nodes_y[(n0)];
-  dn1.z = nodes_z[(n1)] - nodes_z[(n0)];
+
+  // Outwards facing normal for clockwise ordering
+  dn0.x = nodes_x[(n0)] - nodes_x[(n1)];
+  dn0.y = nodes_y[(n0)] - nodes_y[(n1)];
+  dn0.z = nodes_z[(n0)] - nodes_z[(n1)];
+  dn1.x = nodes_x[(n2)] - nodes_x[(n1)];
+  dn1.y = nodes_y[(n2)] - nodes_y[(n1)];
+  dn1.z = nodes_z[(n2)] - nodes_z[(n1)];
 
   // Cross product to get the normal
   normal->x = (dn0.y * dn1.z - dn0.z * dn1.y);
