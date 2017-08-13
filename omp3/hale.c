@@ -35,6 +35,7 @@ void solve_unstructured_hydro_2d(
     int* cells_to_faces_offsets, int* cells_to_faces, int* subcell_face_offsets,
     int* subcells_to_subcells) {
 
+#if 0
   // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
   // due to the pressure (ideal gas) and artificial viscous forces
   lagrangian_phase(
@@ -49,8 +50,8 @@ void solve_unstructured_hydro_2d(
       limiter, nodes_to_faces_offsets, nodes_to_faces, faces_to_nodes,
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
+#endif // if 0
 
-#if 0
   // Gather the subcell quantities for mass, internal and kinetic energy
   // density, and momentum
   gather_subcell_quantities(
@@ -64,53 +65,19 @@ void solve_unstructured_hydro_2d(
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
 
-  double total_ie = 0.0;
-  double total_ie_subcell = 0.0;
-
-  for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
-    const int nfaces_by_cell =
-        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
-
-    double subcell_sum = 0.0;
-    double subcell_mass_sum = 0.0;
-    double volume_by_subcell = 0.0;
-    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
-      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
-      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-      const int nnodes_by_face =
-          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-      const int subcell_off = subcell_face_offsets[(cell_to_faces_off + ff)];
-
-      for (int nn = 0; nn < nnodes_by_face; ++nn) {
-        const int subcell_index = subcell_off + nn;
-        subcell_sum += subcell_ie_density[(subcell_index)];
-        volume_by_subcell += subcell_volume[(subcell_index)];
-        subcell_mass_sum += subcell_mass[(subcell_index)];
-      }
-    }
-    total_ie += cell_mass[cc] * energy0[cc];
-    total_ie_subcell += subcell_sum;
-#if 0
-    printf("ie : %.12f = %.12f\n", cell_mass[cc] * energy0[cc], subcell_sum);
-#endif // if 0
-  }
-  printf("total ie %.12f = %.12f\n", total_ie, total_ie_subcell);
-#endif // if 0
-
-#if 0
   // Calculate all of the subcell centroids, this is precomputed because the
   // reconstruction of the subcell nodes from faces is quite expensive, and will
   // require a significant amount of repetetive compute inside the remapping
   // step due to the fact that the swept regions don't only take from the
   // current subcell, but the neighbouring subcells too
-  calc_subcell_centroids(ncells, cells_offsets, cell_centroids_x,
-                         cell_centroids_y, cell_centroids_z, cells_to_nodes,
-                         subcell_face_offsets, subcells_to_faces,
-                         faces_to_nodes_offsets, faces_to_nodes, nodes_x0,
-                         nodes_y0, nodes_z0, subcell_centroids_x,
-                         subcell_centroids_y, subcell_centroids_z);
+  // Calculates the subcells of all centroids
+  calc_subcell_centroids(
+      ncells, cell_centroids_x, cell_centroids_y, cell_centroids_z,
+      subcell_face_offsets, faces_to_nodes_offsets, faces_to_nodes,
+      cells_to_faces_offsets, cells_to_faces, nodes_x0, nodes_y0, nodes_z0,
+      subcell_centroids_x, subcell_centroids_y, subcell_centroids_z);
 
+#if 0
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nsubcells_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
@@ -146,8 +113,7 @@ void solve_unstructured_hydro_2d(
     for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
       const int subcell_index = (cell_to_nodes_off + ss);
       const int subcell_node_index = cells_to_nodes[(subcell_index)];
-      const int subcell_to_faces_off =
-          subcell_face_offsets[(subcell_index)];
+      const int subcell_to_faces_off = subcell_face_offsets[(subcell_index)];
       const int nfaces_by_subcell =
           subcell_face_offsets[(subcell_index + 1)] - subcell_to_faces_off;
       const int subcell_to_subcells_off =
@@ -299,11 +265,11 @@ void solve_unstructured_hydro_2d(
           int nsubcells_by_subcell;
           int subcell_to_subcells_off;
           calc_inverse_coefficient_matrix(
-              sweep_subcell_index, subcell_face_offsets,
-              subcells_to_subcells, subcell_integrals_x, subcell_integrals_y,
-              subcell_integrals_z, subcell_centroids_x, subcell_centroids_y,
-              subcell_centroids_z, subcell_volume, &nsubcells_by_subcell,
-              &subcell_to_subcells_off, &inv);
+              sweep_subcell_index, subcell_face_offsets, subcells_to_subcells,
+              subcell_integrals_x, subcell_integrals_y, subcell_integrals_z,
+              subcell_centroids_x, subcell_centroids_y, subcell_centroids_z,
+              subcell_volume, &nsubcells_by_subcell, &subcell_to_subcells_off,
+              &inv);
 
           for (int ii = 0; ii < 3; ++ii) {
             printf("inv (%.6f %.6f %.6f)\n", inv[ii].x, inv[ii].y, inv[ii].z);
