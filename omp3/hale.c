@@ -35,7 +35,6 @@ void solve_unstructured_hydro_2d(
     int* cells_to_faces_offsets, int* cells_to_faces, int* subcell_face_offsets,
     int* subcells_to_subcells) {
 
-#if 0
   // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
   // due to the pressure (ideal gas) and artificial viscous forces
   lagrangian_phase(
@@ -63,7 +62,6 @@ void solve_unstructured_hydro_2d(
       nodes_to_faces_offsets, nodes_to_faces, faces_to_nodes,
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
-#endif // if 0
 
   for (int nn = 0; nn < nnodes; ++nn) {
     rezoned_nodes_x[(nn)] += 0.5;
@@ -184,11 +182,6 @@ void solve_unstructured_hydro_2d(
             prism_nodes_z, &prism_centroid, &swept_edge_integrals,
             &swept_edge_vol);
 
-#if 0
-        printf("%.12f %.12f %.12f %.12f\n", swept_edge_integrals.x,
-               swept_edge_integrals.y, swept_edge_integrals.z, swept_edge_vol);
-#endif // if 0
-
         // Ignore faces that haven't changed.
         if (swept_edge_vol <= 0.0) {
           continue;
@@ -227,10 +220,6 @@ void solve_unstructured_hydro_2d(
         int sweep_subcell_index =
             (is_internal_sweep ? subcell_index : subcell_neighbour_index);
 
-        printf("%d %d %d fn %.12f %.12f %.12f\n", is_internal_sweep,
-               subcell_neighbour_index, sweep_subcell_index, face_normal.x,
-               face_normal.y, face_normal.z);
-
         // Calculate the inverse coefficient matrix for the least squares
         // regression of the gradient, which is the same for all quantities.
         vec_t inv[3];
@@ -241,10 +230,6 @@ void solve_unstructured_hydro_2d(
             subcell_integrals_y, subcell_integrals_z, subcell_centroids_x,
             subcell_centroids_y, subcell_centroids_z, subcell_volume,
             nsubcells_by_subcell, subcell_to_subcells_off, &inv);
-
-        for (int ii = 0; ii < 3; ++ii) {
-          printf("inv (%.6f %.6f %.6f)\n", inv[ii].x, inv[ii].y, inv[ii].z);
-        }
 
         // Only perform the sweep on the external face if it isn't a boundary
         if (subcell_neighbour_index != -1) {

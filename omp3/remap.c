@@ -74,21 +74,6 @@ void gather_subcell_quantities(
     }
   }
 
-// Zero all of the arrays ready to accumulate into them
-#pragma omp parallel for
-  for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nsubcells_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
-    for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
-      const int subcell_index = (cell_to_nodes_off + ss);
-      subcell_integrals_x[(subcell_index)] = 0.0;
-      subcell_integrals_y[(subcell_index)] = 0.0;
-      subcell_integrals_z[(subcell_index)] = 0.0;
-      subcell_volume[(subcell_index)] = 0.0;
-      subcell_ie_density[(subcell_index)] = 0.0;
-    }
-  }
-
 /*
 *      GATHERING STAGE OF THE REMAP
 */
