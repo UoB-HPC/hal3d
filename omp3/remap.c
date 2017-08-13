@@ -610,129 +610,34 @@ void calc_centroid(const int nnodes, const double* nodes_x,
   }
 }
 
-// Constructs the prism for swept region of a subcell face external to a cell
-void construct_external_swept_region(
-    const vec_t* nodes, const vec_t* rz_nodes, const vec_t* half_edge_l,
-    const vec_t* half_edge_r, const vec_t* rz_half_edge_l,
-    const vec_t* rz_half_edge_r, const vec_t* face_c, const vec_t* rz_face_c,
-    vec_t* prism_centroid, double* prism_nodes_x, double* prism_nodes_y,
-    double* prism_nodes_z) {
-
-  prism_nodes_x[(0)] = nodes->x;
-  prism_nodes_y[(0)] = nodes->y;
-  prism_nodes_z[(0)] = nodes->z;
-  prism_nodes_x[(1)] = half_edge_r->x;
-  prism_nodes_y[(1)] = half_edge_r->y;
-  prism_nodes_z[(1)] = half_edge_r->z;
-  prism_nodes_x[(2)] = face_c->x;
-  prism_nodes_y[(2)] = face_c->y;
-  prism_nodes_z[(2)] = face_c->z;
-  prism_nodes_x[(3)] = half_edge_l->x;
-  prism_nodes_y[(3)] = half_edge_l->y;
-  prism_nodes_z[(3)] = half_edge_l->z;
-  prism_nodes_x[(4)] = rz_nodes->x;
-  prism_nodes_y[(4)] = rz_nodes->y;
-  prism_nodes_z[(4)] = rz_nodes->z;
-  prism_nodes_x[(5)] = rz_half_edge_r->x;
-  prism_nodes_y[(5)] = rz_half_edge_r->y;
-  prism_nodes_z[(5)] = rz_half_edge_r->z;
-  prism_nodes_x[(6)] = rz_face_c->x;
-  prism_nodes_y[(6)] = rz_face_c->y;
-  prism_nodes_z[(6)] = rz_face_c->z;
-  prism_nodes_x[(7)] = rz_half_edge_l->x;
-  prism_nodes_y[(7)] = rz_half_edge_l->y;
-  prism_nodes_z[(7)] = rz_half_edge_l->z;
-
-  prism_centroid->x = 0.0;
-  prism_centroid->y = 0.0;
-  prism_centroid->z = 0.0;
-  for (int pp = 0; pp < NSUBCELL_NODES; ++pp) {
-    prism_centroid->x += prism_nodes_x[(pp)] / NSUBCELL_NODES;
-    prism_centroid->y += prism_nodes_y[(pp)] / NSUBCELL_NODES;
-    prism_centroid->z += prism_nodes_z[(pp)] / NSUBCELL_NODES;
-  }
-}
-
-// Constructs the prism for swept region of a subcell face internal to a cell
-void construct_internal_swept_region(
-    const int face_clockwise, const vec_t* half_edge_l,
-    const vec_t* half_edge_r, const vec_t* rz_half_edge_l,
-    const vec_t* rz_half_edge_r, const vec_t* face_c, const vec_t* face2_c,
-    const vec_t* rz_face_c, const vec_t* rz_face2_c, const vec_t* cell_centroid,
-    const vec_t* rz_cell_centroid, vec_t* prism_centroid, double* prism_nodes_x,
-    double* prism_nodes_y, double* prism_nodes_z) {
-
-  // Constructing a prism from all known points in mesh and rezoned mesh
-  prism_nodes_x[(0)] = face_clockwise ? half_edge_r->x : half_edge_l->x;
-  prism_nodes_y[(0)] = face_clockwise ? half_edge_r->y : half_edge_l->y;
-  prism_nodes_z[(0)] = face_clockwise ? half_edge_r->z : half_edge_l->z;
-  prism_nodes_x[(1)] = face2_c->x;
-  prism_nodes_y[(1)] = face2_c->y;
-  prism_nodes_z[(1)] = face2_c->z;
-  prism_nodes_x[(2)] = cell_centroid->x;
-  prism_nodes_y[(2)] = cell_centroid->y;
-  prism_nodes_z[(2)] = cell_centroid->z;
-  prism_nodes_x[(3)] = face_c->x;
-  prism_nodes_y[(3)] = face_c->y;
-  prism_nodes_z[(3)] = face_c->z;
-  prism_nodes_x[(4)] = face_clockwise ? rz_half_edge_r->x : rz_half_edge_l->x;
-  prism_nodes_y[(4)] = face_clockwise ? rz_half_edge_r->y : rz_half_edge_l->y;
-  prism_nodes_z[(4)] = face_clockwise ? rz_half_edge_r->z : rz_half_edge_l->z;
-  prism_nodes_x[(5)] = rz_face2_c->x;
-  prism_nodes_y[(5)] = rz_face2_c->y;
-  prism_nodes_z[(5)] = rz_face2_c->z;
-  prism_nodes_x[(6)] = rz_cell_centroid->x;
-  prism_nodes_y[(6)] = rz_cell_centroid->y;
-  prism_nodes_z[(6)] = rz_cell_centroid->z;
-  prism_nodes_x[(7)] = rz_face_c->x;
-  prism_nodes_y[(7)] = rz_face_c->y;
-  prism_nodes_z[(7)] = rz_face_c->z;
-
-  // Determine the prism's centroid
-  prism_centroid->x = 0.0;
-  prism_centroid->y = 0.0;
-  prism_centroid->z = 0.0;
-  for (int pp = 0; pp < NSUBCELL_NODES; ++pp) {
-    prism_centroid->x += prism_nodes_x[(pp)] / NSUBCELL_NODES;
-    prism_centroid->y += prism_nodes_y[(pp)] / NSUBCELL_NODES;
-    prism_centroid->z += prism_nodes_z[(pp)] / NSUBCELL_NODES;
-  }
-}
-
 // Calculate the inverse coefficient matrix for a subcell, in order to
-// determine
-// the gradients of the subcell quantities using least squares.
+// determine the gradients of the subcell quantities using least squares.
 void calc_inverse_coefficient_matrix(
-    const int subcell_index, const int* subcell_face_offsets,
-    const int* subcells_to_subcells, const double* subcell_integrals_x,
-    const double* subcell_integrals_y, const double* subcell_integrals_z,
-    const double* subcell_centroids_x, const double* subcell_centroids_y,
-    const double* subcell_centroids_z, const double* subcell_volume,
-    int* nsubcells_by_subcell, int* subcell_to_subcells_off, vec_t (*inv)[3]) {
-
-  *subcell_to_subcells_off = subcell_face_offsets[(subcell_index)] * 2;
-  *nsubcells_by_subcell = (subcell_face_offsets[(subcell_index + 1)] * 2) -
-                          *subcell_to_subcells_off;
+    const int subcell_index, const int* subcells_to_subcells,
+    const double* subcell_integrals_x, const double* subcell_integrals_y,
+    const double* subcell_integrals_z, const double* subcell_centroids_x,
+    const double* subcell_centroids_y, const double* subcell_centroids_z,
+    const double* subcell_volume, const int nsubcells_by_subcell,
+    const int subcell_to_subcells_off, vec_t (*inv)[3]) {
 
   // The coefficients of the 3x3 gradient coefficient matrix
   vec_t coeff[3] = {{0.0, 0.0, 0.0}};
-  for (int ss2 = 0; ss2 < *nsubcells_by_subcell; ++ss2) {
+  for (int ss2 = 0; ss2 < nsubcells_by_subcell; ++ss2) {
     const int neighbour_subcell_index =
-        subcells_to_subcells[(*subcell_to_subcells_off + ss2)];
+        subcells_to_subcells[(subcell_to_subcells_off + ss2)];
+
+    // Ignore boundary neighbours
     if (neighbour_subcell_index == -1) {
       continue;
     }
 
-    double ix = subcell_integrals_x[(neighbour_subcell_index)];
-    double iy = subcell_integrals_y[(neighbour_subcell_index)];
-    double iz = subcell_integrals_z[(neighbour_subcell_index)];
-
     const double vol = subcell_volume[(neighbour_subcell_index)];
-
-    // Complete the integral coefficient as a distance
-    ix -= subcell_centroids_x[(subcell_index)] * vol;
-    iy -= subcell_centroids_y[(subcell_index)] * vol;
-    iz -= subcell_centroids_z[(subcell_index)] * vol;
+    const double ix = subcell_integrals_x[(neighbour_subcell_index)] -
+                      subcell_centroids_x[(subcell_index)] * vol;
+    const double iy = subcell_integrals_y[(neighbour_subcell_index)] -
+                      subcell_centroids_y[(subcell_index)] * vol;
+    const double iz = subcell_integrals_z[(neighbour_subcell_index)] -
+                      subcell_centroids_z[(subcell_index)] * vol;
 
     // Store the neighbouring cell's contribution to the coefficients
     coeff[0].x += (2.0 * ix * ix) / (vol * vol);
@@ -845,10 +750,17 @@ void calc_subcell_centroids(
         subcell_centroids_z[(subcell_index)] =
             0.25 * (face_c.z + cell_centroid.z + nodes_z0[(node_index)] +
                     nodes_z0[(rnode_index)]);
-        printf("%.12f %.12f %.12f\n", subcell_centroids_x[(subcell_index)],
-               subcell_centroids_y[(subcell_index)],
-               subcell_centroids_z[(subcell_index)]);
       }
     }
+  }
+}
+
+// Calculate the centroid of the swept edge prism
+void calc_prism_centroid(vec_t* prism_centroid, double* prism_nodes_x,
+                         double* prism_nodes_y, double* prism_nodes_z) {
+  for (int pp = 0; pp < NTET_NODES; ++pp) {
+    prism_centroid->x += prism_nodes_x[(pp)] / NTET_NODES;
+    prism_centroid->y += prism_nodes_y[(pp)] / NTET_NODES;
+    prism_centroid->z += prism_nodes_z[(pp)] / NTET_NODES;
   }
 }

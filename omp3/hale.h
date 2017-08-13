@@ -111,23 +111,6 @@ void set_timestep(const int ncells, const double* nodes_x,
 // Calculates the inverse of a 3x3 matrix, out-of-place
 void calc_3x3_inverse(vec_t (*a)[3], vec_t (*inv)[3]);
 
-// Constructs the prism for swept region of a subcell face external to a cell
-void construct_external_swept_region(
-    const vec_t* nodes, const vec_t* rz_nodes, const vec_t* half_edge_l,
-    const vec_t* half_edge_r, const vec_t* rz_half_edge_l,
-    const vec_t* rz_half_edge_r, const vec_t* face_c, const vec_t* rz_face_c,
-    vec_t* prism_centroid, double* prism_nodes_x, double* prism_nodes_y,
-    double* prism_nodes_z);
-
-// Constructs the prism for swept region of a subcell face internal to a cell
-void construct_internal_swept_region(
-    const int face_rorientation, const vec_t* half_edge_l,
-    const vec_t* half_edge_r, const vec_t* rz_half_edge_l,
-    const vec_t* rz_half_edge_r, const vec_t* face_c, const vec_t* face2_c,
-    const vec_t* rz_face_c, const vec_t* rz_face2_c, const vec_t* cell_centroid,
-    const vec_t* rz_cell_centroid, vec_t* prism_centroid, double* prism_nodes_x,
-    double* prism_nodes_y, double* prism_nodes_z);
-
 // Calculates the weighted volume integrals for a provided cell along x-y-z
 void calc_weighted_volume_integrals(
     const int cell_to_faces_off, const int nfaces_by_cell,
@@ -136,15 +119,15 @@ void calc_weighted_volume_integrals(
     const double* nodes_y, const double* nodes_z, const vec_t* cell_centroid,
     vec_t* T, double* vol);
 
-// Calculate the inverse coefficient matrix for a subcell, in order to determine
-// the gradients of the subcell quantities using least squares.
+// Calculate the inverse coefficient matrix for a subcell, in order to
+// determine the gradients of the subcell quantities using least squares.
 void calc_inverse_coefficient_matrix(
-    const int subcell_index, const int* subcells_to_faces_offsets,
-    const int* subcells_to_subcells, const double* subcell_integrals_x,
-    const double* subcell_integrals_y, const double* subcell_integrals_z,
-    const double* subcell_centroids_x, const double* subcell_centroids_y,
-    const double* subcell_centroids_z, const double* subcell_volume,
-    int* nsubcells_by_subcell, int* subcell_to_subcells_off, vec_t (*inv)[3]);
+    const int subcell_index, const int* subcells_to_subcells,
+    const double* subcell_integrals_x, const double* subcell_integrals_y,
+    const double* subcell_integrals_z, const double* subcell_centroids_x,
+    const double* subcell_centroids_y, const double* subcell_centroids_z,
+    const double* subcell_volume, const int nsubcells_by_subcell,
+    const int subcell_to_subcells_off, vec_t (*inv)[3]);
 
 // Calculate the gradient for the
 void calc_gradient(const int subcell_index, const int nsubcells_by_subcell,
@@ -165,3 +148,7 @@ void calc_subcell_centroids(
     const int* cells_to_faces, const double* nodes_x0, const double* nodes_y0,
     const double* nodes_z0, double* subcell_centroids_x,
     double* subcell_centroids_y, double* subcell_centroids_z);
+
+// Calculate the centroid of the swept edge prism
+void calc_prism_centroid(vec_t* prism_centroid, double* prism_nodes_x,
+                         double* prism_nodes_y, double* prism_nodes_z);

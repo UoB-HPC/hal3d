@@ -21,9 +21,8 @@
 
 #define NSUBCELL_NEIGHBOURS 4
 
-// Describes the corner subcells
-#define NSUBCELL_NODES 8
-#define NSUBCELL_FACES 6
+// The number of faces of swept edge prism
+#define NPRISM_FACES 5
 
 // Describes the miniature tetrahedral subcells
 #define NTET_FACES 4
