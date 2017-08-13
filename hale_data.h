@@ -118,7 +118,8 @@ void init_mesh_mass(const int ncells, const int* cells_offsets,
                     const double* nodes_y, const double* nodes_z,
                     double* cell_mass, double* subcell_mass,
                     int* cells_to_faces_offsets, int* cells_to_faces,
-                    int* faces_to_nodes_offsets, int* faces_to_nodes);
+                    int* faces_to_nodes_offsets, int* faces_to_nodes,
+                    int* subcell_face_offsets);
 
 // Initialises the centroids for each cell
 void init_cell_centroids(const int ncells, const int* cells_offsets,

@@ -42,37 +42,6 @@ int main(int argc, char** argv) {
   const int visit_dump = get_int_parameter("visit_dump", hale_params);
   const int read_umesh = get_int_parameter("read_umesh", hale_params);
 
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  mesh.width = 3.0;
-  mesh.height = 3.0;
-  mesh.depth = 3.0;
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-
   double i0 = omp_get_wtime();
 
   // Perform initialisation routines

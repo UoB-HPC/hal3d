@@ -15,9 +15,64 @@ void gather_subcell_quantities(
     double* subcell_velocity_x, double* subcell_velocity_y,
     double* subcell_velocity_z, double* subcell_integrals_x,
     double* subcell_integrals_y, double* subcell_integrals_z,
-    int* nodes_to_faces_offsets, int* nodes_to_faces, int* faces_to_nodes,
-    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
-    int* cells_to_faces_offsets, int* cells_to_faces) {
+    int* subcell_face_offsets, int* nodes_to_faces_offsets, int* nodes_to_faces,
+    int* faces_to_nodes, int* faces_to_nodes_offsets, int* faces_to_cells0,
+    int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces) {
+
+// TODO: This is a highly innaccurate solution, but I'm not sure what the right
+// way to go about this is with arbitrary polyhedrals using tetrahedral
+// subcells.
+#pragma omp parallel for
+  for (int cc = 0; cc < ncells; ++cc) {
+    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
+    const int nfaces_by_cell =
+        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
+
+    vec_t cell_centroid;
+    cell_centroid.x = cell_centroids_x[(cc)];
+    cell_centroid.y = cell_centroids_y[(cc)];
+    cell_centroid.z = cell_centroids_z[(cc)];
+
+    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
+      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
+      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+      const int nnodes_by_face =
+          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+      const int subcell_off = subcell_face_offsets[(cell_to_faces_off + ff)];
+
+      // Calculate the face center value
+      for (int nn = 0; nn < nnodes_by_face; ++nn) {
+        // Choosing three nodes for calculating the unit normal
+        // We can obviously assume there are at least three nodes
+        const int n0 = faces_to_nodes[(face_to_nodes_off + 0)];
+        const int n1 = faces_to_nodes[(face_to_nodes_off + 1)];
+        const int n2 = faces_to_nodes[(face_to_nodes_off + 2)];
+
+        // Determine the outward facing unit normal vector
+        vec_t normal = {0.0, 0.0, 0.0};
+        const int face_clockwise = calc_surface_normal(
+            n0, n1, n2, nodes_x0, nodes_y0, nodes_z0, &cell_centroid, &normal);
+
+        const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
+        const int rnode = (nn == nnodes_by_face - 1) ? 0 : nn + 1;
+        const int lnode = (nn == 0) ? nnodes_by_face - 1 : nn - 1;
+        const int rnode_index = faces_to_nodes[(
+            face_to_nodes_off + (face_clockwise ? lnode : rnode))];
+
+        const double m_s = subcell_mass[(subcell_off + nn)];
+
+        subcell_velocity_x[(subcell_off + nn)] =
+            0.5 * m_s *
+            (velocity_x0[(node_index)] + velocity_x0[(rnode_index)]);
+        subcell_velocity_y[(subcell_off + nn)] =
+            0.5 * m_s *
+            (velocity_y0[(node_index)] + velocity_y0[(rnode_index)]);
+        subcell_velocity_z[(subcell_off + nn)] =
+            0.5 * m_s *
+            (velocity_z0[(node_index)] + velocity_z0[(rnode_index)]);
+      }
+    }
+  }
 
 // Zero all of the arrays ready to accumulate into them
 #pragma omp parallel for
@@ -39,9 +94,7 @@ void gather_subcell_quantities(
 */
 
 // Calculate the sub-cell internal energies
-#if 0
 #pragma omp parallel for
-#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
     // calculating the volume integrals necessary for the least squares
     // regression
@@ -180,6 +233,7 @@ void gather_subcell_quantities(
       const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
       const int nnodes_by_face =
           faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+      const int subcell_off = subcell_face_offsets[(cell_to_faces_off + ff)];
 
       // The face centroid is the same for all nodes on the face
       vec_t face_c = {0.0, 0.0, 0.0};
@@ -192,71 +246,60 @@ void gather_subcell_quantities(
 
       // Each face/node pair has two sub-cells
       for (int nn = 0; nn < nnodes_by_face; ++nn) {
-        const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
-
-        // TODO: HAVE MOVED THIS, CHECK IT WORKS....
-        // Find the node offset in the cell
-        int nn2;
-        for (nn2 = 0; nn2 < nnodes_by_cell; ++nn2) {
-          if (cells_to_nodes[(cell_to_nodes_off + nn2)] == node_index) {
-            break;
-          }
-        }
-
         // The left and right nodes on the face for this anchor node
-        int nodes_a[NNEIGHBOUR_NODES];
-        nodes_a[0] =
-            (nn == 0) ? faces_to_nodes[(face_to_nodes_off + nnodes_by_face - 1)]
-                      : faces_to_nodes[(face_to_nodes_off + nn - 1)];
-        nodes_a[1] = (nn == nnodes_by_face - 1)
-                         ? faces_to_nodes[(face_to_nodes_off)]
-                         : faces_to_nodes[(face_to_nodes_off + nn + 1)];
-
-        // Loop over both of the neighbour nodes
-        for (int ss = 0; ss < NNEIGHBOUR_NODES; ++ss) {
-          // Store the right and left nodes
-          subcell_nodes_x[1] =
-              0.5 * (nodes_x0[nodes_a[ss]] + nodes_x0[(node_index)]);
-          subcell_nodes_y[1] =
-              0.5 * (nodes_y0[nodes_a[ss]] + nodes_y0[(node_index)]);
-          subcell_nodes_z[1] =
-              0.5 * (nodes_z0[nodes_a[ss]] + nodes_z0[(node_index)]);
-
-          // Store the anchor node
-          subcell_nodes_x[0] = nodes_x0[(node_index)];
-          subcell_nodes_y[0] = nodes_y0[(node_index)];
-          subcell_nodes_z[0] = nodes_z0[(node_index)];
-
-          // Determine the sub-cell centroid
-          vec_t subcell_centroid = {0.0, 0.0, 0.0};
-          for (int ii = 0; ii < NTET_NODES; ++ii) {
-            subcell_centroid.x += subcell_nodes_x[ii] / NTET_NODES;
-            subcell_centroid.y += subcell_nodes_y[ii] / NTET_NODES;
-            subcell_centroid.z += subcell_nodes_z[ii] / NTET_NODES;
-          }
-
-          // Calculate the weighted volume integral coefficients
-          double vol = 0.0;
-          vec_t integrals = {0.0, 0.0, 0.0};
-          calc_weighted_volume_integrals(
-              0, NTET_FACES, subcell_to_faces, subcell_faces_to_nodes,
-              subcell_faces_to_nodes_offsets, subcell_nodes_x, subcell_nodes_y,
-              subcell_nodes_z, &subcell_centroid, &integrals, &vol);
-
-          // Store the weighted integrals
-          subcell_integrals_x[(cell_to_nodes_off + nn2)] += integrals.x;
-          subcell_integrals_y[(cell_to_nodes_off + nn2)] += integrals.y;
-          subcell_integrals_z[(cell_to_nodes_off + nn2)] += integrals.z;
-          subcell_volume[(cell_to_nodes_off + nn2)] += vol;
-
-          // Determine subcell energy from linear function at cell
-          subcell_ie_density[(cell_to_nodes_off + nn2)] +=
-              vol * (cell_ie - (grad_energy.x * cell_centroid.x +
-                                grad_energy.y * cell_centroid.y +
-                                grad_energy.z * cell_centroid.z)) +
-              grad_energy.x * integrals.x + grad_energy.y * integrals.y +
-              grad_energy.z * integrals.z;
+        const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
+        const int n0 = faces_to_nodes[(face_to_nodes_off + 0)];
+        const int n1 = faces_to_nodes[(face_to_nodes_off + 1)];
+        const int n2 = faces_to_nodes[(face_to_nodes_off + 2)];
+        vec_t normal;
+        const int face_clockwise = calc_surface_normal(
+            n0, n1, n2, nodes_x0, nodes_y0, nodes_z0, &cell_centroid, &normal);
+        int rnode_index;
+        if (face_clockwise) {
+          rnode_index = faces_to_nodes[(
+              face_to_nodes_off + ((nn == 0) ? nnodes_by_face - 1 : nn - 1))];
+        } else {
+          rnode_index = faces_to_nodes[(
+              face_to_nodes_off + ((nn == nnodes_by_face - 1) ? 0 : nn + 1))];
         }
+
+        // Store the right and left nodes
+        subcell_nodes_x[1] = nodes_x0[(rnode_index)];
+        subcell_nodes_y[1] = nodes_y0[(rnode_index)];
+        subcell_nodes_z[1] = nodes_z0[(rnode_index)];
+        subcell_nodes_x[0] = nodes_x0[(node_index)];
+        subcell_nodes_y[0] = nodes_y0[(node_index)];
+        subcell_nodes_z[0] = nodes_z0[(node_index)];
+
+        // Determine the sub-cell centroid
+        vec_t subcell_centroid = {0.0, 0.0, 0.0};
+        for (int ii = 0; ii < NTET_NODES; ++ii) {
+          subcell_centroid.x += subcell_nodes_x[ii] / NTET_NODES;
+          subcell_centroid.y += subcell_nodes_y[ii] / NTET_NODES;
+          subcell_centroid.z += subcell_nodes_z[ii] / NTET_NODES;
+        }
+
+        // Calculate the weighted volume integral coefficients
+        double vol = 0.0;
+        vec_t integrals = {0.0, 0.0, 0.0};
+        calc_weighted_volume_integrals(
+            0, NTET_FACES, subcell_to_faces, subcell_faces_to_nodes,
+            subcell_faces_to_nodes_offsets, subcell_nodes_x, subcell_nodes_y,
+            subcell_nodes_z, &subcell_centroid, &integrals, &vol);
+
+        // Store the weighted integrals
+        subcell_integrals_x[(subcell_off + nn)] = integrals.x;
+        subcell_integrals_y[(subcell_off + nn)] = integrals.y;
+        subcell_integrals_z[(subcell_off + nn)] = integrals.z;
+        subcell_volume[(subcell_off + nn)] = vol;
+
+        // Determine subcell energy from linear function at cell
+        subcell_ie_density[(subcell_off + nn)] =
+            vol * (cell_ie - (grad_energy.x * cell_centroid.x +
+                              grad_energy.y * cell_centroid.y +
+                              grad_energy.z * cell_centroid.z)) +
+            grad_energy.x * integrals.x + grad_energy.y * integrals.y +
+            grad_energy.z * integrals.z;
       }
     }
   }
@@ -656,7 +699,8 @@ void construct_internal_swept_region(
   }
 }
 
-// Calculate the inverse coefficient matrix for a subcell, in order to determine
+// Calculate the inverse coefficient matrix for a subcell, in order to
+// determine
 // the gradients of the subcell quantities using least squares.
 void calc_inverse_coefficient_matrix(
     const int subcell_index, const int* subcell_face_offsets,
@@ -832,180 +876,3 @@ void calc_subcell_centroids(
     }
   }
 }
-
-#if 0
-// Collect the sub-cell centered velocities
-#pragma omp parallel for
-  for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
-
-    // Calculate the weighted velocity at the sub-cell center
-    vec_t uc = {0.0, 0.0, 0.0};
-    for (int nn = 0; nn < nnodes_by_cell; ++nn) {
-      const int node_index = (cells_to_nodes[(cell_to_nodes_off + nn)]);
-      const int node_to_faces_off = nodes_to_faces_offsets[(node_index)];
-      const int nfaces_by_node =
-          nodes_to_faces_offsets[(node_index + 1)] - node_to_faces_off;
-
-      int Sn = 0;
-      vec_t b = {0.0, 0.0, 0.0};
-      for (int ff = 0; ff < nfaces_by_node; ++ff) {
-        const int face_index = nodes_to_faces[(node_to_faces_off + ff)];
-        if ((faces_to_cells0[(face_index)] != cc &&
-             faces_to_cells1[(face_index)] != cc) ||
-            face_index == -1) {
-          continue;
-        }
-
-        // We have encountered a true face
-        Sn += 2;
-
-        const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-        const int nnodes_by_face =
-            faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-
-        // Look at all of the nodes around a face
-        int node;
-        vec_t f = {0.0, 0.0, 0.0};
-        double face_mass = 0.0;
-        for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
-          const int node_index0 = faces_to_nodes[(face_to_nodes_off + nn2)];
-          const int node_l_index =
-              (nn2 == 0)
-                  ? faces_to_nodes[(face_to_nodes_off + nnodes_by_face - 1)]
-                  : faces_to_nodes[(face_to_nodes_off + nn2 - 1)];
-          const int node_r_index =
-              (nn2 == nnodes_by_face - 1)
-                  ? faces_to_nodes[(face_to_nodes_off)]
-                  : faces_to_nodes[(face_to_nodes_off + nn2 + 1)];
-
-          // Add the face center contributions
-          double mass = subcell_mass[(cell_to_nodes_off + nn2)];
-          f.x += mass * (2.0 * velocity_x0[(node_index0)] -
-                         0.5 * velocity_x0[(node_l_index)] -
-                         0.5 * velocity_x0[(node_r_index)]);
-          f.y += mass * (2.0 * velocity_y0[(node_index0)] -
-                         0.5 * velocity_y0[(node_l_index)] -
-                         0.5 * velocity_y0[(node_r_index)]);
-          f.z += mass * (2.0 * velocity_z0[(node_index0)] -
-                         0.5 * velocity_z0[(node_l_index)] -
-                         0.5 * velocity_z0[(node_r_index)]);
-          face_mass += mass;
-          if (node_index0 == node_index) {
-            node = nn2;
-          }
-        }
-
-        const int node_l_index =
-            (node == 0)
-                ? faces_to_nodes[(face_to_nodes_off + nnodes_by_face - 1)]
-                : faces_to_nodes[(face_to_nodes_off + node - 1)];
-        const int node_r_index =
-            (node == nnodes_by_face - 1)
-                ? faces_to_nodes[(face_to_nodes_off)]
-                : faces_to_nodes[(face_to_nodes_off + node + 1)];
-
-        // Add contributions for right, left, and face center
-        b.x += 0.5 * velocity_x0[(node_l_index)] +
-               0.5 * velocity_x0[(node_r_index)] + 2.0 * f.x / face_mass;
-        b.y += 0.5 * velocity_y0[(node_l_index)] +
-               0.5 * velocity_y0[(node_r_index)] + 2.0 * f.y / face_mass;
-        b.z += 0.5 * velocity_z0[(node_l_index)] +
-               0.5 * velocity_z0[(node_r_index)] + 2.0 * f.z / face_mass;
-      }
-
-      double mass = subcell_mass[(cell_to_nodes_off + nn)];
-      uc.x += mass * (2.5 * velocity_x0[(node_index)] - (b.x / Sn)) /
-              cell_mass[(cc)];
-      uc.y += mass * (2.5 * velocity_y0[(node_index)] - (b.y / Sn)) /
-              cell_mass[(cc)];
-      uc.z += mass * (2.5 * velocity_z0[(node_index)] - (b.z / Sn)) /
-              cell_mass[(cc)];
-    }
-
-    for (int nn = 0; nn < nnodes_by_cell; ++nn) {
-      const int node_index = (cells_to_nodes[(cell_to_nodes_off + nn)]);
-      const int node_to_faces_off = nodes_to_faces_offsets[(node_index)];
-      const int nfaces_by_node =
-          nodes_to_faces_offsets[(node_index + 1)] - node_to_faces_off;
-
-      int Sn = 0;
-      vec_t b = {0.0, 0.0, 0.0};
-      for (int ff = 0; ff < nfaces_by_node; ++ff) {
-        const int face_index = nodes_to_faces[(node_to_faces_off + ff)];
-        if ((faces_to_cells0[(face_index)] != cc &&
-             faces_to_cells1[(face_index)] != cc) ||
-            face_index == -1) {
-          continue;
-        }
-
-        // We have encountered a true face
-        Sn += 2;
-
-        const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-        const int nnodes_by_face =
-            faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-
-        int node;
-        vec_t f = {0.0, 0.0, 0.0};
-        double face_mass = 0.0;
-        for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
-
-          const int node_index0 = faces_to_nodes[(face_to_nodes_off + nn2)];
-          const int node_l_index =
-              (nn2 == 0)
-                  ? faces_to_nodes[(face_to_nodes_off + nnodes_by_face - 1)]
-                  : faces_to_nodes[(face_to_nodes_off + nn2 - 1)];
-          const int node_r_index =
-              (nn2 == nnodes_by_face - 1)
-                  ? faces_to_nodes[(face_to_nodes_off)]
-                  : faces_to_nodes[(face_to_nodes_off + nn2 + 1)];
-
-          // Add the face center contributions
-          double mass = subcell_mass[(cell_to_nodes_off + nn2)];
-          f.x += mass * (2.0 * velocity_x0[(node_index0)] -
-                         0.5 * velocity_x0[(node_l_index)] -
-                         0.5 * velocity_x0[(node_r_index)]);
-          f.y += mass * (2.0 * velocity_y0[(node_index0)] -
-                         0.5 * velocity_y0[(node_l_index)] -
-                         0.5 * velocity_y0[(node_r_index)]);
-          f.z += mass * (2.0 * velocity_z0[(node_index0)] -
-                         0.5 * velocity_z0[(node_l_index)] -
-                         0.5 * velocity_z0[(node_r_index)]);
-          face_mass += mass;
-
-          if (node_index0 == node_index) {
-            node = nn2;
-          }
-        }
-
-        const int node_l_index =
-            (node == 0)
-                ? faces_to_nodes[(face_to_nodes_off + nnodes_by_face - 1)]
-                : faces_to_nodes[(face_to_nodes_off + node - 1)];
-        const int node_r_index =
-            (node == nnodes_by_face - 1)
-                ? faces_to_nodes[(face_to_nodes_off)]
-                : faces_to_nodes[(face_to_nodes_off + node + 1)];
-
-        // Add right and left node contributions
-        b.x += 0.5 * velocity_x0[(node_l_index)] +
-               0.5 * velocity_x0[(node_r_index)] + 2.0 * f.x / face_mass;
-        b.y += 0.5 * velocity_y0[(node_l_index)] +
-               0.5 * velocity_y0[(node_r_index)] + 2.0 * f.y / face_mass;
-        b.z += 0.5 * velocity_z0[(node_l_index)] +
-               0.5 * velocity_z0[(node_r_index)] + 2.0 * f.z / face_mass;
-      }
-
-      // Calculate the final sub-cell velocities
-      subcell_velocity_x[(cell_to_nodes_off + nn)] =
-          0.25 * (1.5 * velocity_x0[(node_index)] + uc.x + b.x / Sn);
-      subcell_velocity_y[(cell_to_nodes_off + nn)] =
-          0.25 * (1.5 * velocity_y0[(node_index)] + uc.y + b.y / Sn);
-      subcell_velocity_z[(cell_to_nodes_off + nn)] =
-          0.25 * (1.5 * velocity_z0[(node_index)] + uc.z + b.z / Sn);
-    }
-  }
-
-#endif // if 0

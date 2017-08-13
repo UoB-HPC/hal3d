@@ -32,9 +32,9 @@ void gather_subcell_quantities(
     double* subcell_velocity_x, double* subcell_velocity_y,
     double* subcell_velocity_z, double* subcell_integrals_x,
     double* subcell_integrals_y, double* subcell_integrals_z,
-    int* nodes_to_faces_offsets, int* nodes_to_faces, int* faces_to_nodes,
-    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
-    int* cells_to_faces_offsets, int* cells_to_faces);
+    int* subcell_face_offsets, int* nodes_to_faces_offsets, int* nodes_to_faces,
+    int* faces_to_nodes, int* faces_to_nodes_offsets, int* faces_to_cells0,
+    int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces);
 
 // Calculates the artificial viscous forces for momentum acceleration
 void calc_artificial_viscosity(

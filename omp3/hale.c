@@ -35,7 +35,6 @@ void solve_unstructured_hydro_2d(
     int* cells_to_faces_offsets, int* cells_to_faces, int* subcell_face_offsets,
     int* subcells_to_subcells) {
 
-#if 0
   // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
   // due to the pressure (ideal gas) and artificial viscous forces
   lagrangian_phase(
@@ -50,8 +49,8 @@ void solve_unstructured_hydro_2d(
       limiter, nodes_to_faces_offsets, nodes_to_faces, faces_to_nodes,
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
-#endif // if 0
 
+#if 0
   // Gather the subcell quantities for mass, internal and kinetic energy
   // density, and momentum
   gather_subcell_quantities(
@@ -60,29 +59,44 @@ void solve_unstructured_hydro_2d(
       density0, velocity_x0, velocity_y0, velocity_z0, cell_mass,
       subcell_volume, subcell_ie_density, subcell_mass, subcell_velocity_x,
       subcell_velocity_y, subcell_velocity_z, subcell_integrals_x,
-      subcell_integrals_y, subcell_integrals_z, nodes_to_faces_offsets,
-      nodes_to_faces, faces_to_nodes, faces_to_nodes_offsets, faces_to_cells0,
-      faces_to_cells1, cells_to_faces_offsets, cells_to_faces);
+      subcell_integrals_y, subcell_integrals_z, subcell_face_offsets,
+      nodes_to_faces_offsets, nodes_to_faces, faces_to_nodes,
+      faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
+      cells_to_faces_offsets, cells_to_faces);
 
   double total_ie = 0.0;
   double total_ie_subcell = 0.0;
+
   for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nsubcells_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
+    const int nfaces_by_cell =
+        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
+
     double subcell_sum = 0.0;
     double subcell_mass_sum = 0.0;
     double volume_by_subcell = 0.0;
-    for (int ss = 0; ss < nsubcells_by_cell; ++ss) {
-      const int subcell_index = (cell_to_nodes_off + ss);
-      subcell_sum += subcell_ie_density[(subcell_index)];
-      volume_by_subcell += subcell_volume[(subcell_index)];
-      subcell_mass_sum += subcell_mass[(subcell_index)];
+    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
+      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
+      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+      const int nnodes_by_face =
+          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+      const int subcell_off = subcell_face_offsets[(cell_to_faces_off + ff)];
+
+      for (int nn = 0; nn < nnodes_by_face; ++nn) {
+        const int subcell_index = subcell_off + nn;
+        subcell_sum += subcell_ie_density[(subcell_index)];
+        volume_by_subcell += subcell_volume[(subcell_index)];
+        subcell_mass_sum += subcell_mass[(subcell_index)];
+      }
     }
     total_ie += cell_mass[cc] * energy0[cc];
     total_ie_subcell += subcell_sum;
+#if 0
     printf("ie : %.12f = %.12f\n", cell_mass[cc] * energy0[cc], subcell_sum);
+#endif // if 0
   }
   printf("total ie %.12f = %.12f\n", total_ie, total_ie_subcell);
+#endif // if 0
 
 #if 0
   // Calculate all of the subcell centroids, this is precomputed because the
@@ -430,57 +444,3 @@ void solve_unstructured_hydro_2d(
   }
 #endif // if 0
 }
-
-#if 0
-const int tet_faces_to_nodes_offsets[] = {0, 4, 8, 12, 16, 20, 24};
-const int tet_faces_to_nodes[] = {0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 5, 4,
-  6, 2, 3, 7, 1, 2, 6, 5, 0, 4, 7, 3};
-const int tet_to_faces[] = {0, 1, 2, 3, 4, 5};
-double tet_nodes_x[] = {1.0, 2.0, 2.0, 1.0, 1.0, 2.0, 2.0, 1.0};
-double tet_nodes_y[] = {1.0, 1.0, 2.0, 2.0, 1.0, 1.0, 2.0, 2.0};
-double tet_nodes_z[] = {1.1, 1.1, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0};
-
-vec_t tet_integrals;
-vec_t tet_centroid = {1.5, 1.5, 1.5};
-double vol;
-calc_weighted_volume_integrals(0, NSUBCELL_FACES, tet_to_faces,
-    tet_faces_to_nodes, tet_faces_to_nodes_offsets,
-    tet_nodes_x, tet_nodes_y, tet_nodes_z,
-    &tet_centroid, &tet_integrals, &vol);
-
-printf("%.12f %.12f %.12f %.12f\n", tet_integrals.x, tet_integrals.y,
-    tet_integrals.z, vol);
-
-return;
-#if 0
-  nodes_x0[0] += 0.3;
-  nodes_x0[1] += 0.3;
-  nodes_x0[2] += 0.3;
-  nodes_x0[3] += 0.3;
-
-  init_cell_centroids(ncells, cells_offsets, cells_to_nodes, nodes_x0, nodes_y0,
-                      nodes_z0, cell_centroids_x, cell_centroids_y,
-                      cell_centroids_z);
-
-  for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
-    const int nfaces_by_cell =
-        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
-
-    vec_t cell_centroid;
-    cell_centroid.x = cell_centroids_x[(cc)];
-    cell_centroid.y = cell_centroids_y[(cc)];
-    cell_centroid.z = cell_centroids_z[(cc)];
-
-    vec_t integrals = {0.0, 0.0, 0.0};
-    double vol = 0.0;
-    calc_weighted_volume_integrals(cell_to_faces_off, nfaces_by_cell,
-                                   cells_to_faces, faces_to_nodes,
-                                   faces_to_nodes_offsets, nodes_x0, nodes_y0,
-                                   nodes_z0, &cell_centroid, &integrals, &vol);
-
-    density0[(cc)] = cell_mass[(cc)] / vol;
-  }
-#endif // if 0
-
-#endif // if 0
