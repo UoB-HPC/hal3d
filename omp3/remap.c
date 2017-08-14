@@ -607,6 +607,7 @@ void calc_inverse_coefficient_matrix(
 
   // The coefficients of the 3x3 gradient coefficient matrix
   vec_t coeff[3] = {{0.0, 0.0, 0.0}};
+
   for (int ss2 = 0; ss2 < nsubcells_by_subcell; ++ss2) {
     const int neighbour_subcell_index =
         subcells_to_subcells[(subcell_to_subcells_off + ss2)];
@@ -657,14 +658,12 @@ void calc_gradient(const int subcell_index, const int nsubcells_by_subcell,
 
     // Prepare differential
     const double de = (phi[(neighbour_subcell_index)] - phi[(subcell_index)]);
+    const double vol = subcell_volume[(neighbour_subcell_index)];
 
     // Calculate the subcell gradients for all of the variables
-    rhs.x += (2.0 * subcell_integrals_x[(subcell_index)] * de /
-              subcell_volume[(subcell_index)]);
-    rhs.y += (2.0 * subcell_integrals_y[(subcell_index)] * de /
-              subcell_volume[(subcell_index)]);
-    rhs.z += (2.0 * subcell_integrals_z[(subcell_index)] * de /
-              subcell_volume[(subcell_index)]);
+    rhs.x += (2.0 * subcell_integrals_x[(neighbour_subcell_index)] * de / vol);
+    rhs.y += (2.0 * subcell_integrals_y[(neighbour_subcell_index)] * de / vol);
+    rhs.z += (2.0 * subcell_integrals_z[(neighbour_subcell_index)] * de / vol);
   }
 
   gradient->x = (*inv)[0].x * rhs.x + (*inv)[0].y * rhs.y + (*inv)[0].z * rhs.z;
