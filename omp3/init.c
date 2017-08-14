@@ -66,14 +66,11 @@ void init_mesh_mass(const int ncells, const int* cells_offsets,
         const double S_y = -0.5 * (a_x * b_z - a_z * b_x);
         const double S_z = 0.5 * (a_x * b_y - a_y * b_x);
 
-        // TODO: WE MULTIPLY BY 2 HERE BECAUSE WE ARE ADDING THE VOLUME TO
-        // BOTH THE CURRENT AND NEXT NODE, OTHERWISE WE ONLY ACCOUNT FOR HALF OF
-        // THE 'HALF' TETRAHEDRONS
         double subcell_volume =
-            fabs(2.0 * ((half_edge_x - nodes_x[(current_node)]) * S_x +
+            2.0 * fabs(((half_edge_x - nodes_x[(current_node)]) * S_x +
                         (half_edge_y - nodes_y[(current_node)]) * S_y +
                         (half_edge_z - nodes_z[(current_node)]) * S_z) /
-                 3.0);
+                       3.0);
 
         subcell_mass[(subcell_off + nn2)] = density[(cc)] * subcell_volume;
         cell_mass[(cc)] += density[(cc)] * subcell_volume;

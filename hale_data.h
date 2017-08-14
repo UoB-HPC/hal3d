@@ -23,6 +23,7 @@
 
 // The number of faces of swept edge prism
 #define NPRISM_FACES 5
+#define NPRISM_NODES 6
 
 // Describes the miniature tetrahedral subcells
 #define NTET_FACES 4

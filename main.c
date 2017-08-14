@@ -42,6 +42,37 @@ int main(int argc, char** argv) {
   const int visit_dump = get_int_parameter("visit_dump", hale_params);
   const int read_umesh = get_int_parameter("read_umesh", hale_params);
 
+  /////
+  /////
+  /////
+  /////
+  /////
+  /////
+  /////
+  /////
+  /////
+  /////
+  /////
+  /////
+  /////
+  /////
+  mesh.width = 2.0;
+  mesh.height = 2.0;
+  mesh.depth = 2.0;
+  /////
+  /////
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+
   double i0 = omp_get_wtime();
 
   // Perform initialisation routines
@@ -171,7 +202,7 @@ int main(int argc, char** argv) {
     if (visit_dump) {
       write_unstructured_to_visit_3d(
           umesh.nnodes, umesh.ncells, tt + 1, umesh.nodes_x0, umesh.nodes_y0,
-          umesh.nodes_z0, umesh.cells_to_nodes, hale_data.density0, 0,
+          umesh.nodes_z0, umesh.cells_to_nodes, hale_data.cell_mass, 0,
           umesh.nnodes_by_cell == 8);
     }
   }

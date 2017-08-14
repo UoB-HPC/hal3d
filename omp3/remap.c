@@ -743,9 +743,13 @@ void calc_subcell_centroids(
 // Calculate the centroid of the swept edge prism
 void calc_prism_centroid(vec_t* prism_centroid, double* prism_nodes_x,
                          double* prism_nodes_y, double* prism_nodes_z) {
-  for (int pp = 0; pp < NTET_NODES; ++pp) {
-    prism_centroid->x += prism_nodes_x[(pp)] / NTET_NODES;
-    prism_centroid->y += prism_nodes_y[(pp)] / NTET_NODES;
-    prism_centroid->z += prism_nodes_z[(pp)] / NTET_NODES;
+  prism_centroid->x = 0.0;
+  prism_centroid->y = 0.0;
+  prism_centroid->z = 0.0;
+
+  for (int pp = 0; pp < NPRISM_NODES; ++pp) {
+    prism_centroid->x += prism_nodes_x[(pp)] / NPRISM_NODES;
+    prism_centroid->y += prism_nodes_y[(pp)] / NPRISM_NODES;
+    prism_centroid->z += prism_nodes_z[(pp)] / NPRISM_NODES;
   }
 }

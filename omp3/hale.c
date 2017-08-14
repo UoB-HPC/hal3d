@@ -35,6 +35,7 @@ void solve_unstructured_hydro_2d(
     int* cells_to_faces_offsets, int* cells_to_faces, int* subcell_face_offsets,
     int* subcells_to_subcells) {
 
+#if 0
   // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
   // due to the pressure (ideal gas) and artificial viscous forces
   lagrangian_phase(
@@ -49,6 +50,7 @@ void solve_unstructured_hydro_2d(
       limiter, nodes_to_faces_offsets, nodes_to_faces, faces_to_nodes,
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
+#endif // if 0
 
   // Gather the subcell quantities for mass, internal and kinetic energy
   // density, and momentum
@@ -64,9 +66,9 @@ void solve_unstructured_hydro_2d(
       cells_to_faces_offsets, cells_to_faces);
 
   for (int nn = 0; nn < nnodes; ++nn) {
-    rezoned_nodes_x[(nn)] += 0.5;
-    rezoned_nodes_y[(nn)] += 0.5;
-    rezoned_nodes_z[(nn)] += 0.5;
+    rezoned_nodes_x[(nn)] += 0.1;
+    rezoned_nodes_y[(nn)] += 0.1;
+    rezoned_nodes_z[(nn)] += 0.1;
   }
 
   // Calculate all of the subcell centroids, this is precomputed because the
@@ -88,6 +90,7 @@ void solve_unstructured_hydro_2d(
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
 
+    // Clear the cell mass as we will redistribute at the subcell
     vec_t cell_centroid;
     cell_centroid.x = cell_centroids_x[(cc)];
     cell_centroid.y = cell_centroids_y[(cc)];
@@ -242,8 +245,10 @@ void solve_unstructured_hydro_2d(
                         subcell_integrals_z, subcell_volume,
                         (const vec_t(*)[3]) & inv, &mass_gradient);
 
+#if 0
           printf("mass gradient %.12f %.12f %.12f\n", mass_gradient.x,
                  mass_gradient.y, mass_gradient.z);
+#endif // if 0
 
           // Calculate the flux for internal energy density in the subcell
           const double mass_flux =
@@ -259,10 +264,13 @@ void solve_unstructured_hydro_2d(
                                     subcell_centroids_z[(sweep_subcell_index)]);
 
           subcell_mass[(subcell_index)] -= mass_flux;
-
-          printf("subcell %d face %d mass flux %.12f\n", subcell_index,
-                 face_index, mass_flux);
+#if 0
+          printf("mass_flux %.12f\n", mass_flux);
+#endif // if 0
         }
+
+        // Gather the value back to the cell
+        cell_mass[(cc)] += subcell_mass[(subcell_index)];
       }
     }
   }
