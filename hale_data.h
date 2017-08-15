@@ -90,9 +90,6 @@ typedef struct {
   double* corner_force_y;
   double* corner_force_z;
   double* subcell_kinetic_energy;
-  double* subcell_centroid_x;
-  double* subcell_centroid_y;
-  double* subcell_centroid_z;
   double* rezoned_nodes_x;
   double* rezoned_nodes_y;
   double* rezoned_nodes_z;

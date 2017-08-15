@@ -13,11 +13,12 @@ void gather_subcell_quantities(
     double* velocity_z0, double* cell_mass, double* subcell_volume,
     double* subcell_ie_density, double* subcell_mass,
     double* subcell_velocity_x, double* subcell_velocity_y,
-    double* subcell_velocity_z, double* subcell_centroid_x,
-    double* subcell_centroid_y, double* subcell_centroid_z, double* cell_volume,
-    int* subcell_face_offsets, int* nodes_to_faces_offsets, int* nodes_to_faces,
-    int* faces_to_nodes, int* faces_to_nodes_offsets, int* faces_to_cells0,
-    int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces) {
+    double* subcell_velocity_z, double* subcell_centroids_x,
+    double* subcell_centroids_y, double* subcell_centroids_z,
+    double* cell_volume, int* subcell_face_offsets, int* nodes_to_faces_offsets,
+    int* nodes_to_faces, int* faces_to_nodes, int* faces_to_nodes_offsets,
+    int* faces_to_cells0, int* faces_to_cells1, int* cells_to_faces_offsets,
+    int* cells_to_faces) {
 
   // TODO: This is a highly innaccurate solution, but I'm not sure what the
   // right way to go about this is with arbitrary polyhedrals using tetrahedral
@@ -121,13 +122,11 @@ void gather_subcell_quantities(
          total_momentum_in_subcells_x, total_momentum_in_subcells_y,
          total_momentum_in_subcells_z);
 
-  /*
-  *      GATHERING STAGE OF THE REMAP
-  */
+/*
+*      GATHERING STAGE OF THE REMAP
+*/
 
-  double total_ie_in_subcells = 0.0;
-
-#pragma omp parallel for reduction(+ : total_ie_in_subcells)
+#pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
@@ -206,9 +205,9 @@ void gather_subcell_quantities(
           subcell_centroid.y += subcell_nodes_y[ii] / NTET_NODES;
           subcell_centroid.z += subcell_nodes_z[ii] / NTET_NODES;
         }
-        subcell_centroid_x[(subcell_index)] = subcell_centroid.x;
-        subcell_centroid_y[(subcell_index)] = subcell_centroid.y;
-        subcell_centroid_z[(subcell_index)] = subcell_centroid.z;
+        subcell_centroids_x[(subcell_index)] = subcell_centroid.x;
+        subcell_centroids_y[(subcell_index)] = subcell_centroid.y;
+        subcell_centroids_z[(subcell_index)] = subcell_centroid.z;
 
         // Precompute the volume of the subcell
         calc_volume(0, NTET_FACES, subcell_to_faces, subcell_faces_to_nodes,
@@ -218,6 +217,8 @@ void gather_subcell_quantities(
       }
     }
   }
+
+  double total_ie_in_subcells = 0.0;
 
 // Calculate the sub-cell internal energies
 #pragma omp parallel for reduction(+ : total_ie_in_subcells)
@@ -362,9 +363,9 @@ void gather_subcell_quantities(
         double vol = subcell_volume[(subcell_index)];
 
         // Calculate the center of mass
-        vec_t center_of_mass = {subcell_centroid_x[(subcell_index)] * vol,
-                                subcell_centroid_y[(subcell_index)] * vol,
-                                subcell_centroid_z[(subcell_index)] * vol};
+        vec_t center_of_mass = {subcell_centroids_x[(subcell_index)] * vol,
+                                subcell_centroids_y[(subcell_index)] * vol,
+                                subcell_centroids_z[(subcell_index)] * vol};
 
         // Determine subcell energy from linear function at cell
         subcell_ie_density[(subcell_off + nn)] =
@@ -532,7 +533,7 @@ void calc_volume(const int cell_to_faces_off, const int nfaces_by_cell,
                  const double* nodes_y, const double* nodes_z,
                  const vec_t* cell_centroid, double* vol) {
 
-  // Zero as we are reducing into this container
+  // Prepare to reduce accumulate the volume
   *vol = 0.0;
 
   for (int ff = 0; ff < nfaces_by_cell; ++ff) {
@@ -551,10 +552,6 @@ void calc_volume(const int cell_to_faces_off, const int nfaces_by_cell,
     vec_t normal = {0.0, 0.0, 0.0};
     const int face_clockwise = calc_surface_normal(
         n0, n1, n2, nodes_x, nodes_y, nodes_z, cell_centroid, &normal);
-
-    normal.x *= -1.0;
-    normal.y *= -1.0;
-    normal.z *= -1.0;
 
     // The projection of the normal vector onto a point on the face
     double omega = -(normal.x * nodes_x[(n0)] + normal.y * nodes_y[(n0)] +
@@ -727,74 +724,6 @@ void calc_gradient(const int subcell_index, const int nsubcells_by_subcell,
   gradient->x = (*inv)[0].x * rhs.x + (*inv)[0].y * rhs.y + (*inv)[0].z * rhs.z;
   gradient->y = (*inv)[1].x * rhs.x + (*inv)[1].y * rhs.y + (*inv)[1].z * rhs.z;
   gradient->z = (*inv)[2].x * rhs.x + (*inv)[2].y * rhs.y + (*inv)[2].z * rhs.z;
-}
-
-// Calculates the subcells of all centroids
-void calc_subcell_centroids(
-    const int ncells, const double* cell_centroids_x,
-    const double* cell_centroids_y, const double* cell_centroids_z,
-    const int* subcell_face_offsets, const int* faces_to_nodes_offsets,
-    const int* faces_to_nodes, const int* cells_to_faces_offsets,
-    const int* cells_to_faces, const double* nodes_x0, const double* nodes_y0,
-    const double* nodes_z0, double* subcell_centroids_x,
-    double* subcell_centroids_y, double* subcell_centroids_z) {
-
-#pragma omp parallel for
-  for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
-    const int nfaces_by_cell =
-        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
-
-    vec_t cell_centroid;
-    cell_centroid.x = cell_centroids_x[(cc)];
-    cell_centroid.y = cell_centroids_y[(cc)];
-    cell_centroid.z = cell_centroids_z[(cc)];
-
-    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
-      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
-      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-      const int nnodes_by_face =
-          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-      const int subcell_off = subcell_face_offsets[(cell_to_faces_off + ff)];
-
-      // Sum the face center of all subcell faces
-      vec_t face_c = {0.0, 0.0, 0.0};
-      calc_centroid(nnodes_by_face, nodes_x0, nodes_y0, nodes_z0,
-                    faces_to_nodes, face_to_nodes_off, &face_c);
-
-      // Calculate the face center value
-      for (int nn = 0; nn < nnodes_by_face; ++nn) {
-        const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
-        const int subcell_index = subcell_off + nn;
-
-        // Choosing three nodes for calculating the unit normal
-        // We can obviously assume there are at least three nodes
-        const int n0 = faces_to_nodes[(face_to_nodes_off + 0)];
-        const int n1 = faces_to_nodes[(face_to_nodes_off + 1)];
-        const int n2 = faces_to_nodes[(face_to_nodes_off + 2)];
-
-        // Determine the outward facing unit normal vector
-        vec_t normal = {0.0, 0.0, 0.0};
-        const int face_clockwise = calc_surface_normal(
-            n0, n1, n2, nodes_x0, nodes_y0, nodes_z0, &cell_centroid, &normal);
-
-        const int rnode = (nn == nnodes_by_face - 1) ? 0 : nn + 1;
-        const int lnode = (nn == 0) ? nnodes_by_face - 1 : nn - 1;
-        const int rnode_index = faces_to_nodes[(
-            face_to_nodes_off + (face_clockwise ? lnode : rnode))];
-
-        subcell_centroids_x[(subcell_index)] =
-            0.25 * (face_c.x + cell_centroid.x + nodes_x0[(node_index)] +
-                    nodes_x0[(rnode_index)]);
-        subcell_centroids_y[(subcell_index)] =
-            0.25 * (face_c.y + cell_centroid.y + nodes_y0[(node_index)] +
-                    nodes_y0[(rnode_index)]);
-        subcell_centroids_z[(subcell_index)] =
-            0.25 * (face_c.z + cell_centroid.z + nodes_z0[(node_index)] +
-                    nodes_z0[(rnode_index)]);
-      }
-    }
-  }
 }
 
 // Calculate the centroid of the swept edge prism

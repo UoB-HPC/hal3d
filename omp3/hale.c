@@ -25,17 +25,15 @@ void solve_unstructured_hydro_2d(
     double* nodal_volumes, double* nodal_soundspeed, double* limiter,
     double* subcell_volume, double* subcell_ie_density, double* subcell_mass,
     double* subcell_velocity_x, double* subcell_velocity_y,
-    double* subcell_velocity_z, double* subcell_centroid_x,
-    double* subcell_centroid_y, double* subcell_centroid_z,
-    double* subcell_centroids_x, double* subcell_centroids_y,
-    double* subcell_centroids_z, double* subcell_kinetic_energy,
-    double* rezoned_nodes_x, double* rezoned_nodes_y, double* rezoned_nodes_z,
+    double* subcell_velocity_z, double* subcell_centroids_x,
+    double* subcell_centroids_y, double* subcell_centroids_z,
+    double* subcell_kinetic_energy, double* rezoned_nodes_x,
+    double* rezoned_nodes_y, double* rezoned_nodes_z,
     int* nodes_to_faces_offsets, int* nodes_to_faces, int* faces_to_nodes,
     int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
     int* cells_to_faces_offsets, int* cells_to_faces, int* subcell_face_offsets,
     int* subcells_to_subcells) {
 
-#if 0
   // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
   // due to the pressure (ideal gas) and artificial viscous forces
   lagrangian_phase(
@@ -50,7 +48,6 @@ void solve_unstructured_hydro_2d(
       limiter, nodes_to_faces_offsets, nodes_to_faces, faces_to_nodes,
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
-#endif // if 0
 
   // Gather the subcell quantities for mass, internal and kinetic energy
   // density, and momentum
@@ -59,31 +56,13 @@ void solve_unstructured_hydro_2d(
       cells_to_nodes, cells_offsets, nodes_x0, nodes_y0, nodes_z0, energy0,
       density0, velocity_x0, velocity_y0, velocity_z0, cell_mass,
       subcell_volume, subcell_ie_density, subcell_mass, subcell_velocity_x,
-      subcell_velocity_y, subcell_velocity_z, subcell_centroid_x,
-      subcell_centroid_y, subcell_centroid_z, cell_volume, subcell_face_offsets,
-      nodes_to_faces_offsets, nodes_to_faces, faces_to_nodes,
-      faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
+      subcell_velocity_y, subcell_velocity_z, subcell_centroids_x,
+      subcell_centroids_y, subcell_centroids_z, cell_volume,
+      subcell_face_offsets, nodes_to_faces_offsets, nodes_to_faces,
+      faces_to_nodes, faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
 
 #if 0
-  for (int nn = 0; nn < nnodes; ++nn) {
-    rezoned_nodes_x[(nn)] *= 0.5;
-    rezoned_nodes_y[(nn)] *= 0.5;
-    rezoned_nodes_z[(nn)] *= 0.5;
-  }
-
-  // Calculate all of the subcell centroids, this is precomputed because the
-  // reconstruction of the subcell nodes from faces is quite expensive, and will
-  // require a significant amount of repetetive compute inside the remapping
-  // step due to the fact that the swept regions don't only take from the
-  // current subcell, but the neighbouring subcells too
-  // Calculates the subcells of all centroids
-  calc_subcell_centroids(
-      ncells, cell_centroids_x, cell_centroids_y, cell_centroids_z,
-      subcell_face_offsets, faces_to_nodes_offsets, faces_to_nodes,
-      cells_to_faces_offsets, cells_to_faces, nodes_x0, nodes_y0, nodes_z0,
-      subcell_centroids_x, subcell_centroids_y, subcell_centroids_z);
-
   /* LOOP OVER CELLS */
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
@@ -196,12 +175,10 @@ void solve_unstructured_hydro_2d(
                               prism_nodes_z);
 
           double swept_edge_vol = 0.0;
-          vec_t swept_edge_integrals = {0.0, 0.0, 0.0};
-          calc_weighted_volume_integrals(
-              0, NPRISM_FACES, prism_to_faces, prism_faces_to_nodes,
-              prism_faces_to_nodes_offsets, prism_nodes_x, prism_nodes_y,
-              prism_nodes_z, &prism_centroid, &swept_edge_integrals,
-              &swept_edge_vol);
+          calc_volume(0, NPRISM_FACES, prism_to_faces, prism_faces_to_nodes,
+                      prism_faces_to_nodes_offsets, prism_nodes_x,
+                      prism_nodes_y, prism_nodes_z, &prism_centroid,
+                      &swept_edge_vol);
 
           // Ignore faces that haven't changed.
           if (swept_edge_vol <= 0.0) {
