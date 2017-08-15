@@ -30,8 +30,8 @@ void gather_subcell_quantities(
     double* velocity_z0, double* cell_mass, double* subcell_volume,
     double* subcell_ie_density, double* subcell_mass,
     double* subcell_velocity_x, double* subcell_velocity_y,
-    double* subcell_velocity_z, double* subcell_integrals_x,
-    double* subcell_integrals_y, double* subcell_integrals_z,
+    double* subcell_velocity_z, double* subcell_centroid_x,
+    double* subcell_centroid_y, double* subcell_centroid_z, double* cell_volume,
     int* subcell_face_offsets, int* nodes_to_faces_offsets, int* nodes_to_faces,
     int* faces_to_nodes, int* faces_to_nodes_offsets, int* faces_to_cells0,
     int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces);
@@ -91,10 +91,10 @@ void calc_projections(const int nnodes_by_face, const int face_to_nodes_off,
 
 // Resolves the volume integrals in alpha-beta-gamma basis
 void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
-                         const int basis, const int face_orientation,
+                         const int basis, const int face_clockwise,
                          const double omega, const int* faces_to_nodes,
                          const double* nodes_alpha, const double* nodes_beta,
-                         vec_t normal, vec_t* T, double* vol);
+                         vec_t normal, double* vol);
 
 // Calculate the centroid
 void calc_centroid(const int nnodes, const double* nodes_x,
@@ -112,19 +112,18 @@ void set_timestep(const int ncells, const double* nodes_x,
 void calc_3x3_inverse(vec_t (*a)[3], vec_t (*inv)[3]);
 
 // Calculates the weighted volume integrals for a provided cell along x-y-z
-void calc_weighted_volume_integrals(
-    const int cell_to_faces_off, const int nfaces_by_cell,
-    const int* cells_to_faces, const int* faces_to_nodes,
-    const int* faces_to_nodes_offsets, const double* nodes_x,
-    const double* nodes_y, const double* nodes_z, const vec_t* cell_centroid,
-    vec_t* T, double* vol);
+void calc_volume(const int cell_to_faces_off, const int nfaces_by_cell,
+                 const int* cells_to_faces, const int* faces_to_nodes,
+                 const int* faces_to_nodes_offsets, const double* nodes_x,
+                 const double* nodes_y, const double* nodes_z,
+                 const vec_t* cell_centroid, double* vol);
 
 // Calculate the inverse coefficient matrix for a subcell, in order to
 // determine the gradients of the subcell quantities using least squares.
 void calc_inverse_coefficient_matrix(
     const int subcell_index, const int* subcells_to_subcells,
-    const double* subcell_integrals_x, const double* subcell_integrals_y,
-    const double* subcell_integrals_z, const double* subcell_centroids_x,
+    const double* subcell_centroid_x, const double* subcell_centroid_y,
+    const double* subcell_centroid_z, const double* subcell_centroids_x,
     const double* subcell_centroids_y, const double* subcell_centroids_z,
     const double* subcell_volume, const int nsubcells_by_subcell,
     const int subcell_to_subcells_off, vec_t (*inv)[3]);
@@ -133,9 +132,9 @@ void calc_inverse_coefficient_matrix(
 void calc_gradient(const int subcell_index, const int nsubcells_by_subcell,
                    const int subcell_to_subcells_off,
                    const int* subcells_to_subcells, const double* phi,
-                   const double* subcell_integrals_x,
-                   const double* subcell_integrals_y,
-                   const double* subcell_integrals_z,
+                   const double* subcell_centroid_x,
+                   const double* subcell_centroid_y,
+                   const double* subcell_centroid_z,
                    const double* subcell_volume, const vec_t (*inv)[3],
                    vec_t* gradient);
 

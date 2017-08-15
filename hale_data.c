@@ -34,6 +34,7 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
   allocated += allocate_data(&hale_data->rezoned_nodes_x, umesh->nnodes);
   allocated += allocate_data(&hale_data->rezoned_nodes_y, umesh->nnodes);
   allocated += allocate_data(&hale_data->rezoned_nodes_z, umesh->nnodes);
+  allocated += allocate_data(&hale_data->cell_volume, umesh->ncells);
 
   // TODO: This constant is the number of subcells that might neighbour a
   // subcell, which is the number of subcell faces
@@ -51,11 +52,11 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
   allocated +=
       allocate_data(&hale_data->subcell_velocity_z, hale_data->nsubcells);
   allocated +=
-      allocate_data(&hale_data->subcell_integrals_x, hale_data->nsubcells);
+      allocate_data(&hale_data->subcell_centroid_x, hale_data->nsubcells);
   allocated +=
-      allocate_data(&hale_data->subcell_integrals_y, hale_data->nsubcells);
+      allocate_data(&hale_data->subcell_centroid_y, hale_data->nsubcells);
   allocated +=
-      allocate_data(&hale_data->subcell_integrals_z, hale_data->nsubcells);
+      allocate_data(&hale_data->subcell_centroid_z, hale_data->nsubcells);
   allocated +=
       allocate_data(&hale_data->subcell_ie_density, hale_data->nsubcells);
   allocated += allocate_data(&hale_data->subcell_volume, hale_data->nsubcells);

@@ -16,17 +16,17 @@ void solve_unstructured_hydro_2d(
     double* nodes_x0, double* nodes_y0, double* nodes_z0, double* nodes_x1,
     double* nodes_y1, double* nodes_z1, int* boundary_index, int* boundary_type,
     double* boundary_normal_x, double* boundary_normal_y,
-    double* boundary_normal_z, double* energy0, double* energy1,
-    double* density0, double* density1, double* pressure0, double* pressure1,
-    double* velocity_x0, double* velocity_y0, double* velocity_z0,
-    double* velocity_x1, double* velocity_y1, double* velocity_z1,
-    double* subcell_force_x, double* subcell_force_y, double* subcell_force_z,
-    double* cell_mass, double* nodal_mass, double* nodal_volumes,
-    double* nodal_soundspeed, double* limiter, double* subcell_volume,
-    double* subcell_ie_density, double* subcell_mass,
+    double* boundary_normal_z, double* cell_volume, double* energy0,
+    double* energy1, double* density0, double* density1, double* pressure0,
+    double* pressure1, double* velocity_x0, double* velocity_y0,
+    double* velocity_z0, double* velocity_x1, double* velocity_y1,
+    double* velocity_z1, double* subcell_force_x, double* subcell_force_y,
+    double* subcell_force_z, double* cell_mass, double* nodal_mass,
+    double* nodal_volumes, double* nodal_soundspeed, double* limiter,
+    double* subcell_volume, double* subcell_ie_density, double* subcell_mass,
     double* subcell_velocity_x, double* subcell_velocity_y,
-    double* subcell_velocity_z, double* subcell_integrals_x,
-    double* subcell_integrals_y, double* subcell_integrals_z,
+    double* subcell_velocity_z, double* subcell_centroid_x,
+    double* subcell_centroid_y, double* subcell_centroid_z,
     double* subcell_centroids_x, double* subcell_centroids_y,
     double* subcell_centroids_z, double* subcell_kinetic_energy,
     double* rezoned_nodes_x, double* rezoned_nodes_y, double* rezoned_nodes_z,
@@ -59,8 +59,8 @@ void solve_unstructured_hydro_2d(
       cells_to_nodes, cells_offsets, nodes_x0, nodes_y0, nodes_z0, energy0,
       density0, velocity_x0, velocity_y0, velocity_z0, cell_mass,
       subcell_volume, subcell_ie_density, subcell_mass, subcell_velocity_x,
-      subcell_velocity_y, subcell_velocity_z, subcell_integrals_x,
-      subcell_integrals_y, subcell_integrals_z, subcell_face_offsets,
+      subcell_velocity_y, subcell_velocity_z, subcell_centroid_x,
+      subcell_centroid_y, subcell_centroid_z, cell_volume, subcell_face_offsets,
       nodes_to_faces_offsets, nodes_to_faces, faces_to_nodes,
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
@@ -208,6 +208,7 @@ void solve_unstructured_hydro_2d(
             continue;
           }
 
+#if 0
           // Check if we are sweeping into the current subcell
           int is_internal_sweep = ((sweep_direction.x * face_normal.x +
                                     sweep_direction.y * face_normal.y +
@@ -226,8 +227,8 @@ void solve_unstructured_hydro_2d(
           int nsubcells_by_subcell = NSUBCELL_NEIGHBOURS;
           int subcell_to_subcells_off = subcell_index * NSUBCELL_NEIGHBOURS;
           calc_inverse_coefficient_matrix(
-              sweep_subcell_index, subcells_to_subcells, subcell_integrals_x,
-              subcell_integrals_y, subcell_integrals_z, subcell_centroids_x,
+              sweep_subcell_index, subcells_to_subcells, subcell_centroid_x,
+              subcell_centroid_y, subcell_centroid_z, subcell_centroids_x,
               subcell_centroids_y, subcell_centroids_z, subcell_volume,
               nsubcells_by_subcell, subcell_to_subcells_off, &inv);
 
@@ -239,7 +240,7 @@ void solve_unstructured_hydro_2d(
             calc_gradient(
                 sweep_subcell_index, nsubcells_by_subcell,
                 subcell_to_subcells_off, subcells_to_subcells, subcell_mass,
-                subcell_integrals_x, subcell_integrals_y, subcell_integrals_z,
+                subcell_centroid_x, subcell_centroid_y, subcell_centroid_z,
                 subcell_volume, (const vec_t(*)[3]) & inv, &mass_gradient);
 
             // Calculate the flux for internal energy density in the subcell
@@ -261,6 +262,7 @@ void solve_unstructured_hydro_2d(
 
           // Gather the value back to the cell
           cell_mass[(cc)] += subcell_mass[(subcell_index)];
+#endif // if 0
         }
       }
     }

@@ -97,19 +97,13 @@ void init_cell_centroids(const int ncells, const int* cells_offsets,
     const int cells_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cells_off;
 
-    double cx = 0.0;
-    double cy = 0.0;
-    double cz = 0.0;
-    for (int nn = 0; nn < nnodes_by_cell; ++nn) {
-      const int node_index = cells_to_nodes[(cells_off + nn)];
-      cx += nodes_x[(node_index)];
-      cy += nodes_y[(node_index)];
-      cz += nodes_z[(node_index)];
-    }
+    vec_t cell_centroid = {0.0, 0.0, 0.0};
+    calc_centroid(nnodes_by_cell, nodes_x, nodes_y, nodes_z, cells_to_nodes,
+                  cells_off, &cell_centroid);
 
-    cell_centroids_x[(cc)] = cx / (double)nnodes_by_cell;
-    cell_centroids_y[(cc)] = cy / (double)nnodes_by_cell;
-    cell_centroids_z[(cc)] = cz / (double)nnodes_by_cell;
+    cell_centroids_x[(cc)] = cell_centroid.x;
+    cell_centroids_y[(cc)] = cell_centroid.y;
+    cell_centroids_z[(cc)] = cell_centroid.z;
   }
   STOP_PROFILING(&compute_profile, __func__);
 }

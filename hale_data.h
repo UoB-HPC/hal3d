@@ -11,6 +11,7 @@
 #define GAM 1.4
 #define C_Q 3.0
 #define C_M (1.5 / C_T)
+#define EPS 1.0e-10
 
 #define CFL 0.3
 #define VALIDATE_TOLERANCE 1.0e-5
@@ -35,10 +36,7 @@ enum { XYZ, YZX, ZXY };
 typedef struct {
   double one;
   double alpha;
-  double alpha2;
   double beta;
-  double beta2;
-  double alpha_beta;
 } pi_t;
 
 typedef struct {
@@ -66,7 +64,8 @@ typedef struct {
   double* node_visc_x;
   double* node_visc_y;
   double* node_visc_z;
-  double* cell_volumes;
+  double* cell_volume;
+  double* subcell_volume;
   double* cell_mass;
   double* nodal_mass;
   double* nodal_volumes;
@@ -81,7 +80,6 @@ typedef struct {
   // time and so there are some potential capacity reclaiming optimisations
   double* subcell_ie_density;
   double* subcell_mass;
-  double* subcell_volume;
   double* subcell_velocity_x;
   double* subcell_velocity_y;
   double* subcell_velocity_z;
@@ -92,9 +90,9 @@ typedef struct {
   double* corner_force_y;
   double* corner_force_z;
   double* subcell_kinetic_energy;
-  double* subcell_integrals_x;
-  double* subcell_integrals_y;
-  double* subcell_integrals_z;
+  double* subcell_centroid_x;
+  double* subcell_centroid_y;
+  double* subcell_centroid_z;
   double* rezoned_nodes_x;
   double* rezoned_nodes_y;
   double* rezoned_nodes_z;

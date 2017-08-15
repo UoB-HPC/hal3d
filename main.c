@@ -42,37 +42,6 @@ int main(int argc, char** argv) {
   const int visit_dump = get_int_parameter("visit_dump", hale_params);
   const int read_umesh = get_int_parameter("read_umesh", hale_params);
 
-  /////
-  /////
-  /////
-  /////
-  /////
-  /////
-  /////
-  /////
-  /////
-  /////
-  /////
-  /////
-  /////
-  /////
-  mesh.width = 2.0;
-  mesh.height = 2.0;
-  mesh.depth = 2.0;
-  /////
-  /////
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-
   double i0 = omp_get_wtime();
 
   // Perform initialisation routines
@@ -163,18 +132,18 @@ int main(int argc, char** argv) {
         umesh.nodes_y0, umesh.nodes_z0, umesh.nodes_x1, umesh.nodes_y1,
         umesh.nodes_z1, umesh.boundary_index, umesh.boundary_type,
         umesh.boundary_normal_x, umesh.boundary_normal_y,
-        umesh.boundary_normal_z, hale_data.energy0, hale_data.energy1,
-        hale_data.density0, hale_data.density1, hale_data.pressure0,
-        hale_data.pressure1, hale_data.velocity_x0, hale_data.velocity_y0,
-        hale_data.velocity_z0, hale_data.velocity_x1, hale_data.velocity_y1,
-        hale_data.velocity_z1, hale_data.corner_force_x,
+        umesh.boundary_normal_z, hale_data.cell_volume, hale_data.energy0,
+        hale_data.energy1, hale_data.density0, hale_data.density1,
+        hale_data.pressure0, hale_data.pressure1, hale_data.velocity_x0,
+        hale_data.velocity_y0, hale_data.velocity_z0, hale_data.velocity_x1,
+        hale_data.velocity_y1, hale_data.velocity_z1, hale_data.corner_force_x,
         hale_data.corner_force_y, hale_data.corner_force_z, hale_data.cell_mass,
         hale_data.nodal_mass, hale_data.nodal_volumes,
         hale_data.nodal_soundspeed, hale_data.limiter, hale_data.subcell_volume,
         hale_data.subcell_ie_density, hale_data.subcell_mass,
         hale_data.subcell_velocity_x, hale_data.subcell_velocity_y,
-        hale_data.subcell_velocity_z, hale_data.subcell_integrals_x,
-        hale_data.subcell_integrals_y, hale_data.subcell_integrals_z,
+        hale_data.subcell_velocity_z, hale_data.subcell_centroid_x,
+        hale_data.subcell_centroid_y, hale_data.subcell_centroid_z,
         hale_data.subcell_centroids_x, hale_data.subcell_centroids_y,
         hale_data.subcell_centroids_z, hale_data.subcell_kinetic_energy,
         hale_data.rezoned_nodes_x, hale_data.rezoned_nodes_y,
