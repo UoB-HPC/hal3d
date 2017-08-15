@@ -65,6 +65,7 @@ void solve_unstructured_hydro_2d(
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
 
+#if 0
   for (int nn = 0; nn < nnodes; ++nn) {
     rezoned_nodes_x[(nn)] *= 0.5;
     rezoned_nodes_y[(nn)] *= 0.5;
@@ -284,6 +285,7 @@ void solve_unstructured_hydro_2d(
     nodes_y0[nn] = rezoned_nodes_y[(nn)];
     nodes_z0[nn] = rezoned_nodes_z[(nn)];
   }
+#endif // if 0
 }
 
 #if 0

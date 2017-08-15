@@ -19,10 +19,15 @@ void gather_subcell_quantities(
     int* faces_to_nodes, int* faces_to_nodes_offsets, int* faces_to_cells0,
     int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces) {
 
-// TODO: This is a highly innaccurate solution, but I'm not sure what the right
-// way to go about this is with arbitrary polyhedrals using tetrahedral
-// subcells.
-#pragma omp parallel for
+  // TODO: This is a highly innaccurate solution, but I'm not sure what the
+  // right way to go about this is with arbitrary polyhedrals using tetrahedral
+  // subcells.
+  double total_momentum_in_subcells_x = 0.0;
+  double total_momentum_in_subcells_y = 0.0;
+  double total_momentum_in_subcells_z = 0.0;
+#pragma omp parallel for reduction(+ : total_momentum_in_subcells_x,           \
+                                   total_momentum_in_subcells_y,               \
+                                   total_momentum_in_subcells_z)
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
@@ -70,16 +75,59 @@ void gather_subcell_quantities(
         subcell_velocity_z[(subcell_off + nn)] =
             0.5 * m_s *
             (velocity_z0[(node_index)] + velocity_z0[(rnode_index)]);
+
+        total_momentum_in_subcells_x += subcell_velocity_x[(subcell_off + nn)];
+        total_momentum_in_subcells_y += subcell_velocity_y[(subcell_off + nn)];
+        total_momentum_in_subcells_z += subcell_velocity_z[(subcell_off + nn)];
       }
     }
   }
 
-/*
-*      GATHERING STAGE OF THE REMAP
-*/
+  // Calculate the total momentum between nodes and subcell masses
+  double total_momentum_in_cells_x = 0.0;
+  double total_momentum_in_cells_y = 0.0;
+  double total_momentum_in_cells_z = 0.0;
+#pragma omp parallel for reduction(+ : total_momentum_in_cells_x,              \
+                                   total_momentum_in_cells_y,                  \
+                                   total_momentum_in_cells_z)
+  for (int cc = 0; cc < ncells; ++cc) {
+    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
+    const int nfaces_by_cell =
+        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
 
+    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
+      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
+      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+      const int nnodes_by_face =
+          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+      const int subcell_off = subcell_face_offsets[(cell_to_faces_off + ff)];
+
+      // Calculate the face center value
+      for (int nn = 0; nn < nnodes_by_face; ++nn) {
+        const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
+        const double sm = subcell_mass[(subcell_off + nn)];
+        total_momentum_in_cells_x += sm * velocity_x0[(node_index)];
+        total_momentum_in_cells_y += sm * velocity_y0[(node_index)];
+        total_momentum_in_cells_z += sm * velocity_z0[(node_index)];
+      }
+    }
+  }
+
+  printf("Subcell Gathering Conservation\n");
+  printf("Total Momentum Cells    (%.6f %.6f %.6f)\n",
+         total_momentum_in_cells_x, total_momentum_in_cells_y,
+         total_momentum_in_cells_z);
+  printf("Total Momentum Subcells (%.6f %.6f %.6f)\n",
+         total_momentum_in_subcells_x, total_momentum_in_subcells_y,
+         total_momentum_in_subcells_z);
+
+  /*
+  *      GATHERING STAGE OF THE REMAP
+  */
+
+  double total_ie_in_subcells = 0.0;
 // Calculate the sub-cell internal energies
-#pragma omp parallel for
+#pragma omp parallel for reduction(+ : total_ie_in_subcells)
   for (int cc = 0; cc < ncells; ++cc) {
     // calculating the volume integrals necessary for the least squares
     // regression
@@ -285,9 +333,20 @@ void gather_subcell_quantities(
                               grad_energy.z * cell_centroid.z)) +
             grad_energy.x * integrals.x + grad_energy.y * integrals.y +
             grad_energy.z * integrals.z;
+
+        total_ie_in_subcells += subcell_ie_density[(subcell_off + nn)];
       }
     }
   }
+
+  // Print out the conservation of energy following the gathering
+  double total_ie_in_cells = 0.;
+#pragma omp parallel for reduction(+ : total_ie_in_cells)
+  for (int cc = 0; cc < ncells; ++cc) {
+    total_ie_in_cells += density0[cc] * energy0[(cc)];
+  }
+  printf("Total Energy in Cells    %.12f\nTotal Energy in Subcells %.12f \n",
+         total_ie_in_cells, total_ie_in_subcells);
 }
 
 // Checks if the normal vector is pointing inward or outward
