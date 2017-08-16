@@ -34,12 +34,6 @@
 enum { XYZ, YZX, ZXY };
 
 typedef struct {
-  double one;
-  double alpha;
-  double beta;
-} pi_t;
-
-typedef struct {
   double x;
   double y;
   double z;

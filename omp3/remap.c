@@ -7,18 +7,16 @@
 // Gathers all of the subcell quantities on the mesh
 void gather_subcell_quantities(
     const int ncells, double* cell_centroids_x, double* cell_centroids_y,
-    double* cell_centroids_z, int* cells_to_nodes, int* cells_offsets,
-    double* nodes_x0, double* nodes_y0, double* nodes_z0, double* energy0,
-    double* density0, double* velocity_x0, double* velocity_y0,
-    double* velocity_z0, double* cell_mass, double* subcell_volume,
-    double* subcell_ie_density, double* subcell_mass,
-    double* subcell_velocity_x, double* subcell_velocity_y,
-    double* subcell_velocity_z, double* subcell_centroids_x,
-    double* subcell_centroids_y, double* subcell_centroids_z,
-    double* cell_volume, int* subcell_face_offsets, int* nodes_to_faces_offsets,
-    int* nodes_to_faces, int* faces_to_nodes, int* faces_to_nodes_offsets,
-    int* faces_to_cells0, int* faces_to_cells1, int* cells_to_faces_offsets,
-    int* cells_to_faces) {
+    double* cell_centroids_z, int* cells_offsets, double* nodes_x0,
+    double* nodes_y0, double* nodes_z0, double* energy0, double* density0,
+    double* velocity_x0, double* velocity_y0, double* velocity_z0,
+    double* cell_mass, double* subcell_volume, double* subcell_ie_density,
+    double* subcell_mass, double* subcell_velocity_x,
+    double* subcell_velocity_y, double* subcell_velocity_z,
+    double* subcell_centroids_x, double* subcell_centroids_y,
+    double* subcell_centroids_z, double* cell_volume, int* subcell_face_offsets,
+    int* faces_to_nodes, int* faces_to_nodes_offsets, int* faces_to_cells0,
+    int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces) {
 
   // TODO: This is a highly innaccurate solution, but I'm not sure what the
   // right way to go about this is with arbitrary polyhedrals using tetrahedral
@@ -219,7 +217,6 @@ void gather_subcell_quantities(
   }
 
   double total_ie_in_subcells = 0.0;
-
 // Calculate the sub-cell internal energies
 #pragma omp parallel for reduction(+ : total_ie_in_subcells)
   for (int cc = 0; cc < ncells; ++cc) {
@@ -295,7 +292,30 @@ void gather_subcell_quantities(
 
     // Determine the inverse of the coefficient matrix
     vec_t inv[3];
+
+#if 0
+    //
+    //
+    //
+    //
+    //
+    //
+    //
+    //
+    //
+    //
+    //
+    //
+    //
+    //
+    //
+    //
+    //
+    //
+    //
+    //
     calc_3x3_inverse(&coeff, &inv);
+#endif // if 0
 
     // Solve for the energy gradient
     vec_t grad_energy;
@@ -440,9 +460,15 @@ void calc_unit_normal(const int n0, const int n1, const int n2,
 // Normalise a vector
 void normalise(vec_t* a) {
   const double a_inv_mag = 1.0 / sqrt(a->x * a->x + a->y * a->y + a->z * a->z);
-  a->x *= a_inv_mag;
-  a->y *= a_inv_mag;
-  a->z *= a_inv_mag;
+  if (sqrt(a->x * a->x + a->y * a->y + a->z * a->z) == 0.0) {
+    a->x = 0.0;
+    a->y = 0.0;
+    a->z = 0.0;
+  } else {
+    a->x *= a_inv_mag;
+    a->y *= a_inv_mag;
+    a->z *= a_inv_mag;
+  }
 }
 
 // Calculate the normal for a plane
@@ -474,7 +500,6 @@ void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
                          const double* nodes_alpha, const double* nodes_beta,
                          vec_t normal, double* vol) {
 
-  pi_t pi = {0.0, 0.0, 0.0};
   double pione = 0.0;
   double pialpha = 0.0;
   double pibeta = 0.0;
@@ -505,15 +530,15 @@ void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
   // Store the final coefficients, flipping all results if we went through
   // in a clockwise order and got a negative area
   const double flip = (face_clockwise ? 1.0 : -1.0);
-  pi.one += flip * pione;
-  pi.alpha += flip * pialpha;
-  pi.beta += flip * pibeta;
+  pione *= flip;
+  pialpha *= flip;
+  pibeta *= flip;
 
   // Finalise the weighted face center_of_mass
-  const double Falpha = pi.alpha / normal.z;
-  const double Fbeta = pi.beta / normal.z;
+  const double Falpha = pialpha / normal.z;
+  const double Fbeta = pibeta / normal.z;
   const double Fgamma =
-      -(normal.x * pi.alpha + normal.y * pi.beta + omega * pi.one) /
+      -(normal.x * pialpha + normal.y * pibeta + omega * pione) /
       (normal.z * normal.z);
 
   // Accumulate the weighted volume center_of_mass
@@ -532,6 +557,47 @@ void calc_volume(const int cell_to_faces_off, const int nfaces_by_cell,
                  const int* faces_to_nodes_offsets, const double* nodes_x,
                  const double* nodes_y, const double* nodes_z,
                  const vec_t* cell_centroid, double* vol) {
+
+  vec_t sign_normal;
+  calc_volume_integrals(cell_to_faces_off, nfaces_by_cell, cells_to_faces,
+                        faces_to_nodes, faces_to_nodes_offsets, nodes_x,
+                        nodes_y, nodes_z, &sign_normal, 0, cell_centroid, vol);
+}
+
+// Calculates the weighted volume center_of_mass for a provided cell along x-y-z
+int calc_signed_volume(const int cell_to_faces_off, const int nfaces_by_cell,
+                       const int* cells_to_faces, const int* faces_to_nodes,
+                       const int* faces_to_nodes_offsets, const double* nodes_x,
+                       const double* nodes_y, const double* nodes_z,
+                       const vec_t* sign_cell_centroid,
+                       const vec_t* cell_centroid, double* vol) {
+
+  // Determine the outward facing unit normal vector
+  const int face0_index = cells_to_faces[(cell_to_faces_off)];
+  const int face_to_nodes_off = faces_to_nodes_offsets[(face0_index)];
+  const int n0 = faces_to_nodes[(face_to_nodes_off + 0)];
+  const int n1 = faces_to_nodes[(face_to_nodes_off + 1)];
+  const int n2 = faces_to_nodes[(face_to_nodes_off + 2)];
+
+  vec_t sign_normal = {0.0, 0.0, 0.0};
+  calc_surface_normal(n0, n1, n2, nodes_x, nodes_y, nodes_z, sign_cell_centroid,
+                      &sign_normal);
+  calc_volume_integrals(cell_to_faces_off, nfaces_by_cell, cells_to_faces,
+                        faces_to_nodes, faces_to_nodes_offsets, nodes_x,
+                        nodes_y, nodes_z, &sign_normal, 1, cell_centroid, vol);
+
+  return 0;
+}
+
+// Calculates the weighted volume center_of_mass for a provided cell along x-y-z
+void calc_volume_integrals(const int cell_to_faces_off,
+                           const int nfaces_by_cell, const int* cells_to_faces,
+                           const int* faces_to_nodes,
+                           const int* faces_to_nodes_offsets,
+                           const double* nodes_x, const double* nodes_y,
+                           const double* nodes_z, const vec_t* sign_normal,
+                           int is_signed, const vec_t* cell_centroid,
+                           double* vol) {
 
   // Prepare to reduce accumulate the volume
   *vol = 0.0;
@@ -553,6 +619,25 @@ void calc_volume(const int cell_to_faces_off, const int nfaces_by_cell,
     const int face_clockwise = calc_surface_normal(
         n0, n1, n2, nodes_x, nodes_y, nodes_z, cell_centroid, &normal);
 
+    // I have observed that under certain combinations of translation and
+    // rotation the swept edge region can be tetrahedral rather than a prism,
+    // where an edge is shared between the faces of the subcell and the rezoned
+    // subcell. If this happens, which should be rare, due to numerical
+    // imprecision, I ignore the contribution of the face, and
+    // continue as if we were a tetrahedron.
+    if (normal.x == 0.0 && normal.y == 0.0 && normal.z == 0.0) {
+      continue;
+    }
+
+#if 0
+    // We make the normal consistent with face face
+    if (ff == 0 && is_signed) {
+      normal.x = sign_normal->x;
+      normal.y = sign_normal->y;
+      normal.z = sign_normal->z;
+    }
+#endif // if 0
+
     // The projection of the normal vector onto a point on the face
     double omega = -(normal.x * nodes_x[(n0)] + normal.y * nodes_y[(n0)] +
                      normal.z * nodes_z[(n0)]);
@@ -565,12 +650,7 @@ void calc_volume(const int cell_to_faces_off, const int nfaces_by_cell,
       basis = (fabs(normal.z) > fabs(normal.y)) ? XYZ : ZXY;
     }
 
-    // The orientation determines which order we pass the nodes by axes
-    // We calculate the individual face center_of_mass and the unit normal to
-    // the
-    // face in the alpha-beta-gamma basis
-    // The weighted center_of_mass essentially provide the center of mass
-    // coordinates for the polyhedra
+    // The basis ensures that gamma is always maximised
     if (basis == XYZ) {
       calc_face_integrals(nnodes_by_face, face_to_nodes_off, basis,
                           face_clockwise, omega, faces_to_nodes, nodes_x,
@@ -654,11 +734,10 @@ void calc_centroid(const int nnodes, const double* nodes_x,
 // determine the gradients of the subcell quantities using least squares.
 void calc_inverse_coefficient_matrix(
     const int subcell_index, const int* subcells_to_subcells,
-    const double* subcell_integrals_x, const double* subcell_integrals_y,
-    const double* subcell_integrals_z, const double* subcell_centroids_x,
-    const double* subcell_centroids_y, const double* subcell_centroids_z,
-    const double* subcell_volume, const int nsubcells_by_subcell,
-    const int subcell_to_subcells_off, vec_t (*inv)[3]) {
+    const double* subcell_centroids_x, const double* subcell_centroids_y,
+    const double* subcell_centroids_z, const double* subcell_volume,
+    const int nsubcells_by_subcell, const int subcell_to_subcells_off,
+    vec_t (*inv)[3]) {
 
   // The coefficients of the 3x3 gradient coefficient matrix
   vec_t coeff[3] = {{0.0, 0.0, 0.0}};
@@ -673,11 +752,11 @@ void calc_inverse_coefficient_matrix(
     }
 
     const double vol = subcell_volume[(neighbour_subcell_index)];
-    const double ix = subcell_integrals_x[(neighbour_subcell_index)] -
+    const double ix = subcell_centroids_x[(neighbour_subcell_index)] * vol -
                       subcell_centroids_x[(subcell_index)] * vol;
-    const double iy = subcell_integrals_y[(neighbour_subcell_index)] -
+    const double iy = subcell_centroids_y[(neighbour_subcell_index)] * vol -
                       subcell_centroids_y[(subcell_index)] * vol;
-    const double iz = subcell_integrals_z[(neighbour_subcell_index)] -
+    const double iz = subcell_centroids_z[(neighbour_subcell_index)] * vol -
                       subcell_centroids_z[(subcell_index)] * vol;
 
     // Store the neighbouring cell's contribution to the coefficients
@@ -724,18 +803,4 @@ void calc_gradient(const int subcell_index, const int nsubcells_by_subcell,
   gradient->x = (*inv)[0].x * rhs.x + (*inv)[0].y * rhs.y + (*inv)[0].z * rhs.z;
   gradient->y = (*inv)[1].x * rhs.x + (*inv)[1].y * rhs.y + (*inv)[1].z * rhs.z;
   gradient->z = (*inv)[2].x * rhs.x + (*inv)[2].y * rhs.y + (*inv)[2].z * rhs.z;
-}
-
-// Calculate the centroid of the swept edge prism
-void calc_prism_centroid(vec_t* prism_centroid, double* prism_nodes_x,
-                         double* prism_nodes_y, double* prism_nodes_z) {
-  prism_centroid->x = 0.0;
-  prism_centroid->y = 0.0;
-  prism_centroid->z = 0.0;
-
-  for (int pp = 0; pp < NPRISM_NODES; ++pp) {
-    prism_centroid->x += prism_nodes_x[(pp)] / NPRISM_NODES;
-    prism_centroid->y += prism_nodes_y[(pp)] / NPRISM_NODES;
-    prism_centroid->z += prism_nodes_z[(pp)] / NPRISM_NODES;
-  }
 }

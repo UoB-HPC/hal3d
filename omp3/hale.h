@@ -24,15 +24,14 @@ void lagrangian_phase(
 // Gathers all of the subcell quantities on the mesh
 void gather_subcell_quantities(
     const int ncells, double* cell_centroids_x, double* cell_centroids_y,
-    double* cell_centroids_z, int* cells_to_nodes, int* cells_offsets,
-    double* nodes_x0, double* nodes_y0, double* nodes_z0, double* energy0,
-    double* density0, double* velocity_x0, double* velocity_y0,
-    double* velocity_z0, double* cell_mass, double* subcell_volume,
-    double* subcell_ie_density, double* subcell_mass,
-    double* subcell_velocity_x, double* subcell_velocity_y,
-    double* subcell_velocity_z, double* subcell_centroid_x,
-    double* subcell_centroid_y, double* subcell_centroid_z, double* cell_volume,
-    int* subcell_face_offsets, int* nodes_to_faces_offsets, int* nodes_to_faces,
+    double* cell_centroids_z, int* cells_offsets, double* nodes_x0,
+    double* nodes_y0, double* nodes_z0, double* energy0, double* density0,
+    double* velocity_x0, double* velocity_y0, double* velocity_z0,
+    double* cell_mass, double* subcell_volume, double* subcell_ie_density,
+    double* subcell_mass, double* subcell_velocity_x,
+    double* subcell_velocity_y, double* subcell_velocity_z,
+    double* subcell_centroid_x, double* subcell_centroid_y,
+    double* subcell_centroid_z, double* cell_volume, int* subcell_face_offsets,
     int* faces_to_nodes, int* faces_to_nodes_offsets, int* faces_to_cells0,
     int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces);
 
@@ -83,12 +82,6 @@ void calc_normal(const int n0, const int n1, const int n2,
                  const double* nodes_x, const double* nodes_y,
                  const double* nodes_z, vec_t* normal);
 
-// Calculates the face integral for the provided face, projected onto
-// the two-dimensional basis
-void calc_projections(const int nnodes_by_face, const int face_to_nodes_off,
-                      const int* faces_to_nodes, const int face_orientation,
-                      const double* alpha, const double* beta, pi_t* pi);
-
 // Resolves the volume integrals in alpha-beta-gamma basis
 void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
                          const int basis, const int face_clockwise,
@@ -118,15 +111,32 @@ void calc_volume(const int cell_to_faces_off, const int nfaces_by_cell,
                  const double* nodes_y, const double* nodes_z,
                  const vec_t* cell_centroid, double* vol);
 
+// Calculates the weighted volume center_of_mass for a provided cell along x-y-z
+void calc_volume_integrals(const int cell_to_faces_off,
+                           const int nfaces_by_cell, const int* cells_to_faces,
+                           const int* faces_to_nodes,
+                           const int* faces_to_nodes_offsets,
+                           const double* nodes_x, const double* nodes_y,
+                           const double* nodes_z, const vec_t* sign_normal,
+                           int is_signed, const vec_t* cell_centroid,
+                           double* vol);
+
+// Calculates the weighted volume center_of_mass for a provided cell along x-y-z
+int calc_signed_volume(const int cell_to_faces_off, const int nfaces_by_cell,
+                       const int* cells_to_faces, const int* faces_to_nodes,
+                       const int* faces_to_nodes_offsets, const double* nodes_x,
+                       const double* nodes_y, const double* nodes_z,
+                       const vec_t* sign_centroid, const vec_t* cell_centroid,
+                       double* vol);
+
 // Calculate the inverse coefficient matrix for a subcell, in order to
 // determine the gradients of the subcell quantities using least squares.
 void calc_inverse_coefficient_matrix(
     const int subcell_index, const int* subcells_to_subcells,
-    const double* subcell_centroid_x, const double* subcell_centroid_y,
-    const double* subcell_centroid_z, const double* subcell_centroids_x,
-    const double* subcell_centroids_y, const double* subcell_centroids_z,
-    const double* subcell_volume, const int nsubcells_by_subcell,
-    const int subcell_to_subcells_off, vec_t (*inv)[3]);
+    const double* subcell_centroids_x, const double* subcell_centroids_y,
+    const double* subcell_centroids_z, const double* subcell_volume,
+    const int nsubcells_by_subcell, const int subcell_to_subcells_off,
+    vec_t (*inv)[3]);
 
 // Calculate the gradient for the
 void calc_gradient(const int subcell_index, const int nsubcells_by_subcell,
@@ -147,7 +157,3 @@ void calc_subcell_centroids(
     const int* cells_to_faces, const double* nodes_x0, const double* nodes_y0,
     const double* nodes_z0, double* subcell_centroids_x,
     double* subcell_centroids_y, double* subcell_centroids_z);
-
-// Calculate the centroid of the swept edge prism
-void calc_prism_centroid(vec_t* prism_centroid, double* prism_nodes_x,
-                         double* prism_nodes_y, double* prism_nodes_z);
