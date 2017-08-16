@@ -41,7 +41,7 @@ endif
 endif
 
 ifeq ($(DEBUG), yes)
-  OPTIONS += -O0 -g -DDEBUG 
+  OPTIONS += -g -DDEBUG -O0 
 endif
 
 ifeq ($(MPI), yes)

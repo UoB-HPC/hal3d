@@ -41,7 +41,7 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
   allocated += allocate_int_data(&hale_data->subcells_to_subcells,
                                  hale_data->nsubcells * 4);
   allocated += allocate_int_data(&hale_data->subcell_face_offsets,
-                                 umesh->ncells * nfaces_by_cell);
+                                 umesh->ncells * nfaces_by_cell + 1);
   allocated += allocate_int_data(&hale_data->subcell_to_neighbour_face,
                                  hale_data->nsubcells);
 

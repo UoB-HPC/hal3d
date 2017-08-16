@@ -7,16 +7,17 @@
 // Gathers all of the subcell quantities on the mesh
 void gather_subcell_quantities(
     const int ncells, double* cell_centroids_x, double* cell_centroids_y,
-    double* cell_centroids_z, int* cells_offsets, double* nodes_x0,
-    double* nodes_y0, double* nodes_z0, double* energy0, double* density0,
-    double* velocity_x0, double* velocity_y0, double* velocity_z0,
-    double* cell_mass, double* subcell_volume, double* subcell_ie_density,
-    double* subcell_mass, double* subcell_velocity_x,
-    double* subcell_velocity_y, double* subcell_velocity_z,
-    double* subcell_centroids_x, double* subcell_centroids_y,
-    double* subcell_centroids_z, double* cell_volume, int* subcell_face_offsets,
-    int* faces_to_nodes, int* faces_to_nodes_offsets, int* faces_to_cells0,
-    int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces) {
+    double* cell_centroids_z, int* cells_offsets, const double* nodes_x0,
+    const double* nodes_y0, const double* nodes_z0, double* energy0,
+    double* density0, double* velocity_x0, double* velocity_y0,
+    double* velocity_z0, double* cell_mass, double* subcell_volume,
+    double* subcell_ie_density, double* subcell_mass,
+    double* subcell_velocity_x, double* subcell_velocity_y,
+    double* subcell_velocity_z, double* subcell_centroids_x,
+    double* subcell_centroids_y, double* subcell_centroids_z,
+    double* cell_volume, int* subcell_face_offsets, int* faces_to_nodes,
+    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
+    int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes) {
 
   // TODO: This is a highly innaccurate solution, but I'm not sure what the
   // right way to go about this is with arbitrary polyhedrals using tetrahedral
@@ -300,26 +301,10 @@ void gather_subcell_quantities(
     grad_energy.y = inv[1].x * rhs.x + inv[1].y * rhs.y + inv[1].z * rhs.z;
     grad_energy.z = inv[2].x * rhs.x + inv[2].y * rhs.y + inv[2].z * rhs.z;
 
-    // We now limit the gradient
-    double limiter = DBL_MAX;
-    for (int nn = 0; nn < nnodes_by_cell; ++nn) {
-      double g_unlimited =
-          cell_ie +
-          grad_energy.x *
-              (nodes_x0[(cell_to_nodes_off + nn)] - cell_centroid.x) +
-          grad_energy.y *
-              (nodes_y0[(cell_to_nodes_off + nn)] - cell_centroid.y) +
-          grad_energy.z *
-              (nodes_z0[(cell_to_nodes_off + nn)] - cell_centroid.z);
+    const double limiter = calc_limiter(
+        nnodes_by_cell, cell_to_nodes_off, cells_to_nodes, &grad_energy,
+        &cell_centroid, nodes_x0, nodes_y0, nodes_z0, cell_ie, gmax, gmin);
 
-      double node_limiter = 1.0;
-      if (g_unlimited > cell_ie) {
-        node_limiter = min(1.0, (gmax - cell_ie) / (g_unlimited - cell_ie));
-      } else if (g_unlimited < cell_ie) {
-        node_limiter = min(1.0, (gmin - cell_ie) / (g_unlimited - cell_ie));
-      }
-      limiter = min(limiter, node_limiter);
-    }
     grad_energy.x *= limiter;
     grad_energy.y *= limiter;
     grad_energy.z *= limiter;
@@ -728,4 +713,35 @@ void calc_gradient(const int subcell_index, const int nsubcells_by_subcell,
   gradient->x = (*inv)[0].x * rhs.x + (*inv)[0].y * rhs.y + (*inv)[0].z * rhs.z;
   gradient->y = (*inv)[1].x * rhs.x + (*inv)[1].y * rhs.y + (*inv)[1].z * rhs.z;
   gradient->z = (*inv)[2].x * rhs.x + (*inv)[2].y * rhs.y + (*inv)[2].z * rhs.z;
+}
+
+// Calculates the limiter for the provided gradient
+double calc_limiter(const int nnodes_by_cell, const int cell_to_nodes_off,
+                    const int* cell_to_nodes, vec_t* grad,
+                    const vec_t* cell_centroid, const double* nodes_x0,
+                    const double* nodes_y0, const double* nodes_z0,
+                    const double phi, const double gmax, const double gmin) {
+
+  // Calculate the limiter for the gradient
+  double limiter = DBL_MAX;
+  for (int nn = 0; nn < nnodes_by_cell; ++nn) {
+    double g_unlimited =
+        phi +
+        grad->x * (nodes_x0[cell_to_nodes[(cell_to_nodes_off + nn)]] -
+                   cell_centroid->x) +
+        grad->y * (nodes_y0[cell_to_nodes[(cell_to_nodes_off + nn)]] -
+                   cell_centroid->y) +
+        grad->z * (nodes_z0[cell_to_nodes[(cell_to_nodes_off + nn)]] -
+                   cell_centroid->z);
+
+    double node_limiter = 1.0;
+    if (g_unlimited > phi) {
+      node_limiter = min(1.0, (gmax - phi) / (g_unlimited - phi));
+    } else if (g_unlimited < phi) {
+      node_limiter = min(1.0, (gmin - phi) / (g_unlimited - phi));
+    }
+    limiter = min(limiter, node_limiter);
+  }
+
+  return limiter;
 }

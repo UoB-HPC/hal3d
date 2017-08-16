@@ -24,13 +24,6 @@ void lagrangian_phase(
     int* faces_to_cells0, int* faces_to_cells1, int* cells_to_faces_offsets,
     int* cells_to_faces) {
 
-  double total_mass = 0.0;
-#pragma omp parallel for reduction(+ : total_mass)
-  for (int cc = 0; cc < ncells; ++cc) {
-    total_mass += cell_mass[(cc)];
-  }
-  printf("total mass %.12f\n", total_mass);
-
   /*
    *    PREDICTOR
    */
@@ -339,6 +332,7 @@ void lagrangian_phase(
                       nodes_z1, cell_centroids_x, cell_centroids_y,
                       cell_centroids_z);
 
+  printf("Predictor ");
   set_timestep(ncells, nodes_x1, nodes_y1, nodes_z1, energy0, &mesh->dt,
                cells_to_faces_offsets, cells_to_faces, faces_to_nodes_offsets,
                faces_to_nodes);
@@ -737,6 +731,7 @@ void lagrangian_phase(
   }
   STOP_PROFILING(&compute_profile, "move_nodes");
 
+  printf("Corrector ");
   set_timestep(ncells, nodes_x0, nodes_y0, nodes_z0, energy1, &mesh->dt,
                cells_to_faces_offsets, cells_to_faces, faces_to_nodes_offsets,
                faces_to_nodes);

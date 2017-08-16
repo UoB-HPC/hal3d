@@ -44,16 +44,17 @@ void calc_artificial_viscosity(
 // Gathers all of the subcell quantities on the mesh
 void gather_subcell_quantities(
     const int ncells, double* cell_centroids_x, double* cell_centroids_y,
-    double* cell_centroids_z, int* cells_offsets, double* nodes_x0,
-    double* nodes_y0, double* nodes_z0, double* energy0, double* density0,
-    double* velocity_x0, double* velocity_y0, double* velocity_z0,
-    double* cell_mass, double* subcell_volume, double* subcell_ie_density,
-    double* subcell_mass, double* subcell_velocity_x,
-    double* subcell_velocity_y, double* subcell_velocity_z,
-    double* subcell_centroids_x, double* subcell_centroids_y,
-    double* subcell_centroids_z, double* cell_volume, int* subcell_face_offsets,
-    int* faces_to_nodes, int* faces_to_nodes_offsets, int* faces_to_cells0,
-    int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces);
+    double* cell_centroids_z, int* cells_offsets, const double* nodes_x0,
+    const double* nodes_y0, const double* nodes_z0, double* energy0,
+    double* density0, double* velocity_x0, double* velocity_y0,
+    double* velocity_z0, double* cell_mass, double* subcell_volume,
+    double* subcell_ie_density, double* subcell_mass,
+    double* subcell_velocity_x, double* subcell_velocity_y,
+    double* subcell_velocity_z, double* subcell_centroids_x,
+    double* subcell_centroids_y, double* subcell_centroids_z,
+    double* cell_volume, int* subcell_face_offsets, int* faces_to_nodes,
+    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
+    int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes);
 
 // Checks if the normal vector is pointing inward or outward
 // n0 is just a point on the plane
@@ -127,3 +128,10 @@ void calc_gradient(const int subcell_index, const int nsubcells_by_subcell,
                    const double* subcell_centroids_y,
                    const double* subcell_centroids_z, const vec_t (*inv)[3],
                    vec_t* gradient);
+
+// Calculates the limiter for the provided gradient
+double calc_limiter(const int nnodes_by_cell, const int cell_to_nodes_off,
+                    const int* cell_to_nodes, vec_t* grad,
+                    const vec_t* cell_centroid, const double* nodes_x0,
+                    const double* nodes_y0, const double* nodes_z0,
+                    const double dphi, const double gmax, const double gmin);
