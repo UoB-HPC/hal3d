@@ -130,8 +130,8 @@ void calc_gradient(const int subcell_index, const int nsubcells_by_subcell,
                    vec_t* gradient);
 
 // Calculates the limiter for the provided gradient
-double calc_limiter(const int nnodes_by_cell, const int cell_to_nodes_off,
-                    const int* cell_to_nodes, vec_t* grad,
-                    const vec_t* cell_centroid, const double* nodes_x0,
-                    const double* nodes_y0, const double* nodes_z0,
-                    const double dphi, const double gmax, const double gmin);
+double apply_limiter(const int nnodes_by_cell, const int cell_to_nodes_off,
+                     const int* cell_to_nodes, vec_t* grad,
+                     const vec_t* cell_centroid, const double* nodes_x0,
+                     const double* nodes_y0, const double* nodes_z0,
+                     const double dphi, const double gmax, const double gmin);

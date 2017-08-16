@@ -301,13 +301,9 @@ void gather_subcell_quantities(
     grad_energy.y = inv[1].x * rhs.x + inv[1].y * rhs.y + inv[1].z * rhs.z;
     grad_energy.z = inv[2].x * rhs.x + inv[2].y * rhs.y + inv[2].z * rhs.z;
 
-    const double limiter = calc_limiter(
-        nnodes_by_cell, cell_to_nodes_off, cells_to_nodes, &grad_energy,
-        &cell_centroid, nodes_x0, nodes_y0, nodes_z0, cell_ie, gmax, gmin);
-
-    grad_energy.x *= limiter;
-    grad_energy.y *= limiter;
-    grad_energy.z *= limiter;
+    apply_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
+                  &grad_energy, &cell_centroid, nodes_x0, nodes_y0, nodes_z0,
+                  cell_ie, gmax, gmin);
 
     // Determine the weighted volume center_of_mass for neighbouring cells
     for (int ff = 0; ff < nfaces_by_cell; ++ff) {
@@ -716,11 +712,11 @@ void calc_gradient(const int subcell_index, const int nsubcells_by_subcell,
 }
 
 // Calculates the limiter for the provided gradient
-double calc_limiter(const int nnodes_by_cell, const int cell_to_nodes_off,
-                    const int* cell_to_nodes, vec_t* grad,
-                    const vec_t* cell_centroid, const double* nodes_x0,
-                    const double* nodes_y0, const double* nodes_z0,
-                    const double phi, const double gmax, const double gmin) {
+double apply_limiter(const int nnodes_by_cell, const int cell_to_nodes_off,
+                     const int* cell_to_nodes, vec_t* grad,
+                     const vec_t* cell_centroid, const double* nodes_x0,
+                     const double* nodes_y0, const double* nodes_z0,
+                     const double phi, const double gmax, const double gmin) {
 
   // Calculate the limiter for the gradient
   double limiter = DBL_MAX;
@@ -742,6 +738,10 @@ double calc_limiter(const int nnodes_by_cell, const int cell_to_nodes_off,
     }
     limiter = min(limiter, node_limiter);
   }
+
+  grad->x *= limiter;
+  grad->y *= limiter;
+  grad->z *= limiter;
 
   return limiter;
 }

@@ -43,7 +43,6 @@ void solve_unstructured_hydro_2d(
 
   printf("\nPerforming the Lagrangian Phase\n");
 
-#if 0
   // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
   // due to the pressure (ideal gas) and artificial viscous forces
   lagrangian_phase(
@@ -58,7 +57,6 @@ void solve_unstructured_hydro_2d(
       limiter, nodes_to_faces_offsets, nodes_to_faces, faces_to_nodes,
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
-#endif // if 0
 
   printf("\nPerforming Gathering Phase\n");
 
@@ -221,12 +219,8 @@ void solve_unstructured_hydro_2d(
                 NSUBCELL_NEIGHBOURS, sweep_subcell_index * NSUBCELL_NEIGHBOURS,
                 &inv);
 
-            // The coefficients of the 3x3 gradient coefficient matrix
-            vec_t coeff[3] = {{0.0, 0.0, 0.0}};
-
             double gmin = 0.0;
             double gmax = 0.0;
-
             for (int ss2 = 0; ss2 < NSUBCELL_NEIGHBOURS; ++ss2) {
               const int neighbour_subcell_index = subcells_to_subcells[(
                   sweep_subcell_index * NSUBCELL_NEIGHBOURS + ss2)];
@@ -235,34 +229,9 @@ void solve_unstructured_hydro_2d(
               if (neighbour_subcell_index == -1) {
                 continue;
               }
-
-              const double vol = subcell_volume[(neighbour_subcell_index)];
-              const double ix =
-                  subcell_centroids_x[(neighbour_subcell_index)] * vol -
-                  subcell_centroids_x[(subcell_index)] * vol;
-              const double iy =
-                  subcell_centroids_y[(neighbour_subcell_index)] * vol -
-                  subcell_centroids_y[(subcell_index)] * vol;
-              const double iz =
-                  subcell_centroids_z[(neighbour_subcell_index)] * vol -
-                  subcell_centroids_z[(subcell_index)] * vol;
-
-              // Store the neighbouring cell's contribution to the coefficients
-              coeff[0].x += (2.0 * ix * ix) / (vol * vol);
-              coeff[0].y += (2.0 * ix * iy) / (vol * vol);
-              coeff[0].z += (2.0 * ix * iz) / (vol * vol);
-              coeff[1].x += (2.0 * iy * ix) / (vol * vol);
-              coeff[1].y += (2.0 * iy * iy) / (vol * vol);
-              coeff[1].z += (2.0 * iy * iz) / (vol * vol);
-              coeff[2].x += (2.0 * iz * ix) / (vol * vol);
-              coeff[2].y += (2.0 * iz * iy) / (vol * vol);
-              coeff[2].z += (2.0 * iz * iz) / (vol * vol);
-
               gmax = max(gmax, subcell_mass[(neighbour_subcell_index)]);
               gmin = min(gmin, subcell_mass[(neighbour_subcell_index)]);
             }
-
-            calc_3x3_inverse(&coeff, &inv);
 
             // For all of the subcell centered quantities, determine the flux.
             vec_t grad_mass = {0.0, 0.0, 0.0};
@@ -273,13 +242,9 @@ void solve_unstructured_hydro_2d(
                 subcell_centroids_z, (const vec_t(*)[3]) & inv, &grad_mass);
 
             // Calculate and apply limiter for the gradient
-            const double limiter =
-                calc_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
-                             &grad_mass, &cell_centroid, nodes_x0, nodes_y0,
-                             nodes_z0, subcell_mass[(cc)], gmax, gmin);
-            grad_mass.x *= limiter;
-            grad_mass.y *= limiter;
-            grad_mass.z *= limiter;
+            apply_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
+                          &grad_mass, &cell_centroid, nodes_x0, nodes_y0,
+                          nodes_z0, subcell_mass[(cc)], gmax, gmin);
 
             // Calculate the flux for internal energy density in the subcell
             const double mass_flux =
