@@ -213,12 +213,11 @@ void solve_unstructured_hydro_2d(
 
             // For all of the subcell centered quantities, determine the flux.
             vec_t mass_gradient = {0.0, 0.0, 0.0};
-            calc_gradient(sweep_subcell_index, NSUBCELL_NEIGHBOURS,
-                          sweep_subcell_index * NSUBCELL_NEIGHBOURS,
-                          subcells_to_subcells, subcell_mass,
-                          subcell_centroids_x, subcell_centroids_y,
-                          subcell_centroids_z, subcell_volume,
-                          (const vec_t(*)[3]) & inv, &mass_gradient);
+            calc_gradient(
+                sweep_subcell_index, NSUBCELL_NEIGHBOURS,
+                sweep_subcell_index * NSUBCELL_NEIGHBOURS, subcells_to_subcells,
+                subcell_mass, subcell_centroids_x, subcell_centroids_y,
+                subcell_centroids_z, (const vec_t(*)[3]) & inv, &mass_gradient);
 
             // TODO: Add limiter here...
 

@@ -707,8 +707,7 @@ void calc_gradient(const int subcell_index, const int nsubcells_by_subcell,
                    const int* subcells_to_subcells, const double* phi,
                    const double* subcell_centroids_x,
                    const double* subcell_centroids_y,
-                   const double* subcell_centroids_z,
-                   const double* subcell_volume, const vec_t (*inv)[3],
+                   const double* subcell_centroids_z, const vec_t (*inv)[3],
                    vec_t* gradient) {
 
   // Calculate the gradient for the internal energy density
@@ -719,7 +718,6 @@ void calc_gradient(const int subcell_index, const int nsubcells_by_subcell,
 
     // Prepare differential
     const double dphi = (phi[(neighbour_subcell_index)] - phi[(subcell_index)]);
-    const double vol = subcell_volume[(neighbour_subcell_index)];
 
     // Calculate the subcell gradients for all of the variables
     rhs.x += (2.0 * subcell_centroids_x[(neighbour_subcell_index)] * dphi);
