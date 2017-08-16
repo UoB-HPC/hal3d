@@ -292,30 +292,7 @@ void gather_subcell_quantities(
 
     // Determine the inverse of the coefficient matrix
     vec_t inv[3];
-
-#if 0
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    //
     calc_3x3_inverse(&coeff, &inv);
-#endif // if 0
 
     // Solve for the energy gradient
     vec_t grad_energy;
@@ -558,47 +535,6 @@ void calc_volume(const int cell_to_faces_off, const int nfaces_by_cell,
                  const double* nodes_y, const double* nodes_z,
                  const vec_t* cell_centroid, double* vol) {
 
-  vec_t sign_normal;
-  calc_volume_integrals(cell_to_faces_off, nfaces_by_cell, cells_to_faces,
-                        faces_to_nodes, faces_to_nodes_offsets, nodes_x,
-                        nodes_y, nodes_z, &sign_normal, 0, cell_centroid, vol);
-}
-
-// Calculates the weighted volume center_of_mass for a provided cell along x-y-z
-int calc_signed_volume(const int cell_to_faces_off, const int nfaces_by_cell,
-                       const int* cells_to_faces, const int* faces_to_nodes,
-                       const int* faces_to_nodes_offsets, const double* nodes_x,
-                       const double* nodes_y, const double* nodes_z,
-                       const vec_t* sign_cell_centroid,
-                       const vec_t* cell_centroid, double* vol) {
-
-  // Determine the outward facing unit normal vector
-  const int face0_index = cells_to_faces[(cell_to_faces_off)];
-  const int face_to_nodes_off = faces_to_nodes_offsets[(face0_index)];
-  const int n0 = faces_to_nodes[(face_to_nodes_off + 0)];
-  const int n1 = faces_to_nodes[(face_to_nodes_off + 1)];
-  const int n2 = faces_to_nodes[(face_to_nodes_off + 2)];
-
-  vec_t sign_normal = {0.0, 0.0, 0.0};
-  calc_surface_normal(n0, n1, n2, nodes_x, nodes_y, nodes_z, sign_cell_centroid,
-                      &sign_normal);
-  calc_volume_integrals(cell_to_faces_off, nfaces_by_cell, cells_to_faces,
-                        faces_to_nodes, faces_to_nodes_offsets, nodes_x,
-                        nodes_y, nodes_z, &sign_normal, 1, cell_centroid, vol);
-
-  return 0;
-}
-
-// Calculates the weighted volume center_of_mass for a provided cell along x-y-z
-void calc_volume_integrals(const int cell_to_faces_off,
-                           const int nfaces_by_cell, const int* cells_to_faces,
-                           const int* faces_to_nodes,
-                           const int* faces_to_nodes_offsets,
-                           const double* nodes_x, const double* nodes_y,
-                           const double* nodes_z, const vec_t* sign_normal,
-                           int is_signed, const vec_t* cell_centroid,
-                           double* vol) {
-
   // Prepare to reduce accumulate the volume
   *vol = 0.0;
 
@@ -628,15 +564,6 @@ void calc_volume_integrals(const int cell_to_faces_off,
     if (normal.x == 0.0 && normal.y == 0.0 && normal.z == 0.0) {
       continue;
     }
-
-#if 0
-    // We make the normal consistent with face face
-    if (ff == 0 && is_signed) {
-      normal.x = sign_normal->x;
-      normal.y = sign_normal->y;
-      normal.z = sign_normal->z;
-    }
-#endif // if 0
 
     // The projection of the normal vector onto a point on the face
     double omega = -(normal.x * nodes_x[(n0)] + normal.y * nodes_y[(n0)] +
@@ -668,33 +595,6 @@ void calc_volume_integrals(const int cell_to_faces_off,
                           face_clockwise, omega, faces_to_nodes, nodes_z,
                           nodes_x, normal, vol);
     }
-  }
-}
-
-// Calculates the inverse of a 3x3 matrix, out-of-place
-void calc_3x3_inverse(vec_t (*a)[3], vec_t (*inv)[3]) {
-  // Calculate the determinant of the 3x3
-  const double det =
-      (*a)[0].x * ((*a)[1].y * (*a)[2].z - (*a)[1].z * (*a)[2].y) -
-      (*a)[0].y * ((*a)[1].x * (*a)[2].z - (*a)[1].z * (*a)[2].x) +
-      (*a)[0].z * ((*a)[1].x * (*a)[2].y - (*a)[1].y * (*a)[2].x);
-
-  // Check if the matrix is singular
-  if (det == 0.0) {
-    TERMINATE("singular coefficient matrix");
-  } else {
-    // Perform the simple and fast 3x3 matrix inverstion
-    (*inv)[0].x = ((*a)[1].y * (*a)[2].z - (*a)[1].z * (*a)[2].y) / det;
-    (*inv)[0].y = ((*a)[0].z * (*a)[2].y - (*a)[0].y * (*a)[2].z) / det;
-    (*inv)[0].z = ((*a)[0].y * (*a)[1].z - (*a)[0].z * (*a)[1].y) / det;
-
-    (*inv)[1].x = ((*a)[1].z * (*a)[2].x - (*a)[1].x * (*a)[2].z) / det;
-    (*inv)[1].y = ((*a)[0].x * (*a)[2].z - (*a)[0].z * (*a)[2].x) / det;
-    (*inv)[1].z = ((*a)[0].z * (*a)[1].x - (*a)[0].x * (*a)[1].z) / det;
-
-    (*inv)[2].x = ((*a)[1].x * (*a)[2].y - (*a)[1].y * (*a)[2].x) / det;
-    (*inv)[2].y = ((*a)[0].y * (*a)[2].x - (*a)[0].x * (*a)[2].y) / det;
-    (*inv)[2].z = ((*a)[0].x * (*a)[1].y - (*a)[0].y * (*a)[1].x) / det;
   }
 }
 
@@ -774,13 +674,40 @@ void calc_inverse_coefficient_matrix(
   calc_3x3_inverse(&coeff, inv);
 }
 
+// Calculates the inverse of a 3x3 matrix, out-of-place
+void calc_3x3_inverse(vec_t (*a)[3], vec_t (*inv)[3]) {
+  // Calculate the determinant of the 3x3
+  const double det =
+      (*a)[0].x * ((*a)[1].y * (*a)[2].z - (*a)[1].z * (*a)[2].y) -
+      (*a)[0].y * ((*a)[1].x * (*a)[2].z - (*a)[1].z * (*a)[2].x) +
+      (*a)[0].z * ((*a)[1].x * (*a)[2].y - (*a)[1].y * (*a)[2].x);
+
+  // Check if the matrix is singular
+  if (det == 0.0) {
+    TERMINATE("singular coefficient matrix");
+  } else {
+    // Perform the simple and fast 3x3 matrix inverstion
+    (*inv)[0].x = ((*a)[1].y * (*a)[2].z - (*a)[1].z * (*a)[2].y) / det;
+    (*inv)[0].y = ((*a)[0].z * (*a)[2].y - (*a)[0].y * (*a)[2].z) / det;
+    (*inv)[0].z = ((*a)[0].y * (*a)[1].z - (*a)[0].z * (*a)[1].y) / det;
+
+    (*inv)[1].x = ((*a)[1].z * (*a)[2].x - (*a)[1].x * (*a)[2].z) / det;
+    (*inv)[1].y = ((*a)[0].x * (*a)[2].z - (*a)[0].z * (*a)[2].x) / det;
+    (*inv)[1].z = ((*a)[0].z * (*a)[1].x - (*a)[0].x * (*a)[1].z) / det;
+
+    (*inv)[2].x = ((*a)[1].x * (*a)[2].y - (*a)[1].y * (*a)[2].x) / det;
+    (*inv)[2].y = ((*a)[0].y * (*a)[2].x - (*a)[0].x * (*a)[2].y) / det;
+    (*inv)[2].z = ((*a)[0].x * (*a)[1].y - (*a)[0].y * (*a)[1].x) / det;
+  }
+}
+
 // Calculate the gradient for the
 void calc_gradient(const int subcell_index, const int nsubcells_by_subcell,
                    const int subcell_to_subcells_off,
                    const int* subcells_to_subcells, const double* phi,
-                   const double* subcell_integrals_x,
-                   const double* subcell_integrals_y,
-                   const double* subcell_integrals_z,
+                   const double* subcell_centroids_x,
+                   const double* subcell_centroids_y,
+                   const double* subcell_centroids_z,
                    const double* subcell_volume, const vec_t (*inv)[3],
                    vec_t* gradient) {
 
@@ -791,13 +718,13 @@ void calc_gradient(const int subcell_index, const int nsubcells_by_subcell,
         subcells_to_subcells[(subcell_to_subcells_off + ss2)];
 
     // Prepare differential
-    const double de = (phi[(neighbour_subcell_index)] - phi[(subcell_index)]);
+    const double dphi = (phi[(neighbour_subcell_index)] - phi[(subcell_index)]);
     const double vol = subcell_volume[(neighbour_subcell_index)];
 
     // Calculate the subcell gradients for all of the variables
-    rhs.x += (2.0 * subcell_integrals_x[(neighbour_subcell_index)] * de / vol);
-    rhs.y += (2.0 * subcell_integrals_y[(neighbour_subcell_index)] * de / vol);
-    rhs.z += (2.0 * subcell_integrals_z[(neighbour_subcell_index)] * de / vol);
+    rhs.x += (2.0 * subcell_centroids_x[(neighbour_subcell_index)] * dphi);
+    rhs.y += (2.0 * subcell_centroids_y[(neighbour_subcell_index)] * dphi);
+    rhs.z += (2.0 * subcell_centroids_z[(neighbour_subcell_index)] * dphi);
   }
 
   gradient->x = (*inv)[0].x * rhs.x + (*inv)[0].y * rhs.y + (*inv)[0].z * rhs.z;

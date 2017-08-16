@@ -34,7 +34,8 @@ void solve_unstructured_hydro_2d(
     int* cells_to_faces_offsets, int* cells_to_faces, int* subcell_face_offsets,
     int* subcells_to_subcells) {
 
-#if 0
+  printf("\nPerforming the Lagrangian Phase\n");
+
   // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
   // due to the pressure (ideal gas) and artificial viscous forces
   lagrangian_phase(
@@ -49,7 +50,8 @@ void solve_unstructured_hydro_2d(
       limiter, nodes_to_faces_offsets, nodes_to_faces, faces_to_nodes,
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
-#endif // if 0
+
+  printf("\nPerforming Gathering Phase\n");
 
   // Gather the subcell quantities for mass, internal and kinetic energy
   // density, and momentum
@@ -63,13 +65,10 @@ void solve_unstructured_hydro_2d(
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
 
-  for (int nn = 0; nn < nnodes; ++nn) {
-    rezoned_nodes_x[nn] += 0.2;
-    rezoned_nodes_y[nn] += 0.2;
-    rezoned_nodes_z[nn] += 0.2;
-  }
+  printf("\nPerforming Remap Phase\n");
 
-  /* LOOP OVER CELLS */
+/* LOOP OVER CELLS */
+#pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
@@ -116,9 +115,10 @@ void solve_unstructured_hydro_2d(
         const int n1 = faces_to_nodes[(face_to_nodes_off + 1)];
         const int n2 = faces_to_nodes[(face_to_nodes_off + 2)];
 
-        vec_t normal;
-        const int face_clockwise = calc_surface_normal(
-            n0, n1, n2, nodes_x0, nodes_y0, nodes_z0, &cell_centroid, &normal);
+        vec_t face_normal;
+        const int face_clockwise =
+            calc_surface_normal(n0, n1, n2, nodes_x0, nodes_y0, nodes_z0,
+                                &cell_centroid, &face_normal);
 
         int rnode_index;
         if (face_clockwise) {
@@ -183,76 +183,64 @@ void solve_unstructured_hydro_2d(
                       swept_edge_nodes_y, swept_edge_nodes_z,
                       &swept_edge_centroid, &swept_edge_vol);
 
-          printf("vol %.12f\n", swept_edge_vol);
-
-          double sign_vol = 0.0;
-          calc_signed_volume(
-              0, NPRISM_FACES, swept_edge_to_faces, swept_edge_faces_to_nodes,
-              swept_edge_faces_to_nodes_offsets, swept_edge_nodes_x,
-              swept_edge_nodes_y, swept_edge_nodes_z, &cell_centroid,
-              &swept_edge_centroid, &sign_vol);
-
-#if 0
-          printf("vol %.12f signed_vol: %.12f\n", swept_edge_vol, sign_vol);
-#endif // if 0
-
-#if 0
-          int is_internal_sweep = swept_edge_vol < 0.0;
-          swept_edge_vol = fabs(swept_edge_vol);
-
-          // Ignore faces that haven't changed.
+          // Ignore the special case of an empty swept edge region
           if (swept_edge_vol <= 0.0) {
             continue;
           }
 
+          const int is_internal_sweep = check_normal_orientation(
+              0, swept_edge_nodes_x, swept_edge_nodes_y, swept_edge_nodes_z,
+              &swept_edge_centroid, &face_normal);
+
           // Depending upon which subcell we are sweeping into, choose the
           // subcell index with which to reconstruct the density
-          int subcell_neighbour_index =
+          const int subcell_neighbour_index =
               subcells_to_subcells[(subcell_index * NSUBCELL_NEIGHBOURS + pp)];
-          int sweep_subcell_index =
+          const int sweep_subcell_index =
               (is_internal_sweep ? subcell_index : subcell_neighbour_index);
-
-          // Calculate the inverse coefficient matrix for the least squares
-          // regression of the gradient, which is the same for all quantities.
-          vec_t inv[3];
-          int nsubcells_by_subcell = NSUBCELL_NEIGHBOURS;
-          int subcell_to_subcells_off = subcell_index * NSUBCELL_NEIGHBOURS;
-          calc_inverse_coefficient_matrix(
-              sweep_subcell_index, subcells_to_subcells, subcell_centroids_x,
-              subcell_centroids_y, subcell_centroids_z, subcell_volume,
-              nsubcells_by_subcell, subcell_to_subcells_off, &inv);
 
           // Only perform the sweep on the external face if it isn't a boundary
           if (subcell_neighbour_index != -1) {
 
+            // Calculate the inverse coefficient matrix for the least squares
+            // regression of the gradient, which is the same for all quantities.
+            vec_t inv[3];
+            calc_inverse_coefficient_matrix(
+                sweep_subcell_index, subcells_to_subcells, subcell_centroids_x,
+                subcell_centroids_y, subcell_centroids_z, subcell_volume,
+                NSUBCELL_NEIGHBOURS, sweep_subcell_index * NSUBCELL_NEIGHBOURS,
+                &inv);
+
             // For all of the subcell centered quantities, determine the flux.
-            vec_t mass_gradient;
-            calc_gradient(
-                sweep_subcell_index, nsubcells_by_subcell,
-                subcell_to_subcells_off, subcells_to_subcells, subcell_mass,
-                subcell_centroids_x, subcell_centroids_y, subcell_centroids_z,
-                subcell_volume, (const vec_t(*)[3]) & inv, &mass_gradient);
+            vec_t mass_gradient = {0.0, 0.0, 0.0};
+            calc_gradient(sweep_subcell_index, NSUBCELL_NEIGHBOURS,
+                          sweep_subcell_index * NSUBCELL_NEIGHBOURS,
+                          subcells_to_subcells, subcell_mass,
+                          subcell_centroids_x, subcell_centroids_y,
+                          subcell_centroids_z, subcell_volume,
+                          (const vec_t(*)[3]) & inv, &mass_gradient);
+
+            // TODO: Add limiter here...
 
             // Calculate the flux for internal energy density in the subcell
             const double mass_flux =
-                subcell_mass[(sweep_subcell_index)] * swept_edge_vol +
-                mass_gradient.x * swept_edge_centroid.x * swept_edge_vol +
-                mass_gradient.y * swept_edge_centroid.y * swept_edge_vol +
-                mass_gradient.z * swept_edge_centroid.z * swept_edge_vol -
                 swept_edge_vol *
-                    (mass_gradient.x *
-                         subcell_centroids_x[(sweep_subcell_index)] +
-                     mass_gradient.y *
-                         subcell_centroids_y[(sweep_subcell_index)] +
-                     mass_gradient.z *
-                         subcell_centroids_z[(sweep_subcell_index)]);
+                (subcell_mass[(sweep_subcell_index)] +
+                 mass_gradient.x *
+                     (swept_edge_centroid.x -
+                      subcell_centroids_x[(sweep_subcell_index)]) +
+                 mass_gradient.y *
+                     (swept_edge_centroid.y -
+                      subcell_centroids_y[(sweep_subcell_index)]) +
+                 mass_gradient.z *
+                     (swept_edge_centroid.z -
+                      subcell_centroids_z[(sweep_subcell_index)]));
 
             subcell_mass[(subcell_index)] -= mass_flux;
           }
 
           // Gather the value back to the cell
           cell_mass[(cc)] += subcell_mass[(subcell_index)];
-#endif // if 0
         }
       }
     }
