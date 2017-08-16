@@ -35,9 +35,13 @@ void solve_unstructured_hydro_2d(
     int* subcells_to_subcells) {
 
   double total_mass = 0.0;
-#pragma omp parallel for reduction(+ : total_mass)
+  double total_energy = 0.0;
+  double total_density = 0.0;
+#pragma omp parallel for reduction(+ : total_mass, total_energy, total_density)
   for (int cc = 0; cc < ncells; ++cc) {
     total_mass += cell_mass[(cc)];
+    total_energy += energy0[(cc)];
+    total_density += density0[(cc)];
   }
   printf("Total Mass %.12f\n", total_mass);
 
@@ -94,8 +98,10 @@ void solve_unstructured_hydro_2d(
                   rezoned_nodes_z, cells_to_nodes, cell_to_nodes_off,
                   &rz_cell_centroid);
 
-    // The cell mass is zeroed out to gather later
+    // Zero out the arrays that will be used to store the remapped quantities
     cell_mass[(cc)] = 0.0;
+    density1[(cc)] = 0.0;
+    energy1[(cc)] = 0.0;
 
     /* LOOP OVER CELL FACES */
     for (int ff = 0; ff < nfaces_by_cell; ++ff) {
@@ -207,74 +213,134 @@ void solve_unstructured_hydro_2d(
               (is_internal_sweep ? subcell_index : subcell_neighbour_index);
 
           // Only perform the sweep on the external face if it isn't a boundary
-          if (subcell_neighbour_index != -1) {
-
-            vec_t inv[3];
-
-            // Calculate the inverse coefficient matrix for the least squares
-            // regression of the gradient, which is the same for all quantities.
-            calc_inverse_coefficient_matrix(
-                sweep_subcell_index, subcells_to_subcells, subcell_centroids_x,
-                subcell_centroids_y, subcell_centroids_z, subcell_volume,
-                NSUBCELL_NEIGHBOURS, sweep_subcell_index * NSUBCELL_NEIGHBOURS,
-                &inv);
-
-            double gmin = 0.0;
-            double gmax = 0.0;
-            for (int ss2 = 0; ss2 < NSUBCELL_NEIGHBOURS; ++ss2) {
-              const int neighbour_subcell_index = subcells_to_subcells[(
-                  sweep_subcell_index * NSUBCELL_NEIGHBOURS + ss2)];
-
-              // Ignore boundary neighbours
-              if (neighbour_subcell_index == -1) {
-                continue;
-              }
-              gmax = max(gmax, subcell_mass[(neighbour_subcell_index)]);
-              gmin = min(gmin, subcell_mass[(neighbour_subcell_index)]);
-            }
-
-            // For all of the subcell centered quantities, determine the flux.
-            vec_t grad_mass = {0.0, 0.0, 0.0};
-            calc_gradient(
-                sweep_subcell_index, NSUBCELL_NEIGHBOURS,
-                sweep_subcell_index * NSUBCELL_NEIGHBOURS, subcells_to_subcells,
-                subcell_mass, subcell_centroids_x, subcell_centroids_y,
-                subcell_centroids_z, (const vec_t(*)[3]) & inv, &grad_mass);
-
-            // Calculate and apply limiter for the gradient
-            apply_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
-                          &grad_mass, &cell_centroid, nodes_x0, nodes_y0,
-                          nodes_z0, subcell_mass[(cc)], gmax, gmin);
-
-            // Calculate the flux for internal energy density in the subcell
-            const double mass_flux =
-                swept_edge_vol *
-                (subcell_mass[(sweep_subcell_index)] +
-                 grad_mass.x * (swept_edge_centroid.x -
-                                subcell_centroids_x[(sweep_subcell_index)]) +
-                 grad_mass.y * (swept_edge_centroid.y -
-                                subcell_centroids_y[(sweep_subcell_index)]) +
-                 grad_mass.z * (swept_edge_centroid.z -
-                                subcell_centroids_z[(sweep_subcell_index)]));
-
-            subcell_mass[(subcell_index)] -= mass_flux;
+          if (subcell_neighbour_index == -1) {
+            continue;
           }
+
+          vec_t inv[3];
+
+          /* CALCULATE INVERSE COEFFICIENT MATRIX */
+
+          // This coefficient matrix is identical for all of the advections
+          calc_inverse_coefficient_matrix(
+              sweep_subcell_index, subcells_to_subcells, subcell_centroids_x,
+              subcell_centroids_y, subcell_centroids_z, subcell_volume,
+              NSUBCELL_NEIGHBOURS, sweep_subcell_index * NSUBCELL_NEIGHBOURS,
+              &inv);
+
+          /* CALCULATE THE MAXIMUM AND MINIMUM VALUES IN THE NEIGHBOURHOOD */
+          double g_ie_min = 0.0;
+          double g_ie_max = 0.0;
+          double g_mass_min = 0.0;
+          double g_mass_max = 0.0;
+          for (int ss2 = 0; ss2 < NSUBCELL_NEIGHBOURS; ++ss2) {
+            const int neighbour_subcell_index = subcells_to_subcells[(
+                sweep_subcell_index * NSUBCELL_NEIGHBOURS + ss2)];
+
+            // Ignore boundary neighbours
+            if (neighbour_subcell_index == -1) {
+              continue;
+            }
+            g_mass_max =
+                max(g_mass_max, subcell_mass[(neighbour_subcell_index)]);
+            g_mass_min =
+                min(g_mass_min, subcell_mass[(neighbour_subcell_index)]);
+            g_ie_max =
+                max(g_ie_max, subcell_ie_density[(neighbour_subcell_index)]);
+            g_ie_min =
+                min(g_ie_min, subcell_ie_density[(neighbour_subcell_index)]);
+          }
+
+          /* ADVECT MASS */
+
+          // For all of the subcell centered quantities, determine the flux.
+          vec_t grad_mass = {0.0, 0.0, 0.0};
+          calc_gradient(sweep_subcell_index, NSUBCELL_NEIGHBOURS,
+                        sweep_subcell_index * NSUBCELL_NEIGHBOURS,
+                        subcells_to_subcells, subcell_mass, subcell_centroids_x,
+                        subcell_centroids_y, subcell_centroids_z,
+                        (const vec_t(*)[3]) & inv, &grad_mass);
+
+          // Calculate and apply limiter for the gradient
+          apply_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
+                        &grad_mass, &cell_centroid, nodes_x0, nodes_y0,
+                        nodes_z0, subcell_mass[(cc)], g_mass_max, g_mass_min);
+
+          // Calculate the flux for internal energy density in the subcell
+          const double mass_flux =
+              swept_edge_vol *
+              (subcell_mass[(sweep_subcell_index)] +
+               grad_mass.x * (swept_edge_centroid.x -
+                              subcell_centroids_x[(sweep_subcell_index)]) +
+               grad_mass.y * (swept_edge_centroid.y -
+                              subcell_centroids_y[(sweep_subcell_index)]) +
+               grad_mass.z * (swept_edge_centroid.z -
+                              subcell_centroids_z[(sweep_subcell_index)]));
+
+#if 0
+          subcell_mass[(subcell_index)] -= mass_flux;
+#endif // if 0
+
+          /* ADVECT INTERNAL ENERGY DENSITY */
+
+          // For all of the subcell centered quantities, determine the flux.
+          vec_t grad_ie = {0.0, 0.0, 0.0};
+          calc_gradient(
+              sweep_subcell_index, NSUBCELL_NEIGHBOURS,
+              sweep_subcell_index * NSUBCELL_NEIGHBOURS, subcells_to_subcells,
+              subcell_ie_density, subcell_centroids_x, subcell_centroids_y,
+              subcell_centroids_z, (const vec_t(*)[3]) & inv, &grad_ie);
+
+          // Calculate and apply limiter for the gradient
+          apply_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
+                        &grad_mass, &cell_centroid, nodes_x0, nodes_y0,
+                        nodes_z0, energy0[(cc)] * density0[(cc)], g_ie_max,
+                        g_ie_min);
+
+          // Calculate the flux for internal energy density in the subcell
+          const double ie_flux =
+              swept_edge_vol *
+              (subcell_ie_density[(sweep_subcell_index)] +
+               grad_ie.x * (swept_edge_centroid.x -
+                            subcell_centroids_x[(sweep_subcell_index)]) +
+               grad_ie.y * (swept_edge_centroid.y -
+                            subcell_centroids_y[(sweep_subcell_index)]) +
+               grad_ie.z * (swept_edge_centroid.z -
+                            subcell_centroids_z[(sweep_subcell_index)]));
+
+#if 0
+          subcell_ie_density[(subcell_index)] -= ie_flux;
+#endif // if 0
         }
 
         // Gather the value back to the cell
         cell_mass[(cc)] += subcell_mass[(subcell_index)];
+        density1[(cc)] +=
+            subcell_mass[(subcell_index)] / subcell_volume[(subcell_index)];
+        energy1[(cc)] += subcell_ie_density[(subcell_index)];
       }
     }
   }
 
   // Print the conservation of mass
   double rz_total_mass = 0.0;
-#pragma omp parallel for reduction(+ : rz_total_mass)
+  double rz_total_density = 0.0;
+  double rz_total_energy = 0.0;
+#pragma omp parallel for reduction(+ : rz_total_mass, rz_total_density,        \
+                                   rz_total_energy)
   for (int cc = 0; cc < ncells; ++cc) {
-    rz_total_mass += cell_mass[cc];
+    density0[(cc)] = density1[(cc)];
+    energy0[(cc)] = energy1[(cc)] / density1[(cc)];
+    rz_total_mass += cell_mass[(cc)];
+    rz_total_energy += energy0[(cc)];
+    rz_total_density += density0[(cc)];
   }
   printf("Rezoned Total Mass %.12f, Initial Total Mass %.12f\n", rz_total_mass,
          total_mass);
+  printf("Rezoned Total Energy %.12f, Initial Total Energy %.12f\n",
+         rz_total_energy, total_energy);
+  printf("Rezoned Total Density %.12f, Initial Total Density %.12f\n",
+         rz_total_density, total_density);
 
 // Finally set the current mesh back to the previous mesh
 #pragma omp parallel for
