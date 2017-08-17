@@ -121,101 +121,16 @@ void gather_subcell_quantities(
          total_momentum_in_subcells_x, total_momentum_in_subcells_y,
          total_momentum_in_subcells_z);
 
-/*
-*      GATHERING STAGE OF THE REMAP
-*/
+  /*
+  *      GATHERING STAGE OF THE REMAP
+  */
 
-#pragma omp parallel for
-  for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
-    const int nfaces_by_cell =
-        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
-
-    vec_t cell_centroid = {cell_centroids_x[(cc)], cell_centroids_y[(cc)],
-                           cell_centroids_z[(cc)]};
-
-    // Precompute the volume of the cell
-    calc_volume(cell_to_faces_off, nfaces_by_cell, cells_to_faces,
-                faces_to_nodes, faces_to_nodes_offsets, nodes_x0, nodes_y0,
-                nodes_z0, &cell_centroid, &cell_volume[(cc)]);
-
-    // Describe the connectivity for a simple tetrahedron, the sub-cell shape
-    const int subcell_faces_to_nodes_offsets[] = {0, 3, 6, 9, 12};
-    const int subcell_faces_to_nodes[] = {0, 1, 2, 0, 3, 1, 0, 2, 3, 1, 2, 3};
-    const int subcell_to_faces[] = {0, 1, 2, 3};
-    double subcell_nodes_x[] = {0.0, 0.0, 0.0, 0.0};
-    double subcell_nodes_y[] = {0.0, 0.0, 0.0, 0.0};
-    double subcell_nodes_z[] = {0.0, 0.0, 0.0, 0.0};
-
-    // The centroid remains a component of all sub-cells
-    subcell_nodes_x[3] = cell_centroid.x;
-    subcell_nodes_y[3] = cell_centroid.y;
-    subcell_nodes_z[3] = cell_centroid.z;
-
-    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
-      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
-      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-      const int nnodes_by_face =
-          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-      const int subcell_off = subcell_face_offsets[(cell_to_faces_off + ff)];
-
-      // The face centroid is the same for all nodes on the face
-      vec_t face_c = {0.0, 0.0, 0.0};
-      calc_centroid(nnodes_by_face, nodes_x0, nodes_y0, nodes_z0,
-                    faces_to_nodes, face_to_nodes_off, &face_c);
-
-      subcell_nodes_x[2] = face_c.x;
-      subcell_nodes_y[2] = face_c.y;
-      subcell_nodes_z[2] = face_c.z;
-
-      // Each face/node pair has two sub-cells
-      for (int nn = 0; nn < nnodes_by_face; ++nn) {
-        // The left and right nodes on the face for this anchor node
-        const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
-        const int n0 = faces_to_nodes[(face_to_nodes_off + 0)];
-        const int n1 = faces_to_nodes[(face_to_nodes_off + 1)];
-        const int n2 = faces_to_nodes[(face_to_nodes_off + 2)];
-        const int subcell_index = subcell_off + nn;
-
-        vec_t normal;
-        const int face_clockwise = calc_surface_normal(
-            n0, n1, n2, nodes_x0, nodes_y0, nodes_z0, &cell_centroid, &normal);
-        int rnode_index;
-        if (face_clockwise) {
-          rnode_index = faces_to_nodes[(
-              face_to_nodes_off + ((nn == 0) ? nnodes_by_face - 1 : nn - 1))];
-        } else {
-          rnode_index = faces_to_nodes[(
-              face_to_nodes_off + ((nn == nnodes_by_face - 1) ? 0 : nn + 1))];
-        }
-
-        // Store the right and left nodes
-        subcell_nodes_x[1] = nodes_x0[(rnode_index)];
-        subcell_nodes_y[1] = nodes_y0[(rnode_index)];
-        subcell_nodes_z[1] = nodes_z0[(rnode_index)];
-        subcell_nodes_x[0] = nodes_x0[(node_index)];
-        subcell_nodes_y[0] = nodes_y0[(node_index)];
-        subcell_nodes_z[0] = nodes_z0[(node_index)];
-
-        // Determine the sub-cell centroid
-        vec_t subcell_centroid = {0.0, 0.0, 0.0};
-        for (int ii = 0; ii < NTET_NODES; ++ii) {
-          subcell_centroid.x += subcell_nodes_x[ii] / NTET_NODES;
-          subcell_centroid.y += subcell_nodes_y[ii] / NTET_NODES;
-          subcell_centroid.z += subcell_nodes_z[ii] / NTET_NODES;
-        }
-        subcell_centroids_x[(subcell_index)] = subcell_centroid.x;
-        subcell_centroids_y[(subcell_index)] = subcell_centroid.y;
-        subcell_centroids_z[(subcell_index)] = subcell_centroid.z;
-
-        // Precompute the volume of the subcell
-        calc_volume(0, NTET_FACES, subcell_to_faces, subcell_faces_to_nodes,
-                    subcell_faces_to_nodes_offsets, subcell_nodes_x,
-                    subcell_nodes_y, subcell_nodes_z, &subcell_centroid,
-                    &subcell_volume[(subcell_index)]);
-      }
-    }
-  }
+  calc_volumes_centroids(ncells, cells_to_faces_offsets, cell_centroids_x,
+                         cell_centroids_y, cell_centroids_z, cells_to_faces,
+                         faces_to_nodes, faces_to_nodes_offsets,
+                         subcell_face_offsets, nodes_x0, nodes_y0, nodes_z0,
+                         cell_volume, subcell_centroids_x, subcell_centroids_y,
+                         subcell_centroids_z, subcell_volume);
 
   double total_ie_in_subcells = 0.0;
 // Calculate the sub-cell internal energies
@@ -744,4 +659,108 @@ double apply_limiter(const int nnodes_by_cell, const int cell_to_nodes_off,
   grad->z *= limiter;
 
   return limiter;
+}
+
+// Calculates the cell volume, subcell volume and the subcell centroids
+void calc_volumes_centroids(
+    const int ncells, const int* cells_to_faces_offsets,
+    const double* cell_centroids_x, const double* cell_centroids_y,
+    const double* cell_centroids_z, const int* cells_to_faces,
+    const int* faces_to_nodes, const int* faces_to_nodes_offsets,
+    const int* subcell_face_offsets, const double* nodes_x0,
+    const double* nodes_y0, const double* nodes_z0, double* cell_volume,
+    double* subcell_centroids_x, double* subcell_centroids_y,
+    double* subcell_centroids_z, double* subcell_volume) {
+
+#pragma omp parallel for
+  for (int cc = 0; cc < ncells; ++cc) {
+    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
+    const int nfaces_by_cell =
+        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
+
+    vec_t cell_centroid = {cell_centroids_x[(cc)], cell_centroids_y[(cc)],
+                           cell_centroids_z[(cc)]};
+
+    // Precompute the volume of the cell
+    calc_volume(cell_to_faces_off, nfaces_by_cell, cells_to_faces,
+                faces_to_nodes, faces_to_nodes_offsets, nodes_x0, nodes_y0,
+                nodes_z0, &cell_centroid, &cell_volume[(cc)]);
+
+    // Describe the connectivity for a simple tetrahedron, the sub-cell shape
+    const int subcell_faces_to_nodes_offsets[] = {0, 3, 6, 9, 12};
+    const int subcell_faces_to_nodes[] = {0, 1, 2, 0, 3, 1, 0, 2, 3, 1, 2, 3};
+    const int subcell_to_faces[] = {0, 1, 2, 3};
+    double subcell_nodes_x[] = {0.0, 0.0, 0.0, 0.0};
+    double subcell_nodes_y[] = {0.0, 0.0, 0.0, 0.0};
+    double subcell_nodes_z[] = {0.0, 0.0, 0.0, 0.0};
+
+    // The centroid remains a component of all sub-cells
+    subcell_nodes_x[3] = cell_centroid.x;
+    subcell_nodes_y[3] = cell_centroid.y;
+    subcell_nodes_z[3] = cell_centroid.z;
+
+    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
+      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
+      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+      const int nnodes_by_face =
+          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+      const int subcell_off = subcell_face_offsets[(cell_to_faces_off + ff)];
+
+      // The face centroid is the same for all nodes on the face
+      vec_t face_c = {0.0, 0.0, 0.0};
+      calc_centroid(nnodes_by_face, nodes_x0, nodes_y0, nodes_z0,
+                    faces_to_nodes, face_to_nodes_off, &face_c);
+
+      subcell_nodes_x[2] = face_c.x;
+      subcell_nodes_y[2] = face_c.y;
+      subcell_nodes_z[2] = face_c.z;
+
+      // Each face/node pair has two sub-cells
+      for (int nn = 0; nn < nnodes_by_face; ++nn) {
+        // The left and right nodes on the face for this anchor node
+        const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
+        const int n0 = faces_to_nodes[(face_to_nodes_off + 0)];
+        const int n1 = faces_to_nodes[(face_to_nodes_off + 1)];
+        const int n2 = faces_to_nodes[(face_to_nodes_off + 2)];
+        const int subcell_index = subcell_off + nn;
+
+        vec_t normal;
+        const int face_clockwise = calc_surface_normal(
+            n0, n1, n2, nodes_x0, nodes_y0, nodes_z0, &cell_centroid, &normal);
+        int rnode_index;
+        if (face_clockwise) {
+          rnode_index = faces_to_nodes[(
+              face_to_nodes_off + ((nn == 0) ? nnodes_by_face - 1 : nn - 1))];
+        } else {
+          rnode_index = faces_to_nodes[(
+              face_to_nodes_off + ((nn == nnodes_by_face - 1) ? 0 : nn + 1))];
+        }
+
+        // Store the right and left nodes
+        subcell_nodes_x[1] = nodes_x0[(rnode_index)];
+        subcell_nodes_y[1] = nodes_y0[(rnode_index)];
+        subcell_nodes_z[1] = nodes_z0[(rnode_index)];
+        subcell_nodes_x[0] = nodes_x0[(node_index)];
+        subcell_nodes_y[0] = nodes_y0[(node_index)];
+        subcell_nodes_z[0] = nodes_z0[(node_index)];
+
+        // Determine the sub-cell centroid
+        vec_t subcell_centroid = {0.0, 0.0, 0.0};
+        for (int ii = 0; ii < NTET_NODES; ++ii) {
+          subcell_centroid.x += subcell_nodes_x[(ii)] / NTET_NODES;
+          subcell_centroid.y += subcell_nodes_y[(ii)] / NTET_NODES;
+          subcell_centroid.z += subcell_nodes_z[(ii)] / NTET_NODES;
+        }
+        subcell_centroids_x[(subcell_index)] = subcell_centroid.x;
+        subcell_centroids_y[(subcell_index)] = subcell_centroid.y;
+        subcell_centroids_z[(subcell_index)] = subcell_centroid.z;
+
+        // Precompute the volume of the subcell
+        calc_volume(0, NTET_FACES, subcell_to_faces, subcell_faces_to_nodes,
+                    subcell_faces_to_nodes_offsets, subcell_nodes_x,
+                    subcell_nodes_y, subcell_nodes_z, &subcell_centroid,
+                    &subcell_volume[(subcell_index)]);
+      }
+    }
+  }
 }

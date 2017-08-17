@@ -135,3 +135,14 @@ double apply_limiter(const int nnodes_by_cell, const int cell_to_nodes_off,
                      const vec_t* cell_centroid, const double* nodes_x0,
                      const double* nodes_y0, const double* nodes_z0,
                      const double dphi, const double gmax, const double gmin);
+
+// Calculates the cell volume, subcell volume and the subcell centroids
+void calc_volumes_centroids(
+    const int ncells, const int* cells_to_faces_offsets,
+    const double* cell_centroids_x, const double* cell_centroids_y,
+    const double* cell_centroids_z, const int* cells_to_faces,
+    const int* faces_to_nodes, const int* faces_to_nodes_offsets,
+    const int* subcell_face_offsets, const double* nodes_x0,
+    const double* nodes_y0, const double* nodes_z0, double* cell_volume,
+    double* subcell_centroids_x, double* subcell_centroids_y,
+    double* subcell_centroids_z, double* subcell_volume);

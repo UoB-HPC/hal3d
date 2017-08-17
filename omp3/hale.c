@@ -100,8 +100,8 @@ void solve_unstructured_hydro_2d(
 
     // Zero out the arrays that will be used to store the remapped quantities
     cell_mass[(cc)] = 0.0;
-    density1[(cc)] = 0.0;
     energy1[(cc)] = 0.0;
+    cell_volume[(cc)] = 0.0;
 
     /* LOOP OVER CELL FACES */
     for (int ff = 0; ff < nfaces_by_cell; ++ff) {
@@ -276,10 +276,7 @@ void solve_unstructured_hydro_2d(
                               subcell_centroids_y[(sweep_subcell_index)]) +
                grad_mass.z * (swept_edge_centroid.z -
                               subcell_centroids_z[(sweep_subcell_index)]));
-
-#if 0
           subcell_mass[(subcell_index)] -= mass_flux;
-#endif // if 0
 
           /* ADVECT INTERNAL ENERGY DENSITY */
 
@@ -307,19 +304,20 @@ void solve_unstructured_hydro_2d(
                             subcell_centroids_y[(sweep_subcell_index)]) +
                grad_ie.z * (swept_edge_centroid.z -
                             subcell_centroids_z[(sweep_subcell_index)]));
-
-#if 0
           subcell_ie_density[(subcell_index)] -= ie_flux;
-#endif // if 0
         }
 
         // Gather the value back to the cell
         cell_mass[(cc)] += subcell_mass[(subcell_index)];
-        density1[(cc)] +=
-            subcell_mass[(subcell_index)] / subcell_volume[(subcell_index)];
         energy1[(cc)] += subcell_ie_density[(subcell_index)];
       }
     }
+
+    // Update the volume of the cell to the new rezoned mesh
+    calc_volume(cell_to_faces_off, nfaces_by_cell, cells_to_faces,
+                faces_to_nodes, faces_to_nodes_offsets, rezoned_nodes_x,
+                rezoned_nodes_y, rezoned_nodes_z, &rz_cell_centroid,
+                &cell_volume[(cc)]);
   }
 
   // Print the conservation of mass
@@ -329,8 +327,8 @@ void solve_unstructured_hydro_2d(
 #pragma omp parallel for reduction(+ : rz_total_mass, rz_total_density,        \
                                    rz_total_energy)
   for (int cc = 0; cc < ncells; ++cc) {
-    density0[(cc)] = density1[(cc)];
-    energy0[(cc)] = energy1[(cc)] / density1[(cc)];
+    density0[(cc)] = cell_mass[(cc)] / cell_volume[(cc)];
+    energy0[(cc)] = energy1[(cc)] / cell_mass[(cc)];
     rz_total_mass += cell_mass[(cc)];
     rz_total_energy += energy0[(cc)];
     rz_total_density += density0[(cc)];
