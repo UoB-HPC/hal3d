@@ -47,6 +47,7 @@ void solve_unstructured_hydro_2d(
 
   printf("\nPerforming the Lagrangian Phase\n");
 
+#if 0
   // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
   // due to the pressure (ideal gas) and artificial viscous forces
   lagrangian_phase(
@@ -75,6 +76,137 @@ void solve_unstructured_hydro_2d(
       subcell_centroids_z, cell_volume, subcell_face_offsets, faces_to_nodes,
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces, cells_to_nodes);
+#endif // if 0
+
+  // Set some artificial value for the velocity
+  for (int nn = 0; nn < nnodes; ++nn) {
+#if 0
+    velocity_x0[(nn)] = 1.0;
+    velocity_y0[(nn)] = 1.0;
+    velocity_z0[(nn)] = 1.0;
+#endif // if 0
+    velocity_x0[(nn)] = 0.01 * (nn);
+    velocity_y0[(nn)] = 0.02 * (nn);
+    velocity_z0[(nn)] = 0.015 * (nn);
+  }
+#if 0
+  for (int cc = 0; cc < ncells; ++cc) {
+    cell_mass[(cc)] = 0.01 * (cc + 1);
+  }
+  for (int ss = 0; ss < ncells * 24; ++ss) {
+    subcell_mass[ss] = cell_mass[ss / 24] / 24.0;
+  }
+#endif // if 0
+
+  // Determine the cell-centered velocity approximations
+  double* cell_velocity_x = velocity_x1;
+  double* cell_velocity_y = velocity_y1;
+  double* cell_velocity_z = velocity_z1;
+  for (int cc = 0; cc < ncells; ++cc) {
+    cell_velocity_x[(cc)] = 0.0;
+    cell_velocity_y[(cc)] = 0.0;
+    cell_velocity_z[(cc)] = 0.0;
+
+    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
+    const int nfaces_by_cell =
+        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
+
+    vec_t cell_centroid;
+    cell_centroid.x = cell_centroids_x[(cc)];
+    cell_centroid.y = cell_centroids_y[(cc)];
+    cell_centroid.z = cell_centroids_z[(cc)];
+
+    /* LOOP OVER CELL FACES */
+    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
+      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
+      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+      const int nnodes_by_face =
+          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+      const int subcell_off = subcell_face_offsets[(cell_to_faces_off + ff)];
+
+      /* LOOP OVER FACE NODES */
+      for (int nn = 0; nn < nnodes_by_face; ++nn) {
+        const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
+        const int subcell_index = (subcell_off + nn);
+
+        // Choosing three nodes for calculating the unit normal
+        // We can obviously assume there are at least three nodes
+        const int n0 = faces_to_nodes[(face_to_nodes_off + 0)];
+        const int n1 = faces_to_nodes[(face_to_nodes_off + 1)];
+        const int n2 = faces_to_nodes[(face_to_nodes_off + 2)];
+
+        // Determine the outward facing unit normal vector
+        vec_t normal = {0.0, 0.0, 0.0};
+        const int face_clockwise = calc_surface_normal(
+            n0, n1, n2, nodes_x0, nodes_y0, nodes_z0, &cell_centroid, &normal);
+
+        const int rnode = (nn == nnodes_by_face - 1) ? 0 : nn + 1;
+        const int lnode = (nn == 0) ? nnodes_by_face - 1 : nn - 1;
+        const int lsubcell_index =
+            subcell_off + (face_clockwise ? rnode : lnode);
+
+        const double face_corner_mass = 0.5 * (subcell_mass[(subcell_index)] +
+                                               subcell_mass[(lsubcell_index)]);
+        cell_velocity_x[(cc)] += velocity_x0[(node_index)] * face_corner_mass;
+        cell_velocity_y[(cc)] += velocity_y0[(node_index)] * face_corner_mass;
+        cell_velocity_z[(cc)] += velocity_z0[(node_index)] * face_corner_mass;
+      }
+    }
+
+    cell_velocity_x[(cc)] /= cell_mass[(cc)];
+    cell_velocity_y[(cc)] /= cell_mass[(cc)];
+    cell_velocity_z[(cc)] /= cell_mass[(cc)];
+  }
+
+  double total_cell_momentum_x = 0.0;
+  double total_cell_momentum_y = 0.0;
+  double total_cell_momentum_z = 0.0;
+  for (int cc = 0; cc < ncells; ++cc) {
+    total_cell_momentum_x += cell_mass[(cc)] * cell_velocity_x[(cc)];
+    total_cell_momentum_y += cell_mass[(cc)] * cell_velocity_y[(cc)];
+    total_cell_momentum_z += cell_mass[(cc)] * cell_velocity_z[(cc)];
+  }
+
+  double total_momentum_x = 0.0;
+  double total_momentum_y = 0.0;
+  double total_momentum_z = 0.0;
+  for (int cc = 0; cc < ncells; ++cc) {
+    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
+    const int nfaces_by_cell =
+        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
+
+    /* LOOP OVER CELL FACES */
+    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
+      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
+      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+      const int nnodes_by_face =
+          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+      const int subcell_off = subcell_face_offsets[(cell_to_faces_off + ff)];
+
+      /* LOOP OVER FACE NODES */
+      for (int nn = 0; nn < nnodes_by_face; ++nn) {
+        const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
+        const int subcell_index = subcell_off + nn;
+        total_momentum_x +=
+            subcell_mass[(subcell_index)] * velocity_x0[(node_index)];
+        total_momentum_y +=
+            subcell_mass[(subcell_index)] * velocity_y0[(node_index)];
+        total_momentum_z +=
+            subcell_mass[(subcell_index)] * velocity_z0[(node_index)];
+      }
+    }
+  }
+
+  printf("Velocity Conservation %.12f=%.12f %.12f=%.12f %.12f=%.12f\n",
+         total_cell_momentum_x, total_momentum_x, total_cell_momentum_y,
+         total_momentum_y, total_cell_momentum_z, total_momentum_z);
+
+  return;
+
+#if 0
+  /*
+   * Remapping
+   */
 
   printf("\nPerforming Remap Phase\n");
 
@@ -212,7 +344,8 @@ void solve_unstructured_hydro_2d(
           const int sweep_subcell_index =
               (is_internal_sweep ? subcell_index : subcell_neighbour_index);
 
-          // Only perform the sweep on the external face if it isn't a boundary
+          // Only perform the sweep on the external face if it isn't a
+          // boundary
           if (subcell_neighbour_index == -1) {
             continue;
           }
@@ -347,4 +480,5 @@ void solve_unstructured_hydro_2d(
     nodes_y0[nn] = rezoned_nodes_y[(nn)];
     nodes_z0[nn] = rezoned_nodes_z[(nn)];
   }
+#endif // if 0
 }
