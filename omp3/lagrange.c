@@ -132,17 +132,13 @@ void lagrangian_phase(
           A.y = -0.5 * (a.x * b.z - a.z * b.x);
           A.z = 0.5 * (a.x * b.y - a.y * b.x);
 
-          // TODO: I HAVENT WORKED OUT A REASONABLE WAY TO ORDER THE NODES
-          // SO
-          // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
-          // CALCULATION
           const double subcell_volume =
               fabs((ab.x * A.x + ab.y * A.y + ab.z * A.z) / 3.0);
 
           nodal_mass[(nn)] += density0[(cells[(cc)])] * subcell_volume;
           nodal_soundspeed[(nn)] +=
               sqrt(GAM * (GAM - 1.0) * energy0[(cells[(cc)])]) * subcell_volume;
-          nodal_volumes[(nn)] += subcell_volume;
+          nodal_volumes[(nn)] += 0.5 * subcell_volume;
         }
       }
     }
