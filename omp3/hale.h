@@ -43,10 +43,11 @@ void calc_artificial_viscosity(
 
 // Gathers all of the subcell quantities on the mesh
 void gather_subcell_quantities(
-    const int ncells, double* cell_centroids_x, double* cell_centroids_y,
-    double* cell_centroids_z, int* cells_offsets, const double* nodes_x0,
-    const double* nodes_y0, const double* nodes_z0, double* energy0,
-    double* density0, double* velocity_x0, double* velocity_y0,
+    const int ncells, const int nnodes, const double* nodal_volumes,
+    const double* nodal_mass, double* cell_centroids_x,
+    double* cell_centroids_y, double* cell_centroids_z, int* cells_offsets,
+    const double* nodes_x0, const double* nodes_y0, const double* nodes_z0,
+    double* energy0, double* density0, double* velocity_x0, double* velocity_y0,
     double* velocity_z0, double* cell_mass, double* subcell_volume,
     double* subcell_ie_density, double* subcell_mass,
     double* subcell_velocity_x, double* subcell_velocity_y,
