@@ -830,6 +830,98 @@ void lagrangian_phase(
     density0[(cc)] = cell_mass[(cc)] / cell_volume;
   }
   STOP_PROFILING(&compute_profile, "calc_new_density");
+
+#pragma omp parallel for
+  for (int nn = 0; nn < nnodes; ++nn) {
+    const int node_to_faces_off = nodes_to_faces_offsets[(nn)];
+    const int nfaces_by_node =
+        nodes_to_faces_offsets[(nn + 1)] - node_to_faces_off;
+
+    vec_t node_c;
+    node_c.x = nodes_x0[(nn)];
+    node_c.y = nodes_y0[(nn)];
+    node_c.z = nodes_z0[(nn)];
+
+    // Consider all faces attached to node
+    for (int ff = 0; ff < nfaces_by_node; ++ff) {
+      const int face_index = nodes_to_faces[(node_to_faces_off + ff)];
+      if (face_index == -1) {
+        continue;
+      }
+
+      // Determine the offset into the list of nodes
+      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+      const int nnodes_by_face =
+          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+
+      // Find node center and location of current node on face
+      vec_t face_c = {0.0, 0.0, 0.0};
+      int node_in_face_c;
+      for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
+        const int node_index = faces_to_nodes[(face_to_nodes_off + nn2)];
+        face_c.x += nodes_x0[(node_index)] / nnodes_by_face;
+        face_c.y += nodes_y0[(node_index)] / nnodes_by_face;
+        face_c.z += nodes_z0[(node_index)] / nnodes_by_face;
+
+        // Choose the node in the list of nodes attached to the face
+        if (nn == node_index) {
+          node_in_face_c = nn2;
+        }
+      }
+
+      // Fetch the nodes attached to our current node on the current face
+      int nodes[2];
+      nodes[0] = (node_in_face_c - 1 >= 0)
+                     ? faces_to_nodes[(face_to_nodes_off + node_in_face_c - 1)]
+                     : faces_to_nodes[(face_to_nodes_off + nnodes_by_face - 1)];
+      nodes[1] = (node_in_face_c + 1 < nnodes_by_face)
+                     ? faces_to_nodes[(face_to_nodes_off + node_in_face_c + 1)]
+                     : faces_to_nodes[(face_to_nodes_off)];
+
+      // Fetch the cells attached to our current face
+      int cells[2];
+      cells[0] = faces_to_cells0[(face_index)];
+      cells[1] = faces_to_cells1[(face_index)];
+
+      // Add contributions from all of the cells attached to the face
+      for (int cc = 0; cc < 2; ++cc) {
+        if (cells[(cc)] == -1) {
+          continue;
+        }
+
+        // Add contributions for both edges attached to our current node
+        for (int nn2 = 0; nn2 < 2; ++nn2) {
+          // Get the halfway point on the right edge
+          vec_t half_edge;
+          half_edge.x = 0.5 * (nodes_x0[(nodes[(nn2)])] + nodes_x0[(nn)]);
+          half_edge.y = 0.5 * (nodes_y0[(nodes[(nn2)])] + nodes_y0[(nn)]);
+          half_edge.z = 0.5 * (nodes_z0[(nodes[(nn2)])] + nodes_z0[(nn)]);
+
+          // Setup basis on plane of tetrahedron
+          vec_t a = {(face_c.x - node_c.x), (face_c.y - node_c.y),
+                     (face_c.z - node_c.z)};
+          vec_t b;
+          b.x = (face_c.x - half_edge.x);
+          b.y = (face_c.y - half_edge.y);
+          b.z = (face_c.z - half_edge.z);
+          vec_t ab;
+          ab.x = (cell_centroids_x[(cells[cc])] - face_c.x);
+          ab.y = (cell_centroids_y[(cells[cc])] - face_c.y);
+          ab.z = (cell_centroids_z[(cells[cc])] - face_c.z);
+
+          // Calculate the area vector S using cross product
+          vec_t A;
+          A.x = 0.5 * (a.y * b.z - a.z * b.y);
+          A.y = -0.5 * (a.x * b.z - a.z * b.x);
+          A.z = 0.5 * (a.x * b.y - a.y * b.x);
+
+          const double subcell_volume =
+              fabs((ab.x * A.x + ab.y * A.y + ab.z * A.z) / 3.0);
+          nodal_mass[(nn)] += density0[(cells[(cc)])] * subcell_volume;
+        }
+      }
+    }
+  }
 }
 
 // Controls the timestep for the simulation
