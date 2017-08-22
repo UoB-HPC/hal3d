@@ -842,6 +842,8 @@ void lagrangian_phase(
     node_c.y = nodes_y0[(nn)];
     node_c.z = nodes_z0[(nn)];
 
+    nodal_volumes[(nn)] = 0.0;
+
     // Consider all faces attached to node
     for (int ff = 0; ff < nfaces_by_node; ++ff) {
       const int face_index = nodes_to_faces[(node_to_faces_off + ff)];
@@ -917,7 +919,7 @@ void lagrangian_phase(
 
           const double subcell_volume =
               fabs((ab.x * A.x + ab.y * A.y + ab.z * A.z) / 3.0);
-          nodal_mass[(nn)] += density0[(cells[(cc)])] * subcell_volume;
+          nodal_volumes[(nn)] += subcell_volume;
         }
       }
     }
