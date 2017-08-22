@@ -47,6 +47,7 @@ void solve_unstructured_hydro_2d(
 
   printf("\nPerforming the Lagrangian Phase\n");
 
+#if 0
   // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
   // due to the pressure (ideal gas) and artificial viscous forces
   lagrangian_phase(
@@ -75,6 +76,7 @@ void solve_unstructured_hydro_2d(
       subcell_centroids_z, cell_volume, subcell_face_offsets, faces_to_nodes,
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces, cells_to_nodes);
+#endif // if 0
 
   // Set some artificial value for the velocity
   for (int nn = 0; nn < nnodes; ++nn) {
@@ -110,10 +112,8 @@ void solve_unstructured_hydro_2d(
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
 
-    vec_t cell_centroid;
-    cell_centroid.x = cell_centroids_x[(cc)];
-    cell_centroid.y = cell_centroids_y[(cc)];
-    cell_centroid.z = cell_centroids_z[(cc)];
+    vec_t cell_centroid = {cell_centroids_x[(cc)], cell_centroids_y[(cc)],
+                           cell_centroids_z[(cc)]};
 
     /* LOOP OVER CELL FACES */
     for (int ff = 0; ff < nfaces_by_cell; ++ff) {
@@ -129,14 +129,17 @@ void solve_unstructured_hydro_2d(
         const int subcell_index = (subcell_off + nn);
 
         vec_t gmax = {-DBL_MAX, -DBL_MAX, -DBL_MAX};
-        vec_t gmin = {-DBL_MIN, -DBL_MIN, -DBL_MIN};
+        vec_t gmin = {DBL_MAX, DBL_MAX, DBL_MAX};
         vec_t rhsx = {0.0, 0.0, 0.0};
         vec_t rhsy = {0.0, 0.0, 0.0};
         vec_t rhsz = {0.0, 0.0, 0.0};
         vec_t coeff[3] = {{0.0, 0.0, 0.0}};
 
-        vec_t node_v = {nodes_x0[(node_index)], nodes_y0[(node_index)],
-                        nodes_z0[(node_index)]};
+        const double nodal_density =
+            nodal_mass[(node_index)] / nodal_volumes[(node_index)];
+        vec_t node_v = {nodal_density * velocity_x0[(node_index)],
+                        nodal_density * velocity_y0[(node_index)],
+                        nodal_density * velocity_z0[(node_index)]};
 
         // Calculate the gradient for the node
         // TODO: The calculations here are highly redundant and can be optimised
@@ -146,9 +149,9 @@ void solve_unstructured_hydro_2d(
           double vol = nodal_volumes[(neighbour_index)];
 
           // Calculate the center of mass distance
-          vec_t comd = {vol * nodes_x0[(neighbour_index)] - node_v.x * vol,
-                        vol * nodes_y0[(neighbour_index)] - node_v.y * vol,
-                        vol * nodes_z0[(neighbour_index)] - node_v.z * vol};
+          vec_t comd = {vol * nodes_x0[(neighbour_index)] - vol * node_v.x,
+                        vol * nodes_y0[(neighbour_index)] - vol * node_v.y,
+                        vol * nodes_z0[(neighbour_index)] - vol * node_v.z};
 
           // Store the neighbouring cell's contribution to the coefficients
           coeff[0].x += (2.0 * comd.x * comd.x) / (vol * vol);
@@ -169,9 +172,15 @@ void solve_unstructured_hydro_2d(
           gmin.z = min(gmin.z, velocity_z0[(neighbour_index)]);
 
           // Prepare the RHSs for the different momentums
-          vec_t dv = {(velocity_x0[(neighbour_index)] - node_v.x),
-                      (velocity_y0[(neighbour_index)] - node_v.y),
-                      (velocity_z0[(neighbour_index)] - node_v.z)};
+          const double neighbour_nodal_density =
+              nodal_mass[(neighbour_index)] / nodal_volumes[(neighbour_index)];
+          vec_t dv = {
+              (neighbour_nodal_density * velocity_x0[(neighbour_index)] -
+               node_v.x),
+              (neighbour_nodal_density * velocity_y0[(neighbour_index)] -
+               node_v.y),
+              (neighbour_nodal_density * velocity_z0[(neighbour_index)] -
+               node_v.z)};
 
           rhsx.x += (2.0 * comd.x * dv.x / vol);
           rhsx.y += (2.0 * comd.y * dv.x / vol);
@@ -188,17 +197,19 @@ void solve_unstructured_hydro_2d(
         vec_t inv[3];
         calc_3x3_inverse(&coeff, &inv);
 
-        // Solve for the velocity gradient
+        // Solve for the x velocity gradient
         vec_t grad_vx;
         grad_vx.x = inv[0].x * rhsx.x + inv[0].y * rhsx.y + inv[0].z * rhsx.z;
         grad_vx.y = inv[1].x * rhsx.x + inv[1].y * rhsx.y + inv[1].z * rhsx.z;
         grad_vx.z = inv[2].x * rhsx.x + inv[2].y * rhsx.y + inv[2].z * rhsx.z;
 
+        printf("%.12f %.12f %.12f\n", grad_vx.x, grad_vx.y, grad_vx.z);
+
         apply_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
                       &grad_vx, &cell_centroid, nodes_x0, nodes_y0, nodes_z0,
                       node_v.x, gmax.x, gmin.x);
 
-        // Solve for the velocity gradient
+        // Solve for the y velocity gradient
         vec_t grad_vy;
         grad_vy.x = inv[0].x * rhsy.x + inv[0].y * rhsy.y + inv[0].z * rhsy.z;
         grad_vy.y = inv[1].x * rhsy.x + inv[1].y * rhsy.y + inv[1].z * rhsy.z;
@@ -208,7 +219,7 @@ void solve_unstructured_hydro_2d(
                       &grad_vy, &cell_centroid, nodes_x0, nodes_y0, nodes_z0,
                       node_v.y, gmax.y, gmin.y);
 
-        // Solve for the velocity gradient
+        // Solve for the z velocity gradient
         vec_t grad_vz;
         grad_vz.x = inv[0].x * rhsz.x + inv[0].y * rhsz.y + inv[0].z * rhsz.z;
         grad_vz.y = inv[1].x * rhsz.x + inv[1].y * rhsz.y + inv[1].z * rhsz.z;
@@ -232,12 +243,12 @@ void solve_unstructured_hydro_2d(
              grad_vx.z * (subcell_c.z - nodes_z0[(node_index)]));
         subcell_velocity_y[(subcell_index)] =
             vol *
-            (node_v.x + grad_vy.x * (subcell_c.x - nodes_x0[(node_index)]) +
+            (node_v.y + grad_vy.x * (subcell_c.x - nodes_x0[(node_index)]) +
              grad_vy.y * (subcell_c.y - nodes_y0[(node_index)]) +
              grad_vy.z * (subcell_c.z - nodes_z0[(node_index)]));
         subcell_velocity_z[(subcell_index)] =
             vol *
-            (node_v.x + grad_vz.x * (subcell_c.x - nodes_x0[(node_index)]) +
+            (node_v.z + grad_vz.x * (subcell_c.x - nodes_x0[(node_index)]) +
              grad_vz.y * (subcell_c.y - nodes_y0[(node_index)]) +
              grad_vz.z * (subcell_c.z - nodes_z0[(node_index)]));
 
@@ -245,11 +256,10 @@ void solve_unstructured_hydro_2d(
         total_subcell_vy += subcell_velocity_y[(subcell_index)];
         total_subcell_vz += subcell_velocity_z[(subcell_index)];
 
-#if 0
-        printf("%.12f %.12f %.12f\n", subcell_velocity_x[(subcell_index)],
+        printf("%.12f %.12f %.12f %.12f\n", subcell_velocity_x[(subcell_index)],
                subcell_velocity_y[(subcell_index)],
-               subcell_velocity_y[(subcell_index)]);
-#endif // if 0
+               subcell_velocity_z[(subcell_index)],
+               subcell_mass[(subcell_index)]);
       }
     }
   }
@@ -258,9 +268,10 @@ void solve_unstructured_hydro_2d(
   double total_vy = 0.0;
   double total_vz = 0.0;
   for (int nn = 0; nn < nnodes; ++nn) {
-    total_vx += velocity_x0[nn];
-    total_vy += velocity_y0[nn];
-    total_vz += velocity_z0[nn];
+    total_vx += nodal_mass[nn] * velocity_x0[nn];
+    total_vy += nodal_mass[nn] * velocity_y0[nn];
+    total_vz += nodal_mass[nn] * velocity_z0[nn];
+    printf("%d %.12f %.12f\n", nn, nodal_mass[nn], cell_mass[nn]);
   }
 
   printf("%.12f=%.12f %.12f=%.12f %.12f=%.12f\n", total_vx, total_subcell_vx,
@@ -369,8 +380,6 @@ void solve_unstructured_hydro_2d(
       total_cell_momentum_x, total_momentum_x, total_cell_momentum_y,
       total_momentum_y, total_cell_momentum_z, total_momentum_z);
 #endif // if 0
-
-  return;
 
 #if 0
   /*
