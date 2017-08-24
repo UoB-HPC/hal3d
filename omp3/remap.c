@@ -54,27 +54,6 @@ void gather_subcell_energy(
     int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
     int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes) {
 
-#if 0
-  // Construct the linear system test for the remapping
-  int n = 3;
-  for (int ii = 0; ii < n; ++ii) {
-    for (int jj = 0; jj < n; ++jj) {
-      for (int kk = 0; kk < n; ++kk) {
-        const int cell_index = ii * n * n + jj * n + kk;
-        energy0[cell_index] = 1.0 + 3.0 * cell_centroids_x[cell_index] +
-                              1.0 * cell_centroids_y[cell_index] +
-                              2.0 * cell_centroids_z[cell_index];
-        cell_volume[cell_index] = 1.0;
-        cell_mass[cell_index] = 1.0;
-        density0[cell_index] = 1.0;
-        for (int ss = 0; ss < 24; ++ss) {
-          subcell_volume[cell_index * 24 + ss] = 1.0 / 24.0;
-        }
-      }
-    }
-  }
-#endif // if 0
-
   double total_ie_in_cells[ncells];
   double total_ie_in_subcells = 0.0;
   int nnegatives = 0;
@@ -160,9 +139,11 @@ void gather_subcell_energy(
     grad_energy.y = (inv[1].x * rhs.x + inv[1].y * rhs.y + inv[1].z * rhs.z);
     grad_energy.z = (inv[2].x * rhs.x + inv[2].y * rhs.y + inv[2].z * rhs.z);
 
+#if 0
     apply_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
                   &grad_energy, &cell_centroid, nodes_x0, nodes_y0, nodes_z0,
                   cell_ie, gmax, gmin);
+#endif // if 0
 
     // Determine the weighted volume comd for neighbouring cells
     for (int ff = 0; ff < nfaces_by_cell; ++ff) {
@@ -214,19 +195,6 @@ void gather_subcell_energy(
         /// We are currently getting negative results, perhaps this is due to
         /// the boundary conditions...
         if (ie < -EPS) {
-          printf("subcell %d\n", ff * 4 + nn);
-          printf("subcell centroid %.12f %.12f %.12f\n",
-                 subcell_centroids_x[(subcell_index)],
-                 subcell_centroids_y[(subcell_index)],
-                 subcell_centroids_z[(subcell_index)]);
-          printf("cell %d: %.6f + %.6f*%.6f + %.6f*%.6f + %.6f*%.6f\n", cc,
-                 cell_ie, grad_energy.x, comd.x - cell_centroid.x,
-                 grad_energy.y, comd.y - cell_centroid.y, grad_energy.z,
-                 comd.z - cell_centroid.z);
-          printf("cell %d: %.6f + %.6f + %.6f + %.6f = %.6f\n\n", cc, cell_ie,
-                 grad_energy.x * (comd.x - cell_centroid.x),
-                 grad_energy.y * (comd.y - cell_centroid.y),
-                 grad_energy.z * (comd.z - cell_centroid.z), ie / vol);
           nnegatives++;
         }
 
@@ -237,10 +205,6 @@ void gather_subcell_energy(
     }
   }
   printf("nnegatives %d\n", nnegatives);
-
-  for (int cc = 0; cc < ncells; ++cc) {
-    energy0[cc] = total_ie_in_cells[cc];
-  }
 
   // Print out the conservation of energy following the gathering
   double total_ie = 0.0;
