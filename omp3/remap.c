@@ -1,6 +1,7 @@
 #include "../../comms.h"
 #include "../../shared.h"
 #include "hale.h"
+#include <assert.h>
 #include <float.h>
 #include <math.h>
 
@@ -56,13 +57,10 @@ void gather_subcell_energy(
 
   double total_ie_in_cells[ncells];
   double total_ie_in_subcells = 0.0;
-  int nnegatives = 0;
 // Calculate the sub-cell internal energies
-#if 0
 #pragma omp parallel for reduction(+ : total_ie_in_subcells)
-#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
-    total_ie_in_cells[cc] = 0.0;
+    total_ie_in_cells[(cc)] = 0.0;
 
     // Calculating the volume comd necessary for the least squares
     // regression
@@ -139,11 +137,9 @@ void gather_subcell_energy(
     grad_energy.y = (inv[1].x * rhs.x + inv[1].y * rhs.y + inv[1].z * rhs.z);
     grad_energy.z = (inv[2].x * rhs.x + inv[2].y * rhs.y + inv[2].z * rhs.z);
 
-#if 0
     apply_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
                   &grad_energy, &cell_centroid, nodes_x0, nodes_y0, nodes_z0,
                   cell_ie, gmax, gmin);
-#endif // if 0
 
     // Determine the weighted volume comd for neighbouring cells
     for (int ff = 0; ff < nfaces_by_cell; ++ff) {
@@ -192,19 +188,15 @@ void gather_subcell_energy(
                    grad_energy.y * (comd.y - cell_centroid.y) +
                    grad_energy.z * (comd.z - cell_centroid.z));
 
-        /// We are currently getting negative results, perhaps this is due to
-        /// the boundary conditions...
-        if (ie < -EPS) {
-          nnegatives++;
-        }
+        assert(ie > -EPS);
 
         subcell_ie_density[(subcell_index)] = ie;
+
         total_ie_in_subcells += ie;
         total_ie_in_cells[(cc)] += ie;
       }
     }
   }
-  printf("nnegatives %d\n", nnegatives);
 
   // Print out the conservation of energy following the gathering
   double total_ie = 0.0;
@@ -213,10 +205,6 @@ void gather_subcell_energy(
   for (int cc = 0; cc < ncells; ++cc) {
     double ie = cell_mass[(cc)] * energy0[(cc)];
     total_ie += ie;
-#if 0
-    printf("energy density %.12f total_ie_in_cells %.12f, difference %.12f\n",
-           ie, total_ie_in_cells[(cc)], ie - total_ie_in_cells[(cc)]);
-#endif // if 0
     total_difference += fabs(ie - total_ie_in_cells[cc]);
   }
   printf("total difference %.12f\n", total_difference);
