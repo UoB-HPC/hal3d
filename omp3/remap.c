@@ -9,7 +9,7 @@ void gather_subcell_quantities(
     const int ncells, const int nnodes, const double* nodal_volumes,
     const double* nodal_mass, double* cell_centroids_x,
     double* cell_centroids_y, double* cell_centroids_z, int* cells_offsets,
-    const double* nodes_x0, const double* nodes_y0, const double* nodes_z0,
+    double* nodes_x0, const double* nodes_y0, const double* nodes_z0,
     double* energy0, double* density0, double* velocity_x0, double* velocity_y0,
     double* velocity_z0, double* cell_mass, double* subcell_volume,
     double* subcell_ie_density, double* subcell_mass,
@@ -31,10 +31,60 @@ void gather_subcell_quantities(
                          cell_volume, subcell_centroids_x, subcell_centroids_y,
                          subcell_centroids_z, subcell_volume);
 
+  // Gathers all of the subcell quantities on the mesh
+  gather_subcell_energy(
+      ncells, cell_centroids_x, cell_centroids_y, cell_centroids_z,
+      cells_offsets, nodes_x0, nodes_y0, nodes_z0, energy0, density0, cell_mass,
+      subcell_volume, subcell_ie_density, subcell_centroids_x,
+      subcell_centroids_y, subcell_centroids_z, cell_volume,
+      subcell_face_offsets, faces_to_nodes, faces_to_nodes_offsets,
+      faces_to_cells0, faces_to_cells1, cells_to_faces_offsets, cells_to_faces,
+      cells_to_nodes);
+}
+
+// Gathers all of the subcell quantities on the mesh
+void gather_subcell_energy(
+    const int ncells, double* cell_centroids_x, double* cell_centroids_y,
+    double* cell_centroids_z, int* cells_offsets, const double* nodes_x0,
+    const double* nodes_y0, const double* nodes_z0, double* energy0,
+    double* density0, double* cell_mass, double* subcell_volume,
+    double* subcell_ie_density, double* subcell_centroids_x,
+    double* subcell_centroids_y, double* subcell_centroids_z,
+    double* cell_volume, int* subcell_face_offsets, int* faces_to_nodes,
+    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
+    int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes) {
+
+#if 0
+  // Construct the linear system test for the remapping
+  int n = 3;
+  for (int ii = 0; ii < n; ++ii) {
+    for (int jj = 0; jj < n; ++jj) {
+      for (int kk = 0; kk < n; ++kk) {
+        const int cell_index = ii * n * n + jj * n + kk;
+        energy0[cell_index] = 1.0 + 3.0 * cell_centroids_x[cell_index] +
+                              1.0 * cell_centroids_y[cell_index] +
+                              2.0 * cell_centroids_z[cell_index];
+        cell_volume[cell_index] = 1.0;
+        cell_mass[cell_index] = 1.0;
+        density0[cell_index] = 1.0;
+        for (int ss = 0; ss < 24; ++ss) {
+          subcell_volume[cell_index * 24 + ss] = 1.0 / 24.0;
+        }
+      }
+    }
+  }
+#endif // if 0
+
+  double total_ie_in_cells[ncells];
   double total_ie_in_subcells = 0.0;
+  int nnegatives = 0;
 // Calculate the sub-cell internal energies
+#if 0
 #pragma omp parallel for reduction(+ : total_ie_in_subcells)
+#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
+    total_ie_in_cells[cc] = 0.0;
+
     // Calculating the volume comd necessary for the least squares
     // regression
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
@@ -64,9 +114,6 @@ void gather_subcell_quantities(
         continue;
       }
 
-      const double neighbour_ie =
-          density0[(neighbour_index)] * energy0[(neighbour_index)];
-
       // Calculate the weighted volume integral coefficients
       vec_t neighbour_centroid = {cell_centroids_x[(neighbour_index)],
                                   cell_centroids_y[(neighbour_index)],
@@ -90,6 +137,9 @@ void gather_subcell_quantities(
       coeff[2].y += (2.0 * comd.z * comd.y) / (vol * vol);
       coeff[2].z += (2.0 * comd.z * comd.z) / (vol * vol);
 
+      const double neighbour_ie =
+          density0[(neighbour_index)] * energy0[(neighbour_index)];
+
       gmax = max(gmax, neighbour_ie);
       gmin = min(gmin, neighbour_ie);
 
@@ -106,9 +156,9 @@ void gather_subcell_quantities(
 
     // Solve for the energy gradient
     vec_t grad_energy;
-    grad_energy.x = inv[0].x * rhs.x + inv[0].y * rhs.y + inv[0].z * rhs.z;
-    grad_energy.y = inv[1].x * rhs.x + inv[1].y * rhs.y + inv[1].z * rhs.z;
-    grad_energy.z = inv[2].x * rhs.x + inv[2].y * rhs.y + inv[2].z * rhs.z;
+    grad_energy.x = (inv[0].x * rhs.x + inv[0].y * rhs.y + inv[0].z * rhs.z);
+    grad_energy.y = (inv[1].x * rhs.x + inv[1].y * rhs.y + inv[1].z * rhs.z);
+    grad_energy.z = (inv[2].x * rhs.x + inv[2].y * rhs.y + inv[2].z * rhs.z);
 
     apply_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
                   &grad_energy, &cell_centroid, nodes_x0, nodes_y0, nodes_z0,
@@ -138,6 +188,7 @@ void gather_subcell_quantities(
         vec_t normal;
         const int face_clockwise = calc_surface_normal(
             n0, n1, n2, nodes_x0, nodes_y0, nodes_z0, &cell_centroid, &normal);
+
         int rnode_index;
         if (face_clockwise) {
           rnode_index = faces_to_nodes[(
@@ -147,39 +198,87 @@ void gather_subcell_quantities(
               face_to_nodes_off + ((nn == nnodes_by_face - 1) ? 0 : nn + 1))];
         }
 
-        double vol = subcell_volume[(subcell_index)];
+        const double vol = subcell_volume[(subcell_index)];
 
         // Calculate the center of mass
-        vec_t comd = {subcell_centroids_x[(subcell_index)] * vol,
-                      subcell_centroids_y[(subcell_index)] * vol,
-                      subcell_centroids_z[(subcell_index)] * vol};
+        vec_t comd = {subcell_centroids_x[(subcell_index)],
+                      subcell_centroids_y[(subcell_index)],
+                      subcell_centroids_z[(subcell_index)]};
 
         // Determine subcell energy from linear function at cell
-        subcell_ie_density[(subcell_off + nn)] =
-            cell_ie * vol + grad_energy.x * (comd.x - cell_centroid.x * vol) +
-            grad_energy.y * (comd.y - cell_centroid.y * vol) +
-            grad_energy.z * (comd.z - cell_centroid.z * vol);
+        double ie =
+            vol * (cell_ie + grad_energy.x * (comd.x - cell_centroid.x) +
+                   grad_energy.y * (comd.y - cell_centroid.y) +
+                   grad_energy.z * (comd.z - cell_centroid.z));
 
-        total_ie_in_subcells += subcell_ie_density[(subcell_off + nn)];
+        /// We are currently getting negative results, perhaps this is due to
+        /// the boundary conditions...
+        if (ie < -EPS) {
+          printf("subcell %d\n", ff * 4 + nn);
+          printf("subcell centroid %.12f %.12f %.12f\n",
+                 subcell_centroids_x[(subcell_index)],
+                 subcell_centroids_y[(subcell_index)],
+                 subcell_centroids_z[(subcell_index)]);
+          printf("cell %d: %.6f + %.6f*%.6f + %.6f*%.6f + %.6f*%.6f\n", cc,
+                 cell_ie, grad_energy.x, comd.x - cell_centroid.x,
+                 grad_energy.y, comd.y - cell_centroid.y, grad_energy.z,
+                 comd.z - cell_centroid.z);
+          printf("cell %d: %.6f + %.6f + %.6f + %.6f = %.6f\n\n", cc, cell_ie,
+                 grad_energy.x * (comd.x - cell_centroid.x),
+                 grad_energy.y * (comd.y - cell_centroid.y),
+                 grad_energy.z * (comd.z - cell_centroid.z), ie / vol);
+          nnegatives++;
+        }
+
+        subcell_ie_density[(subcell_index)] = ie;
+        total_ie_in_subcells += ie;
+        total_ie_in_cells[(cc)] += ie;
       }
     }
   }
+  printf("nnegatives %d\n", nnegatives);
 
-  // Print out the conservation of energy following the gathering
-  double total_ie_in_cells = 0.;
-#pragma omp parallel for reduction(+ : total_ie_in_cells)
   for (int cc = 0; cc < ncells; ++cc) {
-    total_ie_in_cells += cell_mass[cc] * energy0[(cc)];
+    energy0[cc] = total_ie_in_cells[cc];
   }
 
-  printf("Total Energy in Cells    %.12f\n", total_ie_in_cells);
+  // Print out the conservation of energy following the gathering
+  double total_ie = 0.0;
+  double total_difference = 0.0;
+#pragma omp parallel for reduction(+ : total_ie, total_difference)
+  for (int cc = 0; cc < ncells; ++cc) {
+    double ie = cell_mass[(cc)] * energy0[(cc)];
+    total_ie += ie;
+#if 0
+    printf("energy density %.12f total_ie_in_cells %.12f, difference %.12f\n",
+           ie, total_ie_in_cells[(cc)], ie - total_ie_in_cells[(cc)]);
+#endif // if 0
+    total_difference += fabs(ie - total_ie_in_cells[cc]);
+  }
+  printf("total difference %.12f\n", total_difference);
+
+  printf("Total Energy in Cells    %.12f\n", total_ie);
   printf("Total Energy in Subcells %.12f\n", total_ie_in_subcells);
-  printf("Difference %.12f\n", total_ie_in_cells - total_ie_in_subcells);
+  printf("Difference %.12f\n", total_ie - total_ie_in_subcells);
+}
+
+void gather_subcell_momentum(
+    const int ncells, const int nnodes, const double* nodal_volumes,
+    const double* nodal_mass, double* cell_centroids_x,
+    double* cell_centroids_y, double* cell_centroids_z, int* cells_offsets,
+    const double* nodes_x0, const double* nodes_y0, const double* nodes_z0,
+    double* velocity_x0, double* velocity_y0, double* velocity_z0,
+    double* subcell_volume, double* subcell_velocity_x,
+    double* subcell_velocity_y, double* subcell_velocity_z,
+    double* subcell_centroids_x, double* subcell_centroids_y,
+    double* subcell_centroids_z, int* subcell_face_offsets, int* faces_to_nodes,
+    int* faces_to_nodes_offsets, int* cells_to_faces_offsets,
+    int* cells_to_faces, int* cells_to_nodes) {
 
   // The following method is a homegrown solution. It doesn't feel totally
-  // precise, but it is a quite reasonable approach based on the popular methods
-  // and seems to end up with lots of computational work (much of which is
-  // redundant).
+  // precise, but it is a quite reasonable approach based on the popular
+  // methods and seems to end up with lots of computational work (much of which
+  // is redundant).
   double total_subcell_vx = 0.0;
   double total_subcell_vy = 0.0;
   double total_subcell_vz = 0.0;
@@ -223,9 +322,8 @@ void gather_subcell_quantities(
 
           // Calculate the gradient for the node
           // TODO: The calculations here are highly redundant and can be
-          // optimised
-          // away with some attention, although more connectivity may be
-          // required
+          // optimised away with some attention, although more connectivity may
+          // be required
           for (int nn2 = 0; nn2 < nnodes_by_cell; ++nn2) {
             const int neighbour_index =
                 cells_to_nodes[(cell_to_nodes_off + nn2)];
@@ -706,7 +804,8 @@ void calc_volume(const int cell_to_faces_off, const int nfaces_by_cell,
 
     // I have observed that under certain combinations of translation and
     // rotation the swept edge region can be tetrahedral rather than a prism,
-    // where an edge is shared between the faces of the subcell and the rezoned
+    // where an edge is shared between the faces of the subcell and the
+    // rezoned
     // subcell. If this happens, which should be rare, due to numerical
     // imprecision, I ignore the contribution of the face, and
     // continue as if we were a tetrahedron.
@@ -881,7 +980,7 @@ void calc_gradient(const int subcell_index, const int nsubcells_by_subcell,
 
 // Calculates the limiter for the provided gradient
 double apply_limiter(const int nnodes_by_cell, const int cell_to_nodes_off,
-                     const int* cell_to_nodes, vec_t* grad,
+                     const int* cells_to_nodes, vec_t* grad,
                      const vec_t* cell_centroid, const double* nodes_x0,
                      const double* nodes_y0, const double* nodes_z0,
                      const double phi, const double gmax, const double gmin) {
@@ -889,20 +988,20 @@ double apply_limiter(const int nnodes_by_cell, const int cell_to_nodes_off,
   // Calculate the limiter for the gradient
   double limiter = DBL_MAX;
   for (int nn = 0; nn < nnodes_by_cell; ++nn) {
-    double g_unlimited =
-        phi +
-        grad->x * (nodes_x0[cell_to_nodes[(cell_to_nodes_off + nn)]] -
-                   cell_centroid->x) +
-        grad->y * (nodes_y0[cell_to_nodes[(cell_to_nodes_off + nn)]] -
-                   cell_centroid->y) +
-        grad->z * (nodes_z0[cell_to_nodes[(cell_to_nodes_off + nn)]] -
-                   cell_centroid->z);
+    const int node_index = cells_to_nodes[(cell_to_nodes_off + nn)];
+    double g_unlimited = grad->x * (nodes_x0[(node_index)] - cell_centroid->x) +
+                         grad->y * (nodes_y0[(node_index)] - cell_centroid->y) +
+                         grad->z * (nodes_z0[(node_index)] - cell_centroid->z);
 
     double node_limiter = 1.0;
-    if (g_unlimited > phi) {
-      node_limiter = min(1.0, (gmax - phi) / (g_unlimited - phi));
-    } else if (g_unlimited < phi) {
-      node_limiter = min(1.0, (gmin - phi) / (g_unlimited - phi));
+    if (g_unlimited > 0.0) {
+      if (g_unlimited > EPS) {
+        node_limiter = min(1.0, ((gmax - phi) / (g_unlimited)));
+      }
+    } else if (g_unlimited < 0.0) {
+      if (g_unlimited > EPS) {
+        node_limiter = min(1.0, ((gmin - phi) / (g_unlimited)));
+      }
     }
     limiter = min(limiter, node_limiter);
   }
@@ -925,7 +1024,9 @@ void calc_volumes_centroids(
     double* subcell_centroids_x, double* subcell_centroids_y,
     double* subcell_centroids_z, double* subcell_volume) {
 
+#if 0
 #pragma omp parallel for
+#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
@@ -1015,5 +1116,19 @@ void calc_volumes_centroids(
                     &subcell_volume[(subcell_index)]);
       }
     }
+  }
+}
+
+void apply_mesh_rezoning(const int nnodes, const double* rezoned_nodes_x,
+                         const double* rezoned_nodes_y,
+                         const double* rezoned_nodes_z, double* nodes_x0,
+                         double* nodes_y0, double* nodes_z0) {
+
+// Apply the rezoned mesh into the main mesh
+#pragma omp parallel for
+  for (int nn = 0; nn < nnodes; ++nn) {
+    nodes_x0[nn] = rezoned_nodes_x[(nn)];
+    nodes_y0[nn] = rezoned_nodes_y[(nn)];
+    nodes_z0[nn] = rezoned_nodes_z[(nn)];
   }
 }

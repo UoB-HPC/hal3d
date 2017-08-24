@@ -46,12 +46,37 @@ void gather_subcell_quantities(
     const int ncells, const int nnodes, const double* nodal_volumes,
     const double* nodal_mass, double* cell_centroids_x,
     double* cell_centroids_y, double* cell_centroids_z, int* cells_offsets,
-    const double* nodes_x0, const double* nodes_y0, const double* nodes_z0,
+    double* nodes_x0, const double* nodes_y0, const double* nodes_z0,
     double* energy0, double* density0, double* velocity_x0, double* velocity_y0,
     double* velocity_z0, double* cell_mass, double* subcell_volume,
     double* subcell_ie_density, double* subcell_mass,
     double* subcell_velocity_x, double* subcell_velocity_y,
     double* subcell_velocity_z, double* subcell_centroids_x,
+    double* subcell_centroids_y, double* subcell_centroids_z,
+    double* cell_volume, int* subcell_face_offsets, int* faces_to_nodes,
+    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
+    int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes);
+
+void gather_subcell_momentum(
+    const int ncells, const int nnodes, const double* nodal_volumes,
+    const double* nodal_mass, double* cell_centroids_x,
+    double* cell_centroids_y, double* cell_centroids_z, int* cells_offsets,
+    const double* nodes_x0, const double* nodes_y0, const double* nodes_z0,
+    double* velocity_x0, double* velocity_y0, double* velocity_z0,
+    double* subcell_volume, double* subcell_velocity_x,
+    double* subcell_velocity_y, double* subcell_velocity_z,
+    double* subcell_centroids_x, double* subcell_centroids_y,
+    double* subcell_centroids_z, int* subcell_face_offsets, int* faces_to_nodes,
+    int* faces_to_nodes_offsets, int* cells_to_faces_offsets,
+    int* cells_to_faces, int* cells_to_nodes);
+
+// Gathers all of the subcell quantities on the mesh
+void gather_subcell_energy(
+    const int ncells, double* cell_centroids_x, double* cell_centroids_y,
+    double* cell_centroids_z, int* cells_offsets, const double* nodes_x0,
+    const double* nodes_y0, const double* nodes_z0, double* energy0,
+    double* density0, double* cell_mass, double* subcell_volume,
+    double* subcell_ie_density, double* subcell_centroids_x,
     double* subcell_centroids_y, double* subcell_centroids_z,
     double* cell_volume, int* subcell_face_offsets, int* faces_to_nodes,
     int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
@@ -147,3 +172,8 @@ void calc_volumes_centroids(
     const double* nodes_y0, const double* nodes_z0, double* cell_volume,
     double* subcell_centroids_x, double* subcell_centroids_y,
     double* subcell_centroids_z, double* subcell_volume);
+
+void apply_mesh_rezoning(const int nnodes, const double* rezoned_nodes_x,
+                         const double* rezoned_nodes_y,
+                         const double* rezoned_nodes_z, double* nodes_x0,
+                         double* nodes_y0, double* nodes_z0);

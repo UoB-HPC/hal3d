@@ -44,6 +44,10 @@ int main(int argc, char** argv) {
 
   double i0 = omp_get_wtime();
 
+  mesh.height = 3.0;
+  mesh.width = 3.0;
+  mesh.depth = 3.0;
+
   // Perform initialisation routines
   initialise_mpi(argc, argv, &mesh.rank, &mesh.nranks);
   initialise_comms(&mesh);
@@ -169,7 +173,7 @@ int main(int argc, char** argv) {
     if (visit_dump) {
       write_unstructured_to_visit_3d(
           umesh.nnodes, umesh.ncells, tt + 1, umesh.nodes_x0, umesh.nodes_y0,
-          umesh.nodes_z0, umesh.cells_to_nodes, hale_data.density0, 0,
+          umesh.nodes_z0, umesh.cells_to_nodes, hale_data.energy0, 0,
           umesh.nnodes_by_cell == 8);
     }
   }
