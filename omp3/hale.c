@@ -34,30 +34,6 @@ void solve_unstructured_hydro_2d(
     int* cells_to_faces_offsets, int* cells_to_faces, int* subcell_face_offsets,
     int* subcells_to_subcells) {
 
-#if 0
-  static int t = 0;
-  if (t++ == 0) {
-    // Construct the linear system test for the remapping
-    int n = 10;
-    for (int ii = 0; ii < n; ++ii) {
-      for (int jj = 0; jj < n; ++jj) {
-        for (int kk = 0; kk < n; ++kk) {
-          const int cell_index = ii * n * n + jj * n + kk;
-          energy0[cell_index] = 1.0 + 3.0 * cell_centroids_x[cell_index] +
-                                1.0 * cell_centroids_y[cell_index] +
-                                2.0 * cell_centroids_z[cell_index];
-          cell_volume[cell_index] = 1.0;
-          cell_mass[cell_index] = 1.0;
-          density0[cell_index] = 1.0;
-          for (int ss = 0; ss < 24; ++ss) {
-            subcell_volume[cell_index * 24 + ss] = 1.0 / 24.0;
-          }
-        }
-      }
-    }
-  }
-#endif // if 0
-
   double total_mass = 0.0;
   double total_energy = 0.0;
   double total_density = 0.0;
@@ -70,8 +46,6 @@ void solve_unstructured_hydro_2d(
   printf("Total Mass %.12f\n", total_mass);
 
   printf("\nPerforming the Lagrangian Phase\n");
-
-  printf("\nPerforming Gathering Phase\n");
 
   // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
   // due to the pressure (ideal gas) and artificial viscous forces
@@ -88,6 +62,9 @@ void solve_unstructured_hydro_2d(
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
 
+#if 0
+  printf("\nPerforming Gathering Phase\n");
+
   // Gather the subcell quantities for mass, internal and kinetic energy
   // density, and momentum
   gather_subcell_quantities(
@@ -100,6 +77,7 @@ void solve_unstructured_hydro_2d(
       cell_volume, subcell_face_offsets, faces_to_nodes, faces_to_nodes_offsets,
       faces_to_cells0, faces_to_cells1, cells_to_faces_offsets, cells_to_faces,
       cells_to_nodes);
+#endif // if 0
 
 #if 0
   /*

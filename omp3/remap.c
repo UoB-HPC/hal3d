@@ -64,12 +64,45 @@ void gather_subcell_energy(
     int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
     int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes) {
 
+#if 0
+  static int t = 0;
+  if (t++ == 0) {
+    // Construct the linear system test for the remapping
+    int n = 32;
+    for (int ii = 0; ii < n; ++ii) {
+      for (int jj = 0; jj < n; ++jj) {
+        for (int kk = 0; kk < n; ++kk) {
+          const int cell_index = ii * n * n + jj * n + kk;
+
+#if 0
+          energy0[cell_index] = 1.0 + 3.0 * cell_centroids_x[cell_index] +
+                                1.0 * cell_centroids_y[cell_index] +
+                                2.0 * cell_centroids_z[cell_index];
+#endif // if 0
+
+          energy0[cell_index] =
+              1.0 +
+              cell_centroids_x[cell_index] * cell_centroids_x[cell_index] +
+              2.0 * cell_centroids_z[cell_index];
+
+          cell_mass[cell_index] = 2.0 * cell_centroids_y[cell_index] *
+                                      cell_centroids_y[cell_index] +
+                                  2.0 * cell_centroids_z[cell_index];
+
+          density0[cell_index] =
+              cell_mass[cell_index] / cell_volume[cell_index];
+        }
+      }
+    }
+  }
+#endif // if 0
+
 // Calculate the sub-cell internal energies
 #if 0
 #pragma omp parallel for reduction(+ : total_ie_in_subcells)
 #endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
-    // Calculating the volume comd necessary for the least squares
+    // Calculating the volume dist necessary for the least squares
     // regression
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
@@ -84,7 +117,7 @@ void gather_subcell_energy(
     vec_t rhs = {0.0, 0.0, 0.0};
     vec_t coeff[3] = {{0.0, 0.0, 0.0}};
 
-    // Determine the weighted volume comd for neighbouring cells
+    // Determine the weighted volume dist for neighbouring cells
     double gmax = -DBL_MAX;
     double gmin = DBL_MAX;
     for (int ff = 0; ff < nfaces_by_cell; ++ff) {
@@ -140,7 +173,7 @@ void gather_subcell_energy(
                   &grad_energy, &cell_centroid, nodes_x0, nodes_y0, nodes_z0,
                   cell_ie, gmax, gmin);
 
-    // Determine the weighted volume comd for neighbouring cells
+    // Determine the weighted volume dist for neighbouring cells
     for (int ff = 0; ff < nfaces_by_cell; ++ff) {
       const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
       const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
@@ -241,6 +274,7 @@ void gather_subcell_momentum(
 
     vec_t cell_centroid = {cell_centroids_x[(cc)], cell_centroids_y[(cc)],
                            cell_centroids_z[(cc)]};
+
     /* LOOP OVER CELL FACES */
     for (int ff = 0; ff < nfaces_by_cell; ++ff) {
       const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
@@ -281,24 +315,20 @@ void gather_subcell_momentum(
             }
 
             // Calculate the center of mass distance
-            double vol = nodal_volumes[(neighbour_index)];
-            vec_t comd = {vol * nodes_x0[(neighbour_index)] -
-                              vol * nodes_x0[(node_index)],
-                          vol * nodes_y0[(neighbour_index)] -
-                              vol * nodes_y0[(node_index)],
-                          vol * nodes_z0[(neighbour_index)] -
-                              vol * nodes_z0[(node_index)]};
+            vec_t dist = {nodes_x0[(neighbour_index)] - nodes_x0[(node_index)],
+                          nodes_y0[(neighbour_index)] - nodes_y0[(node_index)],
+                          nodes_z0[(neighbour_index)] - nodes_z0[(node_index)]};
 
             // Store the neighbouring cell's contribution to the coefficients
-            coeff[0].x += (2.0 * comd.x * comd.x) / (vol * vol);
-            coeff[0].y += (2.0 * comd.x * comd.y) / (vol * vol);
-            coeff[0].z += (2.0 * comd.x * comd.z) / (vol * vol);
-            coeff[1].x += (2.0 * comd.y * comd.x) / (vol * vol);
-            coeff[1].y += (2.0 * comd.y * comd.y) / (vol * vol);
-            coeff[1].z += (2.0 * comd.y * comd.z) / (vol * vol);
-            coeff[2].x += (2.0 * comd.z * comd.x) / (vol * vol);
-            coeff[2].y += (2.0 * comd.z * comd.y) / (vol * vol);
-            coeff[2].z += (2.0 * comd.z * comd.z) / (vol * vol);
+            coeff[0].x += (dist.x * dist.x);
+            coeff[0].y += (dist.x * dist.y);
+            coeff[0].z += (dist.x * dist.z);
+            coeff[1].x += (dist.y * dist.x);
+            coeff[1].y += (dist.y * dist.y);
+            coeff[1].z += (dist.y * dist.z);
+            coeff[2].x += (dist.z * dist.x);
+            coeff[2].y += (dist.z * dist.y);
+            coeff[2].z += (dist.z * dist.z);
 
             gmax.x =
                 max(gmax.x, nodal_density * velocity_x0[(neighbour_index)]);
@@ -325,15 +355,15 @@ void gather_subcell_momentum(
                 (neighbour_nodal_density * velocity_z0[(neighbour_index)] -
                  node_v.z)};
 
-            rhsx.x += (2.0 * comd.x * dv.x / vol);
-            rhsx.y += (2.0 * comd.y * dv.x / vol);
-            rhsx.z += (2.0 * comd.z * dv.x / vol);
-            rhsy.x += (2.0 * comd.x * dv.y / vol);
-            rhsy.y += (2.0 * comd.y * dv.y / vol);
-            rhsy.z += (2.0 * comd.z * dv.y / vol);
-            rhsz.x += (2.0 * comd.x * dv.z / vol);
-            rhsz.y += (2.0 * comd.y * dv.z / vol);
-            rhsz.z += (2.0 * comd.z * dv.z / vol);
+            rhsx.x += (dist.x * dv.x);
+            rhsx.y += (dist.y * dv.x);
+            rhsx.z += (dist.z * dv.x);
+            rhsy.x += (dist.x * dv.y);
+            rhsy.y += (dist.y * dv.y);
+            rhsy.z += (dist.z * dv.y);
+            rhsz.x += (dist.x * dv.z);
+            rhsz.y += (dist.y * dv.z);
+            rhsz.z += (dist.z * dv.z);
           }
 
           // Determine the inverse of the coefficient matrix
@@ -439,24 +469,21 @@ void gather_subcell_momentum(
             }
 
             // Calculate the center of mass distance
-            double vol = nodal_volumes[(neighbour_index)];
-            vec_t comd = {vol * nodes_x0[(neighbour_index)] -
-                              vol * nodes_x0[(rnode_index)],
-                          vol * nodes_y0[(neighbour_index)] -
-                              vol * nodes_x0[(rnode_index)],
-                          vol * nodes_z0[(neighbour_index)] -
-                              vol * nodes_x0[(rnode_index)]};
+            vec_t dist = {nodes_x0[(neighbour_index)] - nodes_x0[(rnode_index)],
+                          nodes_y0[(neighbour_index)] - nodes_x0[(rnode_index)],
+                          nodes_z0[(neighbour_index)] -
+                              nodes_x0[(rnode_index)]};
 
             // Store the neighbouring cell's contribution to the coefficients
-            coeff[0].x += (2.0 * comd.x * comd.x) / (vol * vol);
-            coeff[0].y += (2.0 * comd.x * comd.y) / (vol * vol);
-            coeff[0].z += (2.0 * comd.x * comd.z) / (vol * vol);
-            coeff[1].x += (2.0 * comd.y * comd.x) / (vol * vol);
-            coeff[1].y += (2.0 * comd.y * comd.y) / (vol * vol);
-            coeff[1].z += (2.0 * comd.y * comd.z) / (vol * vol);
-            coeff[2].x += (2.0 * comd.z * comd.x) / (vol * vol);
-            coeff[2].y += (2.0 * comd.z * comd.y) / (vol * vol);
-            coeff[2].z += (2.0 * comd.z * comd.z) / (vol * vol);
+            coeff[0].x += (dist.x * dist.x);
+            coeff[0].y += (dist.x * dist.y);
+            coeff[0].z += (dist.x * dist.z);
+            coeff[1].x += (dist.y * dist.x);
+            coeff[1].y += (dist.y * dist.y);
+            coeff[1].z += (dist.y * dist.z);
+            coeff[2].x += (dist.z * dist.x);
+            coeff[2].y += (dist.z * dist.y);
+            coeff[2].z += (dist.z * dist.z);
 
             gmax.x =
                 max(gmax.x, nodal_density * velocity_x0[(neighbour_index)]);
@@ -483,15 +510,15 @@ void gather_subcell_momentum(
                 (neighbour_nodal_density * velocity_z0[(neighbour_index)] -
                  node_v.z)};
 
-            rhsx.x += (2.0 * comd.x * dv.x / vol);
-            rhsx.y += (2.0 * comd.y * dv.x / vol);
-            rhsx.z += (2.0 * comd.z * dv.x / vol);
-            rhsy.x += (2.0 * comd.x * dv.y / vol);
-            rhsy.y += (2.0 * comd.y * dv.y / vol);
-            rhsy.z += (2.0 * comd.z * dv.y / vol);
-            rhsz.x += (2.0 * comd.x * dv.z / vol);
-            rhsz.y += (2.0 * comd.y * dv.z / vol);
-            rhsz.z += (2.0 * comd.z * dv.z / vol);
+            rhsx.x += (dist.x * dv.x);
+            rhsx.y += (dist.y * dv.x);
+            rhsx.z += (dist.z * dv.x);
+            rhsy.x += (dist.x * dv.y);
+            rhsy.y += (dist.y * dv.y);
+            rhsy.z += (dist.z * dv.y);
+            rhsz.x += (dist.x * dv.z);
+            rhsz.y += (dist.y * dv.z);
+            rhsz.z += (dist.z * dv.z);
           }
 
           // Determine the inverse of the coefficient matrix
@@ -665,7 +692,7 @@ void calc_normal(const int n0, const int n1, const int n2,
   normal->z = (dn0.x * dn1.y - dn0.y * dn1.x);
 }
 
-// Resolves the volume comd in alpha-beta-gamma basis
+// Resolves the volume dist in alpha-beta-gamma basis
 void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
                          const int basis, const int face_clockwise,
                          const double omega, const int* faces_to_nodes,
@@ -693,7 +720,7 @@ void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
     const double Calpha = a1 * (a1 + a0) + a0 * a0;
     const double Cbeta = b1 * (b1 + b0) + b0 * b0;
 
-    // Accumulate the projection comd
+    // Accumulate the projection dist
     pione += dbeta * (a1 + a0) / 2.0;
     pialpha += dbeta * (Calpha) / 6.0;
     pibeta -= dalpha * (Cbeta) / 6.0;
@@ -706,14 +733,14 @@ void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
   pialpha *= flip;
   pibeta *= flip;
 
-  // Finalise the weighted face comd
+  // Finalise the weighted face dist
   const double Falpha = pialpha / normal.z;
   const double Fbeta = pibeta / normal.z;
   const double Fgamma =
       -(normal.x * pialpha + normal.y * pibeta + omega * pione) /
       (normal.z * normal.z);
 
-  // Accumulate the weighted volume comd
+  // Accumulate the weighted volume dist
   if (basis == XYZ) {
     *vol += normal.x * Falpha;
   } else if (basis == YZX) {
@@ -723,7 +750,7 @@ void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
   }
 }
 
-// Calculates the weighted volume comd for a provided cell along x-y-z
+// Calculates the weighted volume dist for a provided cell along x-y-z
 void calc_volume(const int cell_to_faces_off, const int nfaces_by_cell,
                  const int* cells_to_faces, const int* faces_to_nodes,
                  const int* faces_to_nodes_offsets, const double* nodes_x,
