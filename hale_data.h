@@ -74,9 +74,9 @@ typedef struct {
   // time and so there are some potential capacity reclaiming optimisations
   double* subcell_ie_density;
   double* subcell_mass;
-  double* subcell_velocity_x;
-  double* subcell_velocity_y;
-  double* subcell_velocity_z;
+  double* subcell_momentum_x;
+  double* subcell_momentum_y;
+  double* subcell_momentum_z;
   double* subcell_centroids_x;
   double* subcell_centroids_y;
   double* subcell_centroids_z;

@@ -24,8 +24,8 @@ void solve_unstructured_hydro_2d(
     double* subcell_force_z, double* cell_mass, double* nodal_mass,
     double* nodal_volumes, double* nodal_soundspeed, double* limiter,
     double* subcell_volume, double* subcell_ie_density, double* subcell_mass,
-    double* subcell_velocity_x, double* subcell_velocity_y,
-    double* subcell_velocity_z, double* subcell_centroids_x,
+    double* subcell_momentum_x, double* subcell_momentum_y,
+    double* subcell_momentum_z, double* subcell_centroids_x,
     double* subcell_centroids_y, double* subcell_centroids_z,
     double* subcell_kinetic_energy, double* rezoned_nodes_x,
     double* rezoned_nodes_y, double* rezoned_nodes_z,
@@ -62,7 +62,6 @@ void solve_unstructured_hydro_2d(
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
 
-#if 0
   printf("\nPerforming Gathering Phase\n");
 
   // Gather the subcell quantities for mass, internal and kinetic energy
@@ -72,12 +71,11 @@ void solve_unstructured_hydro_2d(
       cell_centroids_y, cell_centroids_z, cells_offsets, nodes_x0, nodes_y0,
       nodes_z0, energy0, density0, velocity_x0, velocity_y0, velocity_z0,
       cell_mass, subcell_volume, subcell_ie_density, subcell_mass,
-      subcell_velocity_x, subcell_velocity_y, subcell_velocity_z,
+      subcell_momentum_x, subcell_momentum_y, subcell_momentum_z,
       subcell_centroids_x, subcell_centroids_y, subcell_centroids_z,
       cell_volume, subcell_face_offsets, faces_to_nodes, faces_to_nodes_offsets,
       faces_to_cells0, faces_to_cells1, cells_to_faces_offsets, cells_to_faces,
       cells_to_nodes);
-#endif // if 0
 
 #if 0
   /*
@@ -402,11 +400,11 @@ void solve_unstructured_hydro_2d(
         // Add contributions for both edges attached to our current node
         for (int nn2 = 0; nn2 < 2; ++nn2) {
           velocity_x0[(nn)] +=
-              subcell_velocity_x[(subcell_off + node_in_face_c)];
+              subcell_momentum_x[(subcell_off + node_in_face_c)];
           velocity_y0[(nn)] +=
-              subcell_velocity_y[(subcell_off + node_in_face_c)];
+              subcell_momentum_y[(subcell_off + node_in_face_c)];
           velocity_z0[(nn)] +=
-              subcell_velocity_z[(subcell_off + node_in_face_c)];
+              subcell_momentum_z[(subcell_off + node_in_face_c)];
         }
       }
     }
