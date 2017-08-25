@@ -44,10 +44,6 @@ int main(int argc, char** argv) {
 
   double i0 = omp_get_wtime();
 
-  mesh.height = 3.0;
-  mesh.width = 3.0;
-  mesh.depth = 3.0;
-
   // Perform initialisation routines
   initialise_mpi(argc, argv, &mesh.rank, &mesh.nranks);
   initialise_comms(&mesh);
