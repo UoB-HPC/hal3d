@@ -18,7 +18,8 @@ void init_mesh_mass(const int ncells, const int* cells_offsets,
   // Calculate the predicted energy
   START_PROFILING(&compute_profile);
   double total_mass = 0.0;
-#pragma omp parallel for reduction(+ : total_mass)
+  double total_subcell_mass = 0.0;
+#pragma omp parallel for reduction(+ : total_mass, total_subcell_mass)
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
@@ -73,6 +74,7 @@ void init_mesh_mass(const int ncells, const int* cells_offsets,
                        3.0);
 
         subcell_mass[(subcell_off + nn2)] = density[(cc)] * subcell_volume;
+        total_subcell_mass += subcell_mass[(subcell_off + nn2)];
         cell_mass[(cc)] += density[(cc)] * subcell_volume;
       }
     }
@@ -81,7 +83,8 @@ void init_mesh_mass(const int ncells, const int* cells_offsets,
   }
   STOP_PROFILING(&compute_profile, __func__);
 
-  printf("Initial total mesh mash: %.15f\n", total_mass);
+  printf("Initial Total Mesh Mass: %.12f\n", total_mass);
+  printf("Initial Total Subcell Mass: %.12f\n", total_subcell_mass);
 }
 
 // Initialises the centroids for each cell
