@@ -35,7 +35,7 @@ void gather_subcell_quantities(
       ncells, cell_centroids_x, cell_centroids_y, cell_centroids_z,
       cells_offsets, nodes_x0, nodes_y0, nodes_z0, energy0, density0, cell_mass,
       subcell_volume, subcell_ie_mass, subcell_centroids_x, subcell_centroids_y,
-      subcell_centroids_z, cell_volume, subcell_face_offsets, faces_to_nodes,
+      subcell_centroids_z, subcell_face_offsets, faces_to_nodes,
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces, cells_to_nodes);
 
@@ -44,7 +44,6 @@ void gather_subcell_quantities(
       cell_centroids_y, cell_centroids_z, cells_offsets, nodes_x0, nodes_y0,
       nodes_z0, velocity_x0, velocity_y0, velocity_z0, subcell_volume,
       subcell_momentum_x, subcell_momentum_y, subcell_momentum_z,
-      subcell_centroids_x, subcell_centroids_y, subcell_centroids_z,
       subcell_face_offsets, faces_to_nodes, faces_to_nodes_offsets,
       cells_to_faces_offsets, cells_to_faces, cells_to_nodes);
 }
@@ -57,9 +56,9 @@ void gather_subcell_energy(
     double* density0, double* cell_mass, double* subcell_volume,
     double* subcell_ie_mass, double* subcell_centroids_x,
     double* subcell_centroids_y, double* subcell_centroids_z,
-    double* cell_volume, int* subcell_face_offsets, int* faces_to_nodes,
-    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
-    int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes) {
+    int* subcell_face_offsets, int* faces_to_nodes, int* faces_to_nodes_offsets,
+    int* faces_to_cells0, int* faces_to_cells1, int* cells_to_faces_offsets,
+    int* cells_to_faces, int* cells_to_nodes) {
 
 // Calculate the sub-cell internal energies
 #pragma omp parallel for
@@ -211,10 +210,8 @@ void gather_subcell_momentum(
     double* velocity_x0, double* velocity_y0, double* velocity_z0,
     double* subcell_volume, double* subcell_momentum_x,
     double* subcell_momentum_y, double* subcell_momentum_z,
-    double* subcell_centroids_x, double* subcell_centroids_y,
-    double* subcell_centroids_z, int* subcell_face_offsets, int* faces_to_nodes,
-    int* faces_to_nodes_offsets, int* cells_to_faces_offsets,
-    int* cells_to_faces, int* cells_to_nodes) {
+    int* subcell_face_offsets, int* faces_to_nodes, int* faces_to_nodes_offsets,
+    int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes) {
 
   // The following method is a homegrown solution. It doesn't feel totally
   // precise, but it is a quite reasonable approach based on the popular
@@ -223,10 +220,8 @@ void gather_subcell_momentum(
   double total_subcell_vx = 0.0;
   double total_subcell_vy = 0.0;
   double total_subcell_vz = 0.0;
-#if 0
 #pragma omp parallel for reduction(+ : total_subcell_vx, total_subcell_vy,     \
                                    total_subcell_vz)
-#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
@@ -458,13 +453,6 @@ void gather_subcell_momentum(
         total_subcell_vx += subcell_momentum_x[(lsubsubcell_index)];
         total_subcell_vy += subcell_momentum_y[(lsubsubcell_index)];
         total_subcell_vz += subcell_momentum_z[(lsubsubcell_index)];
-
-#if 0
-        printf("%.12f %.12f %.12f\n",
-               nodal_mass[(node_index)] * velocity_x0[(node_index)],
-               subcell_momentum_x[(subcell_index)],
-               subcell_momentum_x[(lsubsubcell_index)]);
-#endif // if 0
       }
     }
   }

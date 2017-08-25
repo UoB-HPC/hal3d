@@ -65,10 +65,8 @@ void gather_subcell_momentum(
     double* velocity_x0, double* velocity_y0, double* velocity_z0,
     double* subcell_volume, double* subcell_velocity_x,
     double* subcell_velocity_y, double* subcell_velocity_z,
-    double* subcell_centroids_x, double* subcell_centroids_y,
-    double* subcell_centroids_z, int* subcell_face_offsets, int* faces_to_nodes,
-    int* faces_to_nodes_offsets, int* cells_to_faces_offsets,
-    int* cells_to_faces, int* cells_to_nodes);
+    int* subcell_face_offsets, int* faces_to_nodes, int* faces_to_nodes_offsets,
+    int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes);
 
 // Gathers all of the subcell quantities on the mesh
 void gather_subcell_energy(
@@ -78,9 +76,9 @@ void gather_subcell_energy(
     double* density0, double* cell_mass, double* subcell_volume,
     double* subcell_ie_density, double* subcell_centroids_x,
     double* subcell_centroids_y, double* subcell_centroids_z,
-    double* cell_volume, int* subcell_face_offsets, int* faces_to_nodes,
-    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
-    int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes);
+    int* subcell_face_offsets, int* faces_to_nodes, int* faces_to_nodes_offsets,
+    int* faces_to_cells0, int* faces_to_cells1, int* cells_to_faces_offsets,
+    int* cells_to_faces, int* cells_to_nodes);
 
 // Checks if the normal vector is pointing inward or outward
 // n0 is just a point on the plane
