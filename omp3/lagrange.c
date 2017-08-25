@@ -831,7 +831,6 @@ void lagrangian_phase(
   }
   STOP_PROFILING(&compute_profile, "calc_new_density");
 
-#if 0
 #pragma omp parallel for
   for (int nn = 0; nn < nnodes; ++nn) {
     const int node_to_faces_off = nodes_to_faces_offsets[(nn)];
@@ -925,7 +924,6 @@ void lagrangian_phase(
       }
     }
   }
-#endif // if 0
 }
 
 // Controls the timestep for the simulation

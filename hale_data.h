@@ -21,6 +21,7 @@
 #define NNEIGHBOUR_NODES 2
 
 #define NSUBCELL_NEIGHBOURS 4
+#define NSUBSUBCELLS 2
 
 // The number of faces of swept edge prism
 #define NPRISM_FACES 5
