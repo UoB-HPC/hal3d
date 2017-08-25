@@ -34,6 +34,7 @@ void solve_unstructured_hydro_2d(
     int* cells_to_faces_offsets, int* cells_to_faces, int* subcell_face_offsets,
     int* subcells_to_subcells) {
 
+#if 0
   static int t = 0;
   if (t++ == 0) {
     // Construct the linear system test for the remapping
@@ -55,6 +56,7 @@ void solve_unstructured_hydro_2d(
       }
     }
   }
+#endif // if 0
 
   double total_mass = 0.0;
   double total_energy = 0.0;
