@@ -73,8 +73,10 @@ typedef struct {
 
   // TODO: These are large arrays, which definitely aren't used all at the same
   // time and so there are some potential capacity reclaiming optimisations
-  double* subcell_ie_density;
-  double* subcell_mass;
+  double* subcell_ie_density0;
+  double* subcell_ie_density1;
+  double* subcell_mass0;
+  double* subcell_mass1;
   double* subcell_momentum_x;
   double* subcell_momentum_y;
   double* subcell_momentum_z;

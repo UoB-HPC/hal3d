@@ -52,9 +52,12 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
   allocated +=
       allocate_data(&hale_data->subcell_momentum_z, hale_data->nsubcells * 2);
   allocated +=
-      allocate_data(&hale_data->subcell_ie_density, hale_data->nsubcells);
+      allocate_data(&hale_data->subcell_ie_density0, hale_data->nsubcells);
+  allocated += allocate_data(&hale_data->subcell_mass0, hale_data->nsubcells);
+  allocated +=
+      allocate_data(&hale_data->subcell_ie_density1, hale_data->nsubcells);
+  allocated += allocate_data(&hale_data->subcell_mass1, hale_data->nsubcells);
   allocated += allocate_data(&hale_data->subcell_volume, hale_data->nsubcells);
-  allocated += allocate_data(&hale_data->subcell_mass, hale_data->nsubcells);
   allocated +=
       allocate_data(&hale_data->corner_force_x, umesh->ncells * nnodes_by_cell);
   allocated +=
@@ -89,7 +92,7 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
                  umesh->cell_centroids_y, umesh->cell_centroids_z,
                  umesh->cells_to_nodes, hale_data->density0, umesh->nodes_x0,
                  umesh->nodes_y0, umesh->nodes_z0, hale_data->cell_mass,
-                 hale_data->subcell_mass, umesh->cells_to_faces_offsets,
+                 hale_data->subcell_mass0, umesh->cells_to_faces_offsets,
                  umesh->cells_to_faces, umesh->faces_to_nodes_offsets,
                  umesh->faces_to_nodes, hale_data->subcell_face_offsets);
 
@@ -148,6 +151,42 @@ void write_unstructured_to_visit_3d(const int nnodes, int ncells,
   int shapecounts[] = {ncells};
   int shapesize[] = {8};
   int shapetype[] = {DB_ZONETYPE_HEX};
+
+  int ndims = 3;
+  int nshapes = 1;
+
+  char filename[MAX_STR_LEN];
+  sprintf(filename, "output%04d.silo", step);
+
+  DBfile* dbfile =
+      DBCreate(filename, DB_CLOBBER, DB_LOCAL, "simulation time step", DB_HDF5);
+
+  /* Write out connectivity information. */
+  DBPutZonelist2(dbfile, "zonelist", ncells, ndims, cells_to_nodes,
+                 ncells * shapesize[0], 0, 0, 0, shapetype, shapesize,
+                 shapecounts, nshapes, NULL);
+
+  /* Write an unstructured mesh. */
+  DBPutUcdmesh(dbfile, "mesh", ndims, NULL, coords, nnodes, ncells, "zonelist",
+               NULL, DB_DOUBLE, NULL);
+
+  DBPutUcdvar1(dbfile, "arr", "mesh", arr, (nodal ? nnodes : ncells), NULL, 0,
+               DB_DOUBLE, (nodal ? DB_NODECENT : DB_ZONECENT), NULL);
+
+  DBClose(dbfile);
+}
+
+// Writes out unstructured triangles to visit
+void subcell_to_visit(const int nnodes, int ncells, const int step,
+                      double* nodes_x, double* nodes_y, double* nodes_z,
+                      const int* cells_to_nodes, const double* arr,
+                      const int nodal, const int quads) {
+
+  double* coords[] = {(double*)nodes_x, (double*)nodes_y, (double*)nodes_z};
+
+  int shapecounts[] = {ncells};
+  int shapesize[] = {6};
+  int shapetype[] = {DB_ZONETYPE_PRISM};
 
   int ndims = 3;
   int nshapes = 1;

@@ -11,7 +11,8 @@ void gather_subcell_quantities(
     double* nodes_x0, const double* nodes_y0, const double* nodes_z0,
     double* energy0, double* density0, double* velocity_x0, double* velocity_y0,
     double* velocity_z0, double* cell_mass, double* subcell_volume,
-    double* subcell_ie_mass, double* subcell_mass, double* subcell_momentum_x,
+    double* subcell_ie_mass0, double* subcell_mass0, double* subcell_ie_mass1,
+    double* subcell_mass1, double* subcell_momentum_x,
     double* subcell_momentum_y, double* subcell_momentum_z,
     double* subcell_centroids_x, double* subcell_centroids_y,
     double* subcell_centroids_z, double* cell_volume, int* subcell_face_offsets,
@@ -34,9 +35,9 @@ void gather_subcell_quantities(
   gather_subcell_energy(
       ncells, cell_centroids_x, cell_centroids_y, cell_centroids_z,
       cells_offsets, nodes_x0, nodes_y0, nodes_z0, energy0, density0, cell_mass,
-      subcell_volume, subcell_ie_mass, subcell_centroids_x, subcell_centroids_y,
-      subcell_centroids_z, subcell_face_offsets, faces_to_nodes,
-      faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
+      subcell_volume, subcell_ie_mass0, subcell_centroids_x,
+      subcell_centroids_y, subcell_centroids_z, subcell_face_offsets,
+      faces_to_nodes, faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces, cells_to_nodes);
 
   gather_subcell_momentum(

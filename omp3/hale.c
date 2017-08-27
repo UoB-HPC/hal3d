@@ -23,7 +23,8 @@ void solve_unstructured_hydro_2d(
     double* velocity_z1, double* subcell_force_x, double* subcell_force_y,
     double* subcell_force_z, double* cell_mass, double* nodal_mass,
     double* nodal_volumes, double* nodal_soundspeed, double* limiter,
-    double* subcell_volume, double* subcell_ie_density, double* subcell_mass,
+    double* subcell_volume, double* subcell_ie_density0, double* subcell_mass0,
+    double* subcell_ie_density1, double* subcell_mass1,
     double* subcell_momentum_x, double* subcell_momentum_y,
     double* subcell_momentum_z, double* subcell_centroids_x,
     double* subcell_centroids_y, double* subcell_centroids_z,
@@ -59,30 +60,34 @@ void solve_unstructured_hydro_2d(
       ncells, nnodes, nodal_volumes, nodal_mass, cell_centroids_x,
       cell_centroids_y, cell_centroids_z, cells_offsets, nodes_x0, nodes_y0,
       nodes_z0, energy0, density0, velocity_x0, velocity_y0, velocity_z0,
-      cell_mass, subcell_volume, subcell_ie_density, subcell_mass,
-      subcell_momentum_x, subcell_momentum_y, subcell_momentum_z,
-      subcell_centroids_x, subcell_centroids_y, subcell_centroids_z,
-      cell_volume, subcell_face_offsets, faces_to_nodes, faces_to_nodes_offsets,
+      cell_mass, subcell_volume, subcell_ie_density0, subcell_mass0,
+      subcell_ie_density1, subcell_mass1, subcell_momentum_x,
+      subcell_momentum_y, subcell_momentum_z, subcell_centroids_x,
+      subcell_centroids_y, subcell_centroids_z, cell_volume,
+      subcell_face_offsets, faces_to_nodes, faces_to_nodes_offsets,
       faces_to_cells0, faces_to_cells1, cells_to_faces_offsets, cells_to_faces,
       cells_to_nodes);
 
   printf("\nPerforming Remap Phase\n");
 
-  remap_phase(
-      ncells, nnodes, cell_centroids_x, cell_centroids_y, cell_centroids_z,
-      cells_to_nodes, cells_offsets, nodes_x0, nodes_y0, nodes_z0, cell_volume,
-      energy0, energy1, density0, velocity_x0, velocity_y0, velocity_z0,
-      cell_mass, nodal_mass, subcell_volume, subcell_ie_density, subcell_mass,
-      subcell_momentum_x, subcell_momentum_y, subcell_momentum_z,
-      subcell_centroids_x, subcell_centroids_y, subcell_centroids_z,
-      rezoned_nodes_x, rezoned_nodes_y, rezoned_nodes_z, nodes_to_faces_offsets,
-      nodes_to_faces, faces_to_nodes, faces_to_nodes_offsets, faces_to_cells0,
-      faces_to_cells1, cells_to_faces_offsets, cells_to_faces,
-      subcell_face_offsets, subcells_to_subcells);
+  remap_phase(ncells, nnodes, cell_centroids_x, cell_centroids_y,
+              cell_centroids_z, cells_to_nodes, cells_offsets, nodes_x0,
+              nodes_y0, nodes_z0, cell_volume, energy0, energy1, density0,
+              velocity_x0, velocity_y0, velocity_z0, cell_mass, nodal_mass,
+              subcell_volume, subcell_ie_density0, subcell_mass0,
+              subcell_ie_density1, subcell_mass1, subcell_momentum_x,
+              subcell_momentum_y, subcell_momentum_z, subcell_centroids_x,
+              subcell_centroids_y, subcell_centroids_z, rezoned_nodes_x,
+              rezoned_nodes_y, rezoned_nodes_z, nodes_to_faces_offsets,
+              nodes_to_faces, faces_to_nodes, faces_to_nodes_offsets,
+              faces_to_cells0, faces_to_cells1, cells_to_faces_offsets,
+              cells_to_faces, subcell_face_offsets, subcells_to_subcells);
 
   printf("\nEulerian Mesh Rezone\n");
+#if 0
   apply_mesh_rezoning(nnodes, rezoned_nodes_x, rezoned_nodes_y, rezoned_nodes_z,
                       nodes_x0, nodes_y0, nodes_z0);
+#endif // if 0
 
   init_cell_centroids(ncells, cells_offsets, cells_to_nodes, nodes_x0, nodes_y0,
                       nodes_z0, cell_centroids_x, cell_centroids_y,
