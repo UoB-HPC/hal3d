@@ -84,10 +84,8 @@ void solve_unstructured_hydro_2d(
               cells_to_faces, subcell_face_offsets, subcells_to_subcells);
 
   printf("\nEulerian Mesh Rezone\n");
-#if 0
   apply_mesh_rezoning(nnodes, rezoned_nodes_x, rezoned_nodes_y, rezoned_nodes_z,
                       nodes_x0, nodes_y0, nodes_z0);
-#endif // if 0
 
   init_cell_centroids(ncells, cells_offsets, cells_to_nodes, nodes_x0, nodes_y0,
                       nodes_z0, cell_centroids_x, cell_centroids_y,

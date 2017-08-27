@@ -41,8 +41,6 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
 #endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
 
-    density0[(cc)] = 0.0;
-
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
         cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
@@ -93,7 +91,7 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
             calc_surface_normal(n0, n1, n2, nodes_x0, nodes_y0, nodes_z0,
                                 &cell_centroid, &face_normal);
 
-        double mass_flux = 0.0;
+        double mass_outflux = 0.0;
 
         int rnode_index;
         if (face_clockwise) {
@@ -105,8 +103,8 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
         }
 
         // Describe the subcell tetrahedron connectivity
-        const int subcell_faces_to_nodes[] = {0, 1, 2, 1, 3, 2,
-                                              0, 2, 3, 0, 3, 1};
+        const int subcell_faces_to_nodes[] = {0, 1, 2, 0, 3, 1,
+                                              1, 3, 2, 0, 2, 3};
         const vec_t subcell[] = {
             {nodes_x0[(node_index)], nodes_y0[(node_index)],
              nodes_z0[(node_index)]},
@@ -168,37 +166,51 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
             continue;
           }
 
-          vec_t ab;
-          ab.x = (face_c.x - rz_face_c.x);
-          ab.y = (face_c.y - rz_face_c.y);
-          ab.z = (face_c.z - rz_face_c.z);
+          // Determine the centroids of the subcell and rezoned faces
+          vec_t subcell_face_c = {
+              (subcell[(sf0)].x + subcell[(sf1)].x + subcell[(sf2)].x) /
+                  NTET_NODES,
+              (subcell[(sf0)].y + subcell[(sf1)].y + subcell[(sf2)].y) /
+                  NTET_NODES,
+              (subcell[(sf0)].z + subcell[(sf1)].z + subcell[(sf2)].z) /
+                  NTET_NODES};
+          vec_t rz_subcell_face_c = {
+              (rz_subcell[(sf0)].x + rz_subcell[(sf1)].x +
+               rz_subcell[(sf2)].x) /
+                  NTET_NODES,
+              (rz_subcell[(sf0)].y + rz_subcell[(sf1)].y +
+               rz_subcell[(sf2)].y) /
+                  NTET_NODES,
+              (rz_subcell[(sf0)].z + rz_subcell[(sf1)].z +
+               rz_subcell[(sf2)].z) /
+                  NTET_NODES};
 
-          const int is_internal_sweep =
-              (0.0 < ab.x * face_normal.x + ab.y * face_normal.y +
-                         ab.z * face_normal.z);
+          vec_t ab = {rz_subcell_face_c.x - subcell_face_c.x,
+                      rz_subcell_face_c.y - subcell_face_c.y,
+                      rz_subcell_face_c.z - subcell_face_c.z};
+          vec_t ac = {subcell_centroids_x[(subcell_index)] - subcell_face_c.x,
+                      subcell_centroids_y[(subcell_index)] - subcell_face_c.y,
+                      subcell_centroids_z[(subcell_index)] - subcell_face_c.z};
 
-#if 0
-          const int is_internal_sweep = !check_normal_orientation(
-              0, swept_edge_nodes_x, swept_edge_nodes_y, swept_edge_nodes_z,
-              &swept_edge_centroid, &face_normal);
-#endif // if 0
+          const int is_outflux =
+              (ab.x * ac.x + ab.y * ac.y + ab.z * ac.z > 0.0);
 
           // Depending upon which subcell we are sweeping into, choose the
           // subcell index with which to reconstruct the density
           const int subcell_neighbour_index =
               subcells_to_subcells[(subcell_index * NSUBCELL_NEIGHBOURS + pp)];
           const int sweep_subcell_index =
-              (is_internal_sweep ? subcell_index : subcell_neighbour_index);
+              (is_outflux ? subcell_index : subcell_neighbour_index);
 
           // Only perform the sweep on the external face if it isn't a
           // boundary
           if (subcell_neighbour_index == -1) {
-            continue;
+            TERMINATE("We should not be attempting to flux from boundary.");
           }
 
           /* CALCULATE INVERSE COEFFICIENT MATRIX */
 
-          // The coefficients of the 3x3 gradient coefficient matrix
+          // The 3x3 gradient coefficient matrix, and inverse
           vec_t inv[3] = {{0.0, 0.0, 0.0}};
           vec_t coeff[3] = {{0.0, 0.0, 0.0}};
 
@@ -276,17 +288,16 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
                grad_mass.z * (swept_edge_centroid.z -
                               subcell_centroids_z[(sweep_subcell_index)]));
 
-          if (is_internal_sweep) {
-            mass_flux -= local_mass_flux;
+          // Either mass is flowing into or out of the subcell
+          if (is_outflux) {
+            mass_outflux += local_mass_flux;
           } else {
-            mass_flux += local_mass_flux;
+            mass_outflux -= local_mass_flux;
           }
         }
 
-        // TODO: CAN JUST GET RID OF SUBCELL_MASS1 FOR LOCAL VARIABLE
-        // Gather the value back to the cell
-
-        cell_mass[(cc)] += subcell_mass0[(subcell_index)] - mass_flux;
+        // Scatter the subcell mass data back to the cell
+        cell_mass[(cc)] += subcell_mass0[(subcell_index)] - mass_outflux;
 
 #if 0
         energy1[(cc)] += subcell_ie_density0[(subcell_index)] +
