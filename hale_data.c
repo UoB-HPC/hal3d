@@ -138,7 +138,7 @@ void write_unstructured_to_visit_2d(const int nnodes, int ncells,
   DBClose(dbfile);
 }
 
-// Writes out unstructured triangles to visit
+// Writes out unstructured mesh data to visit
 void write_unstructured_to_visit_3d(const int nnodes, int ncells,
                                     const int step, double* nodes_x,
                                     double* nodes_y, double* nodes_z,
@@ -176,17 +176,17 @@ void write_unstructured_to_visit_3d(const int nnodes, int ncells,
   DBClose(dbfile);
 }
 
-// Writes out unstructured triangles to visit
-void subcell_to_visit(const int nnodes, int ncells, const int step,
-                      double* nodes_x, double* nodes_y, double* nodes_z,
-                      const int* cells_to_nodes, const double* arr,
-                      const int nodal, const int quads) {
+// Writes out unstructured tetrahedral subcells to visit
+void subcells_to_visit(const int nnodes, int ncells, const int step,
+                       double* nodes_x, double* nodes_y, double* nodes_z,
+                       const int* cells_to_nodes, const double* arr,
+                       const int nodal, const int quads) {
 
   double* coords[] = {(double*)nodes_x, (double*)nodes_y, (double*)nodes_z};
 
   int shapecounts[] = {ncells};
-  int shapesize[] = {6};
-  int shapetype[] = {DB_ZONETYPE_PRISM};
+  int shapesize[] = {4};
+  int shapetype[] = {DB_ZONETYPE_TET};
 
   int ndims = 3;
   int nshapes = 1;

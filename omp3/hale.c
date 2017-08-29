@@ -36,6 +36,7 @@ void solve_unstructured_hydro_2d(
     int* subcells_to_subcells) {
 
   printf("\nPerforming the Lagrangian Phase\n");
+#if 0
 
   // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
   // due to the pressure (ideal gas) and artificial viscous forces
@@ -67,6 +68,7 @@ void solve_unstructured_hydro_2d(
       subcell_face_offsets, faces_to_nodes, faces_to_nodes_offsets,
       faces_to_cells0, faces_to_cells1, cells_to_faces_offsets, cells_to_faces,
       cells_to_nodes);
+#endif // if 0
 
   printf("\nPerforming Remap Phase\n");
 

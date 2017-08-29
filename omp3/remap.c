@@ -12,8 +12,8 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
                  double* energy0, double* energy1, double* density0,
                  double* velocity_x0, double* velocity_y0, double* velocity_z0,
                  double* cell_mass, double* nodal_mass, double* subcell_volume,
-                 double* subcell_ie_density0, double* subcell_mass0,
-                 double* subcell_ie_density1, double* subcell_mass1,
+                 double* subcell_ie_mass0, double* subcell_mass0,
+                 double* subcell_ie_mass1, double* subcell_mass1,
                  double* subcell_momentum_x, double* subcell_momentum_y,
                  double* subcell_momentum_z, double* subcell_centroids_x,
                  double* subcell_centroids_y, double* subcell_centroids_z,
@@ -35,12 +35,227 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
     total_density += density0[(cc)];
   }
 
+  // Describe the subcell node layout
+  const int nx = cbrt(ncells);
+  const int ny = cbrt(ncells);
+  const int nz = cbrt(ncells);
+  const int nsubcells_per_cell = 24;
+  const int nsubcell_nodes_per_cell = nsubcells_per_cell * NTET_NODES;
+
+  // Construct the subcell mesh description
+  int* subcells_to_nodes;
+  double* subcell_data_x;
+  double* subcell_data_y;
+  double* subcell_data_z;
+
+  const int subcell_nodes_off = 0;
+  const int subcell_face_c_xy_off = (nx + 1) * (ny + 1) * (nz + 1);
+  const int subcell_face_c_yz_off = subcell_face_c_xy_off + nx * ny * (nz + 1);
+  const int subcell_face_c_zx_off = subcell_face_c_yz_off + (nx + 1) * ny * nz;
+  const int subcell_cell_c_off = subcell_face_c_zx_off + nx * (ny + 1) * nz;
+  const int nsubcell_nodes = subcell_cell_c_off + nx * ny * nz;
+
+  size_t allocated = allocate_data(&subcell_data_x, nsubcell_nodes);
+  allocated += allocate_data(&subcell_data_y, nsubcell_nodes);
+  allocated += allocate_data(&subcell_data_z, nsubcell_nodes);
+  allocated +=
+      allocate_int_data(&subcells_to_nodes, ncells * nsubcell_nodes_per_cell);
+  printf("allocated %.4lf GB for subcell output\n", allocated / GB);
+
+  // Determine subcell connectivity in a planar fashion
+  double dx = 1.0 / nx;
+  double dy = 1.0 / ny;
+  double dz = 1.0 / nz;
+
+#define NODE_IND(i, j, k)                                                      \
+  (subcell_nodes_off + ((i) * (nx + 1) * (ny + 1) + (j) * (nx + 1) + (k)))
+#define FACE_C_XY_IND(i, j, k)                                                 \
+  (subcell_face_c_xy_off + ((i)*nx * ny + (j)*nx + (k)))
+#define FACE_C_YZ_IND(i, j, k)                                                 \
+  (subcell_face_c_yz_off + ((i) * (nx + 1) * ny + (j) * (nx + 1) + (k)))
+#define FACE_C_ZX_IND(i, j, k)                                                 \
+  (subcell_face_c_zx_off + ((i)*nx * (ny + 1) + (j)*nx + (k)))
+#define CELL_C_IND(i, j, k) (subcell_cell_c_off + ((i)*nx * ny + (j)*nx + (k)))
+
+  // Construct the nodal positions
+  for (int ii = 0; ii < nz + 1; ++ii) {
+    for (int jj = 0; jj < ny + 1; ++jj) {
+      for (int kk = 0; kk < nx + 1; ++kk) {
+        subcell_data_x[NODE_IND(ii, jj, kk)] = kk * dx;
+        subcell_data_y[NODE_IND(ii, jj, kk)] = jj * dy;
+        subcell_data_z[NODE_IND(ii, jj, kk)] = ii * dz;
+
+        if (kk < nx && jj < ny) {
+          subcell_data_x[(FACE_C_XY_IND(ii, jj, kk))] = 0.5 * dx + kk * dx;
+          subcell_data_y[(FACE_C_XY_IND(ii, jj, kk))] = 0.5 * dy + jj * dy;
+          subcell_data_z[(FACE_C_XY_IND(ii, jj, kk))] = ii * dz;
+        }
+        if (jj < ny && ii < nz) {
+          subcell_data_x[FACE_C_YZ_IND(ii, jj, kk)] = kk * dx;
+          subcell_data_y[FACE_C_YZ_IND(ii, jj, kk)] = 0.5 * dy + jj * dy;
+          subcell_data_z[FACE_C_YZ_IND(ii, jj, kk)] = 0.5 * dz + ii * dz;
+        }
+        if (kk < nx && ii < nz) {
+          subcell_data_x[FACE_C_ZX_IND(ii, jj, kk)] = 0.5 * dx + kk * dx;
+          subcell_data_y[FACE_C_ZX_IND(ii, jj, kk)] = jj * dy;
+          subcell_data_z[FACE_C_ZX_IND(ii, jj, kk)] = 0.5 * dz + ii * dz;
+        }
+        if (kk < nx && jj < ny && ii < nz) {
+          subcell_data_x[CELL_C_IND(ii, jj, kk)] = 0.5 * dx + kk * dx;
+          subcell_data_y[CELL_C_IND(ii, jj, kk)] = 0.5 * dy + jj * dy;
+          subcell_data_z[CELL_C_IND(ii, jj, kk)] = 0.5 * dz + ii * dz;
+        }
+      }
+    }
+  }
+
+  for (int ii = 0; ii < nz; ++ii) {
+    for (int jj = 0; jj < ny; ++jj) {
+      for (int kk = 0; kk < nx; ++kk) {
+        const int cell_index = (ii * nx * ny + jj * nx + kk);
+        const int c_off = cell_index * nsubcell_nodes_per_cell;
+
+        // Front subcells
+        subcells_to_nodes[(c_off + 0)] = NODE_IND(ii, jj, kk);
+        subcells_to_nodes[(c_off + 1)] = NODE_IND(ii, jj, kk + 1);
+        subcells_to_nodes[(c_off + 2)] = FACE_C_XY_IND(ii, jj, kk);
+        subcells_to_nodes[(c_off + 3)] = CELL_C_IND(ii, jj, kk);
+
+        subcells_to_nodes[(c_off + 4)] = NODE_IND(ii, jj, kk + 1);
+        subcells_to_nodes[(c_off + 5)] = NODE_IND(ii, jj + 1, kk + 1);
+        subcells_to_nodes[(c_off + 6)] = FACE_C_XY_IND(ii, jj, kk);
+        subcells_to_nodes[(c_off + 7)] = CELL_C_IND(ii, jj, kk);
+
+        subcells_to_nodes[(c_off + 8)] = NODE_IND(ii, jj + 1, kk + 1);
+        subcells_to_nodes[(c_off + 9)] = NODE_IND(ii, jj + 1, kk);
+        subcells_to_nodes[(c_off + 10)] = FACE_C_XY_IND(ii, jj, kk);
+        subcells_to_nodes[(c_off + 11)] = CELL_C_IND(ii, jj, kk);
+
+        subcells_to_nodes[(c_off + 12)] = NODE_IND(ii, jj + 1, kk);
+        subcells_to_nodes[(c_off + 13)] = NODE_IND(ii, jj, kk);
+        subcells_to_nodes[(c_off + 14)] = FACE_C_XY_IND(ii, jj, kk);
+        subcells_to_nodes[(c_off + 15)] = CELL_C_IND(ii, jj, kk);
+
+        // Back subcells
+        subcells_to_nodes[(c_off + 16)] = NODE_IND(ii + 1, jj, kk);
+        subcells_to_nodes[(c_off + 17)] = NODE_IND(ii + 1, jj + 1, kk);
+        subcells_to_nodes[(c_off + 18)] = FACE_C_XY_IND(ii + 1, jj, kk);
+        subcells_to_nodes[(c_off + 19)] = CELL_C_IND(ii, jj, kk);
+
+        subcells_to_nodes[(c_off + 20)] = NODE_IND(ii + 1, jj + 1, kk);
+        subcells_to_nodes[(c_off + 21)] = NODE_IND(ii + 1, jj + 1, kk + 1);
+        subcells_to_nodes[(c_off + 22)] = FACE_C_XY_IND(ii + 1, jj, kk);
+        subcells_to_nodes[(c_off + 23)] = CELL_C_IND(ii, jj, kk);
+
+        subcells_to_nodes[(c_off + 24)] = NODE_IND(ii + 1, jj + 1, kk + 1);
+        subcells_to_nodes[(c_off + 25)] = NODE_IND(ii + 1, jj, kk + 1);
+        subcells_to_nodes[(c_off + 26)] = FACE_C_XY_IND(ii + 1, jj, kk);
+        subcells_to_nodes[(c_off + 27)] = CELL_C_IND(ii, jj, kk);
+
+        subcells_to_nodes[(c_off + 28)] = NODE_IND(ii + 1, jj, kk + 1);
+        subcells_to_nodes[(c_off + 29)] = NODE_IND(ii + 1, jj, kk);
+        subcells_to_nodes[(c_off + 30)] = FACE_C_XY_IND(ii + 1, jj, kk);
+        subcells_to_nodes[(c_off + 31)] = CELL_C_IND(ii, jj, kk);
+
+        // Left subcells
+        subcells_to_nodes[(c_off + 32)] = NODE_IND(ii, jj, kk);
+        subcells_to_nodes[(c_off + 33)] = NODE_IND(ii, jj + 1, kk);
+        subcells_to_nodes[(c_off + 34)] = FACE_C_YZ_IND(ii, jj, kk);
+        subcells_to_nodes[(c_off + 35)] = CELL_C_IND(ii, jj, kk);
+
+        subcells_to_nodes[(c_off + 36)] = NODE_IND(ii, jj + 1, kk);
+        subcells_to_nodes[(c_off + 37)] = NODE_IND(ii + 1, jj + 1, kk);
+        subcells_to_nodes[(c_off + 38)] = FACE_C_YZ_IND(ii, jj, kk);
+        subcells_to_nodes[(c_off + 39)] = CELL_C_IND(ii, jj, kk);
+
+        subcells_to_nodes[(c_off + 40)] = NODE_IND(ii + 1, jj + 1, kk);
+        subcells_to_nodes[(c_off + 41)] = NODE_IND(ii + 1, jj, kk);
+        subcells_to_nodes[(c_off + 42)] = FACE_C_YZ_IND(ii, jj, kk);
+        subcells_to_nodes[(c_off + 43)] = CELL_C_IND(ii, jj, kk);
+
+        subcells_to_nodes[(c_off + 44)] = NODE_IND(ii + 1, jj, kk);
+        subcells_to_nodes[(c_off + 45)] = NODE_IND(ii, jj, kk);
+        subcells_to_nodes[(c_off + 46)] = FACE_C_YZ_IND(ii, jj, kk);
+        subcells_to_nodes[(c_off + 47)] = CELL_C_IND(ii, jj, kk);
+
+        // Right subcells
+        subcells_to_nodes[(c_off + 48)] = NODE_IND(ii, jj, kk + 1);
+        subcells_to_nodes[(c_off + 49)] = NODE_IND(ii + 1, jj, kk + 1);
+        subcells_to_nodes[(c_off + 50)] = FACE_C_YZ_IND(ii, jj, kk + 1);
+        subcells_to_nodes[(c_off + 51)] = CELL_C_IND(ii, jj, kk);
+
+        subcells_to_nodes[(c_off + 52)] = NODE_IND(ii + 1, jj, kk + 1);
+        subcells_to_nodes[(c_off + 53)] = NODE_IND(ii + 1, jj + 1, kk + 1);
+        subcells_to_nodes[(c_off + 54)] = FACE_C_YZ_IND(ii, jj, kk + 1);
+        subcells_to_nodes[(c_off + 55)] = CELL_C_IND(ii, jj, kk);
+
+        subcells_to_nodes[(c_off + 56)] = NODE_IND(ii + 1, jj + 1, kk + 1);
+        subcells_to_nodes[(c_off + 57)] = NODE_IND(ii, jj + 1, kk + 1);
+        subcells_to_nodes[(c_off + 58)] = FACE_C_YZ_IND(ii, jj, kk + 1);
+        subcells_to_nodes[(c_off + 59)] = CELL_C_IND(ii, jj, kk);
+
+        subcells_to_nodes[(c_off + 60)] = NODE_IND(ii, jj + 1, kk + 1);
+        subcells_to_nodes[(c_off + 61)] = NODE_IND(ii, jj, kk + 1);
+        subcells_to_nodes[(c_off + 62)] = FACE_C_YZ_IND(ii, jj, kk + 1);
+        subcells_to_nodes[(c_off + 63)] = CELL_C_IND(ii, jj, kk);
+
+        // Bottom subcells
+        subcells_to_nodes[(c_off + 64)] = NODE_IND(ii, jj, kk);
+        subcells_to_nodes[(c_off + 65)] = NODE_IND(ii + 1, jj, kk);
+        subcells_to_nodes[(c_off + 66)] = FACE_C_ZX_IND(ii, jj, kk);
+        subcells_to_nodes[(c_off + 67)] = CELL_C_IND(ii, jj, kk);
+
+        subcells_to_nodes[(c_off + 68)] = NODE_IND(ii + 1, jj, kk);
+        subcells_to_nodes[(c_off + 69)] = NODE_IND(ii + 1, jj, kk + 1);
+        subcells_to_nodes[(c_off + 70)] = FACE_C_ZX_IND(ii, jj, kk);
+        subcells_to_nodes[(c_off + 71)] = CELL_C_IND(ii, jj, kk);
+
+        subcells_to_nodes[(c_off + 72)] = NODE_IND(ii + 1, jj, kk + 1);
+        subcells_to_nodes[(c_off + 73)] = NODE_IND(ii, jj, kk + 1);
+        subcells_to_nodes[(c_off + 74)] = FACE_C_ZX_IND(ii, jj, kk);
+        subcells_to_nodes[(c_off + 75)] = CELL_C_IND(ii, jj, kk);
+
+        subcells_to_nodes[(c_off + 76)] = NODE_IND(ii, jj, kk + 1);
+        subcells_to_nodes[(c_off + 77)] = NODE_IND(ii, jj, kk);
+        subcells_to_nodes[(c_off + 78)] = FACE_C_ZX_IND(ii, jj, kk);
+        subcells_to_nodes[(c_off + 79)] = CELL_C_IND(ii, jj, kk);
+
+        // Top subcells
+        subcells_to_nodes[(c_off + 80)] = NODE_IND(ii, jj + 1, kk);
+        subcells_to_nodes[(c_off + 81)] = NODE_IND(ii, jj + 1, kk + 1);
+        subcells_to_nodes[(c_off + 82)] = FACE_C_ZX_IND(ii, jj + 1, kk);
+        subcells_to_nodes[(c_off + 83)] = CELL_C_IND(ii, jj, kk);
+
+        subcells_to_nodes[(c_off + 84)] = NODE_IND(ii, jj + 1, kk + 1);
+        subcells_to_nodes[(c_off + 85)] = NODE_IND(ii + 1, jj + 1, kk + 1);
+        subcells_to_nodes[(c_off + 86)] = FACE_C_ZX_IND(ii, jj + 1, kk);
+        subcells_to_nodes[(c_off + 87)] = CELL_C_IND(ii, jj, kk);
+
+        subcells_to_nodes[(c_off + 88)] = NODE_IND(ii + 1, jj + 1, kk + 1);
+        subcells_to_nodes[(c_off + 89)] = NODE_IND(ii + 1, jj + 1, kk);
+        subcells_to_nodes[(c_off + 90)] = FACE_C_ZX_IND(ii, jj + 1, kk);
+        subcells_to_nodes[(c_off + 91)] = CELL_C_IND(ii, jj, kk);
+
+        subcells_to_nodes[(c_off + 92)] = NODE_IND(ii + 1, jj + 1, kk);
+        subcells_to_nodes[(c_off + 93)] = NODE_IND(ii, jj + 1, kk);
+        subcells_to_nodes[(c_off + 94)] = FACE_C_ZX_IND(ii, jj + 1, kk);
+        subcells_to_nodes[(c_off + 95)] = CELL_C_IND(ii, jj, kk);
+      }
+    }
+  }
+
+  subcells_to_visit(nsubcell_nodes, ncells * nsubcells_per_cell, 10,
+                    subcell_data_x, subcell_data_y, subcell_data_z,
+                    subcells_to_nodes, subcell_mass0, 0, 1);
+
+#if 0
+  return;
+
 /* LOOP OVER CELLS */
 #if 0
 #pragma omp parallel for
 #endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
-
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
         cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
@@ -92,6 +307,7 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
                                 &cell_centroid, &face_normal);
 
         double mass_outflux = 0.0;
+        double energy_outflux = 0.0;
 
         int rnode_index;
         if (face_clockwise) {
@@ -246,7 +462,7 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
 
           /* ADVECT MASS */
 
-          vec_t rhs = {0.0, 0.0, 0.0};
+          vec_t mass_rhs = {0.0, 0.0, 0.0};
           for (int ss2 = 0; ss2 < NSUBCELL_NEIGHBOURS; ++ss2) {
             const int neighbour_subcell_index = subcells_to_subcells[(
                 sweep_subcell_index * NSUBCELL_NEIGHBOURS + ss2)];
@@ -261,19 +477,23 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
                                  subcell_mass0[(sweep_subcell_index)] /
                                      subcell_volume[(sweep_subcell_index)]);
 
-            // Calculate the subcell gradients for all of the variables
-            rhs.x += dphi * (subcell_centroids_x[(neighbour_subcell_index)] -
-                             subcell_centroids_x[(sweep_subcell_index)]);
-            rhs.y += dphi * (subcell_centroids_y[(neighbour_subcell_index)] -
-                             subcell_centroids_y[(sweep_subcell_index)]);
-            rhs.z += dphi * (subcell_centroids_z[(neighbour_subcell_index)] -
-                             subcell_centroids_z[(sweep_subcell_index)]);
+            mass_rhs.x +=
+                dphi * (subcell_centroids_x[(neighbour_subcell_index)] -
+                        subcell_centroids_x[(sweep_subcell_index)]);
+            mass_rhs.y +=
+                dphi * (subcell_centroids_y[(neighbour_subcell_index)] -
+                        subcell_centroids_y[(sweep_subcell_index)]);
+            mass_rhs.z +=
+                dphi * (subcell_centroids_z[(neighbour_subcell_index)] -
+                        subcell_centroids_z[(sweep_subcell_index)]);
           }
 
-          vec_t grad_mass = {
-              inv[0].x * rhs.x + inv[0].y * rhs.y + inv[0].z * rhs.z,
-              inv[1].x * rhs.x + inv[1].y * rhs.y + inv[1].z * rhs.z,
-              inv[2].x * rhs.x + inv[2].y * rhs.y + inv[2].z * rhs.z};
+          vec_t grad_mass = {inv[0].x * mass_rhs.x + inv[0].y * mass_rhs.y +
+                                 inv[0].z * mass_rhs.z,
+                             inv[1].x * mass_rhs.x + inv[1].y * mass_rhs.y +
+                                 inv[1].z * mass_rhs.z,
+                             inv[2].x * mass_rhs.x + inv[2].y * mass_rhs.y +
+                                 inv[2].z * mass_rhs.z};
 
           // Calculate the flux for internal energy density in the subcell
           const double local_mass_outflux =
@@ -287,21 +507,72 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
                grad_mass.z * (swept_edge_centroid.z -
                               subcell_centroids_z[(sweep_subcell_index)]));
 
-          // Either mass is flowing into or out of the subcell
+          /* ADVECT ENERGY */
+
+          vec_t energy_rhs = {0.0, 0.0, 0.0};
+          for (int ss2 = 0; ss2 < NSUBCELL_NEIGHBOURS; ++ss2) {
+            const int neighbour_subcell_index = subcells_to_subcells[(
+                sweep_subcell_index * NSUBCELL_NEIGHBOURS + ss2)];
+
+            if (neighbour_subcell_index == -1) {
+              continue;
+            }
+
+            // Prepare differential
+            const double dphi = (subcell_ie_mass0[(neighbour_subcell_index)] /
+                                     subcell_volume[(neighbour_subcell_index)] -
+                                 subcell_ie_mass0[(sweep_subcell_index)] /
+                                     subcell_volume[(sweep_subcell_index)]);
+
+            // Calculate the subcell gradients for all of the variables
+            energy_rhs.x +=
+                dphi * (subcell_centroids_x[(neighbour_subcell_index)] -
+                        subcell_centroids_x[(sweep_subcell_index)]);
+            energy_rhs.y +=
+                dphi * (subcell_centroids_y[(neighbour_subcell_index)] -
+                        subcell_centroids_y[(sweep_subcell_index)]);
+            energy_rhs.z +=
+                dphi * (subcell_centroids_z[(neighbour_subcell_index)] -
+                        subcell_centroids_z[(sweep_subcell_index)]);
+          }
+
+          vec_t grad_energy = {
+              inv[0].x * energy_rhs.x + inv[0].y * energy_rhs.y +
+                  inv[0].z * energy_rhs.z,
+              inv[1].x * energy_rhs.x + inv[1].y * energy_rhs.y +
+                  inv[1].z * energy_rhs.z,
+              inv[2].x * energy_rhs.x + inv[2].y * energy_rhs.y +
+                  inv[2].z * energy_rhs.z};
+
+          // Calculate the flux for internal energy density in the subcell
+          const double local_energy_outflux =
+              swept_edge_vol *
+              (subcell_ie_mass0[(sweep_subcell_index)] /
+                   subcell_volume[(sweep_subcell_index)] +
+               grad_energy.x * (swept_edge_centroid.x -
+                                subcell_centroids_x[(sweep_subcell_index)]) +
+               grad_energy.y * (swept_edge_centroid.y -
+                                subcell_centroids_y[(sweep_subcell_index)]) +
+               grad_energy.z * (swept_edge_centroid.z -
+                                subcell_centroids_z[(sweep_subcell_index)]));
+
+          // Either mass and energy is flowing into or out of the subcell
           if (is_outflux) {
             mass_outflux += local_mass_outflux;
+            energy_outflux += local_energy_outflux;
           } else {
             mass_outflux -= local_mass_outflux;
+            energy_outflux -= local_energy_outflux;
           }
         }
 
+        // TODO: These should be named nicer
+        subcell_mass1[(subcell_index)] = mass_outflux;
+        subcell_ie_mass1[(subcell_index)] = energy_outflux;
+
         // Scatter the subcell mass data back to the cell
         cell_mass[(cc)] += subcell_mass0[(subcell_index)] - mass_outflux;
-
-#if 0
-        energy1[(cc)] += subcell_ie_density0[(subcell_index)] +
-          subcell_ie_density1[(subcell_index)];
-#endif // if 0
+        energy1[(cc)] += subcell_ie_mass0[(subcell_index)] - energy_outflux;
       }
     }
 
@@ -312,15 +583,40 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
                 &cell_volume[(cc)]);
   }
 
-  // Print the conservation of mass
+  // Scatter energy and density, and print the conservation of mass
   double rz_total_mass = 0.0;
   double rz_total_density = 0.0;
   double rz_total_energy = 0.0;
 #pragma omp parallel for reduction(+ : rz_total_mass, rz_total_density,        \
                                    rz_total_energy)
   for (int cc = 0; cc < ncells; ++cc) {
+    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
+    const int nfaces_by_cell =
+        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
+
     density0[(cc)] = cell_mass[(cc)] / cell_volume[(cc)];
     energy0[(cc)] = energy1[(cc)] / cell_mass[(cc)];
+
+    /* LOOP OVER CELL FACES */
+    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
+      const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
+      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
+      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+      const int nnodes_by_face =
+          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+      const int subcell_off = subcell_face_offsets[(cell_to_faces_off + ff)];
+
+      /* LOOP OVER FACE NODES */
+      for (int nn = 0; nn < nnodes_by_face; ++nn) {
+        const int subcell_index = subcell_off + nn;
+
+        // Evaluate the subcell masses
+        subcell_mass0[(subcell_index)] -= subcell_mass1[(subcell_index)];
+        subcell_ie_mass0[(subcell_index)] -= subcell_ie_mass1[(subcell_index)];
+      }
+    }
+
+    // Calculate the conservation data
     rz_total_mass += cell_mass[(cc)];
     rz_total_energy += energy0[(cc)];
     rz_total_density += density0[(cc)];
@@ -409,6 +705,7 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
 
   printf("Total Scattered Velocity %.12f %.12f %.12f\n", total_vx, total_vy,
       total_vz);
+#endif // if 0
 #endif // if 0
 }
 

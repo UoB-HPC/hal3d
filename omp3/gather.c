@@ -180,6 +180,11 @@ void gather_subcell_energy(
             vol * (density0[(cc)] * energy0[(cc)] +
                    (grad_energy.x * (dist.x) + grad_energy.y * (dist.y) +
                     grad_energy.z * (dist.z)));
+
+        if (subcell_ie_mass[(subcell_index)] < 0.0) {
+          printf("neg ie mass %d %.12f\n", subcell_index,
+                 subcell_ie_mass[(subcell_index)]);
+        }
       }
     }
   }
