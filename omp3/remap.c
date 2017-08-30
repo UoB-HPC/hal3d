@@ -27,18 +27,14 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
 
   double total_mass = 0.0;
   double total_energy = 0.0;
-  double total_density = 0.0;
-#pragma omp parallel for reduction(+ : total_mass, total_energy, total_density)
+#pragma omp parallel for reduction(+ : total_mass, total_energy)
   for (int cc = 0; cc < ncells; ++cc) {
     total_mass += cell_mass[(cc)];
-    total_energy += energy0[(cc)];
-    total_density += density0[(cc)];
+    total_energy += energy0[(cc)] * cell_mass[(cc)];
   }
 
 /* LOOP OVER CELLS */
-#if 0
 #pragma omp parallel for
-#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
@@ -246,6 +242,10 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
 
           /* ADVECT MASS */
 
+          double gmax_m = -DBL_MAX;
+          double gmin_m = DBL_MAX;
+          double subcell_m = subcell_mass0[(sweep_subcell_index)] /
+                             subcell_volume[(sweep_subcell_index)];
           vec_t mass_rhs = {0.0, 0.0, 0.0};
           for (int ss2 = 0; ss2 < NSUBCELL_NEIGHBOURS; ++ss2) {
             const int neighbour_subcell_index = subcells_to_subcells[(
@@ -258,8 +258,7 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
             // Prepare differential
             const double dphi = (subcell_mass0[(neighbour_subcell_index)] /
                                      subcell_volume[(neighbour_subcell_index)] -
-                                 subcell_mass0[(sweep_subcell_index)] /
-                                     subcell_volume[(sweep_subcell_index)]);
+                                 subcell_m);
 
             mass_rhs.x +=
                 dphi * (subcell_centroids_x[(neighbour_subcell_index)] -
@@ -270,29 +269,41 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
             mass_rhs.z +=
                 dphi * (subcell_centroids_z[(neighbour_subcell_index)] -
                         subcell_centroids_z[(sweep_subcell_index)]);
+
+            gmax_m = max(gmax_m, dphi);
+            gmin_m = min(gmin_m, dphi);
           }
 
-          vec_t grad_mass = {inv[0].x * mass_rhs.x + inv[0].y * mass_rhs.y +
-                                 inv[0].z * mass_rhs.z,
-                             inv[1].x * mass_rhs.x + inv[1].y * mass_rhs.y +
-                                 inv[1].z * mass_rhs.z,
-                             inv[2].x * mass_rhs.x + inv[2].y * mass_rhs.y +
-                                 inv[2].z * mass_rhs.z};
+          vec_t grad_m = {inv[0].x * mass_rhs.x + inv[0].y * mass_rhs.y +
+                              inv[0].z * mass_rhs.z,
+                          inv[1].x * mass_rhs.x + inv[1].y * mass_rhs.y +
+                              inv[1].z * mass_rhs.z,
+                          inv[2].x * mass_rhs.x + inv[2].y * mass_rhs.y +
+                              inv[2].z * mass_rhs.z};
+
+          apply_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
+                        &grad_m, &cell_centroid, nodes_x0, nodes_y0, nodes_z0,
+                        subcell_m, gmax_m, gmin_m);
 
           // Calculate the flux for internal energy density in the subcell
           const double local_mass_outflux =
               swept_edge_vol *
               (subcell_mass0[(sweep_subcell_index)] /
                    subcell_volume[(sweep_subcell_index)] +
-               grad_mass.x * (swept_edge_centroid.x -
-                              subcell_centroids_x[(sweep_subcell_index)]) +
-               grad_mass.y * (swept_edge_centroid.y -
-                              subcell_centroids_y[(sweep_subcell_index)]) +
-               grad_mass.z * (swept_edge_centroid.z -
-                              subcell_centroids_z[(sweep_subcell_index)]));
+               grad_m.x * (swept_edge_centroid.x -
+                           subcell_centroids_x[(sweep_subcell_index)]) +
+               grad_m.y * (swept_edge_centroid.y -
+                           subcell_centroids_y[(sweep_subcell_index)]) +
+               grad_m.z * (swept_edge_centroid.z -
+                           subcell_centroids_z[(sweep_subcell_index)]));
 
           /* ADVECT ENERGY */
 
+          const double subcell_ie = subcell_ie_mass0[(sweep_subcell_index)] /
+                                    subcell_volume[(sweep_subcell_index)];
+
+          double gmax_ie = -DBL_MAX;
+          double gmin_ie = DBL_MAX;
           vec_t energy_rhs = {0.0, 0.0, 0.0};
           for (int ss2 = 0; ss2 < NSUBCELL_NEIGHBOURS; ++ss2) {
             const int neighbour_subcell_index = subcells_to_subcells[(
@@ -305,8 +316,7 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
             // Prepare differential
             const double dphi = (subcell_ie_mass0[(neighbour_subcell_index)] /
                                      subcell_volume[(neighbour_subcell_index)] -
-                                 subcell_ie_mass0[(sweep_subcell_index)] /
-                                     subcell_volume[(sweep_subcell_index)]);
+                                 subcell_ie);
 
             // Calculate the subcell gradients for all of the variables
             energy_rhs.x +=
@@ -318,27 +328,33 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
             energy_rhs.z +=
                 dphi * (subcell_centroids_z[(neighbour_subcell_index)] -
                         subcell_centroids_z[(sweep_subcell_index)]);
+
+            gmax_ie = max(gmax_ie, dphi);
+            gmin_ie = min(gmin_ie, dphi);
           }
 
-          vec_t grad_energy = {
-              inv[0].x * energy_rhs.x + inv[0].y * energy_rhs.y +
-                  inv[0].z * energy_rhs.z,
-              inv[1].x * energy_rhs.x + inv[1].y * energy_rhs.y +
-                  inv[1].z * energy_rhs.z,
-              inv[2].x * energy_rhs.x + inv[2].y * energy_rhs.y +
-                  inv[2].z * energy_rhs.z};
+          vec_t grad_ie = {inv[0].x * energy_rhs.x + inv[0].y * energy_rhs.y +
+                               inv[0].z * energy_rhs.z,
+                           inv[1].x * energy_rhs.x + inv[1].y * energy_rhs.y +
+                               inv[1].z * energy_rhs.z,
+                           inv[2].x * energy_rhs.x + inv[2].y * energy_rhs.y +
+                               inv[2].z * energy_rhs.z};
+
+          apply_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
+                        &grad_ie, &cell_centroid, nodes_x0, nodes_y0, nodes_z0,
+                        subcell_ie, gmax_ie, gmin_ie);
 
           // Calculate the flux for internal energy density in the subcell
           const double local_energy_outflux =
               swept_edge_vol *
               (subcell_ie_mass0[(sweep_subcell_index)] /
                    subcell_volume[(sweep_subcell_index)] +
-               grad_energy.x * (swept_edge_centroid.x -
-                                subcell_centroids_x[(sweep_subcell_index)]) +
-               grad_energy.y * (swept_edge_centroid.y -
-                                subcell_centroids_y[(sweep_subcell_index)]) +
-               grad_energy.z * (swept_edge_centroid.z -
-                                subcell_centroids_z[(sweep_subcell_index)]));
+               grad_ie.x * (swept_edge_centroid.x -
+                            subcell_centroids_x[(sweep_subcell_index)]) +
+               grad_ie.y * (swept_edge_centroid.y -
+                            subcell_centroids_y[(sweep_subcell_index)]) +
+               grad_ie.z * (swept_edge_centroid.z -
+                            subcell_centroids_z[(sweep_subcell_index)]));
 
           // Either mass and energy is flowing into or out of the subcell
           if (is_outflux) {
@@ -369,10 +385,8 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
 
   // Scatter energy and density, and print the conservation of mass
   double rz_total_mass = 0.0;
-  double rz_total_density = 0.0;
-  double rz_total_energy = 0.0;
-#pragma omp parallel for reduction(+ : rz_total_mass, rz_total_density,        \
-                                   rz_total_energy)
+  double rz_total_ie = 0.0;
+#pragma omp parallel for reduction(+ : rz_total_mass, rz_total_ie)
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
@@ -402,19 +416,16 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
 
     // Calculate the conservation data
     rz_total_mass += cell_mass[(cc)];
-    rz_total_energy += energy0[(cc)];
-    rz_total_density += density0[(cc)];
+    rz_total_ie += energy0[(cc)] * cell_mass[(cc)];
   }
 
   printf(
       "Rezoned Total Mass %.12f, Initial Total Mass %.12f, Difference %.12f\n",
       rz_total_mass, total_mass, total_mass - rz_total_mass);
-  printf("Rezoned Total Energy %.12f, Initial Total Energy %.12f, Difference "
+  printf("Rezoned Total Internal Energy %.12f, Initial Total Energy %.12f, "
+         "Difference "
          "%.12f\n",
-         rz_total_energy, total_energy, total_energy - rz_total_energy);
-  printf("Rezoned Total Density %.12f, Initial Total Density %.12f, Difference "
-         "%.12f\n",
-         rz_total_density, total_density, total_density - rz_total_density);
+         rz_total_ie, total_energy, total_energy - rz_total_ie);
 
 #if 0
   // Scattering the momentum

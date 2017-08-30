@@ -125,14 +125,13 @@ void gather_subcell_energy(
     calc_3x3_inverse(&coeff, &inv);
 
     // Solve for the energy gradient
-    vec_t grad_energy = {inv[0].x * rhs.x + inv[0].y * rhs.y + inv[0].z * rhs.z,
-                         inv[1].x * rhs.x + inv[1].y * rhs.y + inv[1].z * rhs.z,
-                         inv[2].x * rhs.x + inv[2].y * rhs.y +
-                             inv[2].z * rhs.z};
+    vec_t grad_ie = {inv[0].x * rhs.x + inv[0].y * rhs.y + inv[0].z * rhs.z,
+                     inv[1].x * rhs.x + inv[1].y * rhs.y + inv[1].z * rhs.z,
+                     inv[2].x * rhs.x + inv[2].y * rhs.y + inv[2].z * rhs.z};
 
-    apply_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
-                  &grad_energy, &cell_centroid, nodes_x0, nodes_y0, nodes_z0,
-                  cell_ie, gmax, gmin);
+    apply_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes, &grad_ie,
+                  &cell_centroid, nodes_x0, nodes_y0, nodes_z0, cell_ie, gmax,
+                  gmin);
 
     // Determine the weighted volume dist for neighbouring cells
     for (int ff = 0; ff < nfaces_by_cell; ++ff) {
@@ -176,8 +175,8 @@ void gather_subcell_energy(
         // Determine subcell energy from linear function at cell
         subcell_ie_mass[(subcell_index)] =
             subcell_volume[(subcell_index)] *
-            (cell_ie + (grad_energy.x * (dist.x) + grad_energy.y * (dist.y) +
-                        grad_energy.z * (dist.z)));
+            (cell_ie + (grad_ie.x * (dist.x) + grad_ie.y * (dist.y) +
+                        grad_ie.z * (dist.z)));
 
         if (subcell_ie_mass[(subcell_index)] < 0.0) {
           printf("neg ie mass %d %.12f\n", subcell_index,
@@ -346,6 +345,10 @@ void gather_subcell_momentum(
         grad_vx.z = inv[2].x * rhsx.x + inv[2].y * rhsx.y + inv[2].z * rhsx.z;
 
 #if 0
+        // TODO: Need to adapt the BJ limiter to work with node-centered 
+        // quantities. Essentially seems that we need to take the unlimited 
+        // values from the nodes to the cell centers... which is the same
+        // idea as the current approach but in reverse.
         apply_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
                       &grad_vx, &cell_centroid, nodes_x0, nodes_y0, nodes_z0,
                       node_v.x, gmax.x, gmin.x);
