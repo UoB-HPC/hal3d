@@ -52,8 +52,6 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
                   &rz_cell_centroid);
 
     // Zero out the arrays that will be used to store the remapped quantities
-    cell_mass[(cc)] = 0.0;
-    energy1[(cc)] = 0.0;
     cell_volume[(cc)] = 0.0;
 
     /* LOOP OVER CELL FACES */
@@ -158,7 +156,7 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
                       &swept_edge_centroid, &swept_edge_vol);
 
           // Ignore the special case of an empty swept edge region
-          if (swept_edge_vol <= 0.0) {
+          if (fabs(swept_edge_vol - EPS) > 0.0) {
             continue;
           }
 
@@ -347,8 +345,7 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
           // Calculate the flux for internal energy density in the subcell
           const double local_energy_outflux =
               swept_edge_vol *
-              (subcell_ie_mass0[(sweep_subcell_index)] /
-                   subcell_volume[(sweep_subcell_index)] +
+              (subcell_ie +
                grad_ie.x * (swept_edge_centroid.x -
                             subcell_centroids_x[(sweep_subcell_index)]) +
                grad_ie.y * (swept_edge_centroid.y -
@@ -366,13 +363,8 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
           }
         }
 
-        // TODO: These should be named nicer
         subcell_mass1[(subcell_index)] = mass_outflux;
         subcell_ie_mass1[(subcell_index)] = energy_outflux;
-
-        // Scatter the subcell mass data back to the cell
-        cell_mass[(cc)] += subcell_mass0[(subcell_index)] - mass_outflux;
-        energy1[(cc)] += subcell_ie_mass0[(subcell_index)] - energy_outflux;
       }
     }
 
@@ -392,8 +384,8 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
     const int nfaces_by_cell =
         cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
 
-    density0[(cc)] = cell_mass[(cc)] / cell_volume[(cc)];
-    energy0[(cc)] = energy1[(cc)] / cell_mass[(cc)];
+    cell_mass[(cc)] = 0.0;
+    energy1[(cc)] = 0.0;
 
     /* LOOP OVER CELL FACES */
     for (int ff = 0; ff < nfaces_by_cell; ++ff) {
@@ -411,12 +403,20 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
         // Evaluate the subcell masses
         subcell_mass0[(subcell_index)] -= subcell_mass1[(subcell_index)];
         subcell_ie_mass0[(subcell_index)] -= subcell_ie_mass1[(subcell_index)];
+
+        // Scatter the subcell mass data back to the cell
+        cell_mass[(cc)] += subcell_mass0[(subcell_index)];
+        energy1[(cc)] += subcell_ie_mass0[(subcell_index)];
       }
     }
 
+    // Scatter the energy and density
+    density0[(cc)] = cell_mass[(cc)] / cell_volume[(cc)];
+    energy0[(cc)] = energy1[(cc)] / cell_mass[(cc)];
+
     // Calculate the conservation data
     rz_total_mass += cell_mass[(cc)];
-    rz_total_ie += energy0[(cc)] * cell_mass[(cc)];
+    rz_total_ie += energy1[(cc)];
   }
 
   printf(
@@ -427,7 +427,6 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
          "%.12f\n",
          rz_total_ie, total_energy, total_energy - rz_total_ie);
 
-#if 0
   // Scattering the momentum
   double total_vx = 0.0;
   double total_vy = 0.0;
@@ -440,7 +439,7 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
 
     const int node_to_faces_off = nodes_to_faces_offsets[(nn)];
     const int nfaces_by_node =
-      nodes_to_faces_offsets[(nn + 1)] - node_to_faces_off;
+        nodes_to_faces_offsets[(nn + 1)] - node_to_faces_off;
 
     // Consider all faces attached to node
     for (int ff = 0; ff < nfaces_by_node; ++ff) {
@@ -452,7 +451,7 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
       // Determine the offset into the list of nodes
       const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
       const int nnodes_by_face =
-        faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
 
       // Find node center and location of current node on face
       int node_in_face_c;
@@ -480,11 +479,11 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
         // Add contributions for both edges attached to our current node
         for (int nn2 = 0; nn2 < 2; ++nn2) {
           velocity_x0[(nn)] +=
-            subcell_momentum_x[(subcell_off + node_in_face_c)];
+              subcell_momentum_x[(subcell_off + node_in_face_c)];
           velocity_y0[(nn)] +=
-            subcell_momentum_y[(subcell_off + node_in_face_c)];
+              subcell_momentum_y[(subcell_off + node_in_face_c)];
           velocity_z0[(nn)] +=
-            subcell_momentum_z[(subcell_off + node_in_face_c)];
+              subcell_momentum_z[(subcell_off + node_in_face_c)];
         }
       }
     }
@@ -499,8 +498,7 @@ void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
   }
 
   printf("Total Scattered Velocity %.12f %.12f %.12f\n", total_vx, total_vy,
-      total_vz);
-#endif // if 0
+         total_vz);
 }
 
 // Checks if the normal vector is pointing inward or outward

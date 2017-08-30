@@ -275,10 +275,6 @@ void solve_unstructured_hydro_2d(
       faces_to_cells0, faces_to_cells1, cells_to_faces_offsets, cells_to_faces,
       cells_to_nodes);
 
-  subcells_to_visit(nsubcell_nodes, ncells * nsubcells_per_cell, 10,
-                    subcell_data_x, subcell_data_y, subcell_data_z,
-                    subcells_to_nodes, subcell_ie_mass0, 0, 1);
-
   printf("\nPerforming Remap Phase\n");
 
   remap_phase(ncells, nnodes, cell_centroids_x, cell_centroids_y,
@@ -294,11 +290,13 @@ void solve_unstructured_hydro_2d(
               faces_to_cells1, cells_to_faces_offsets, cells_to_faces,
               subcell_face_offsets, subcells_to_subcells);
 
+  subcells_to_visit(nsubcell_nodes, ncells * nsubcells_per_cell, 10,
+                    subcell_data_x, subcell_data_y, subcell_data_z,
+                    subcells_to_nodes, subcell_mass0, 0, 1);
+
   printf("\nEulerian Mesh Rezone\n");
-#if 0
   apply_mesh_rezoning(nnodes, rezoned_nodes_x, rezoned_nodes_y, rezoned_nodes_z,
                       nodes_x0, nodes_y0, nodes_z0);
-#endif // if 0
 
   init_cell_centroids(ncells, cells_offsets, cells_to_nodes, nodes_x0, nodes_y0,
                       nodes_z0, cell_centroids_x, cell_centroids_y,
