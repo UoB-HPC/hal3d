@@ -110,8 +110,8 @@ void gather_subcell_energy(
       const double neighbour_ie =
           density0[(neighbour_index)] * energy0[(neighbour_index)];
 
-      gmax = max(gmax, neighbour_ie);
-      gmin = min(gmin, neighbour_ie);
+      gmax = max(gmax, neighbour_ie - cell_ie);
+      gmin = min(gmin, neighbour_ie - cell_ie);
 
       // Prepare the RHS, which includes energy differential
       const double de = (neighbour_ie - cell_ie);

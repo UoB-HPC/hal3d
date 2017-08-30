@@ -816,18 +816,19 @@ double apply_limiter(const int nnodes_by_cell, const int cell_to_nodes_off,
   double limiter = DBL_MAX;
   for (int nn = 0; nn < nnodes_by_cell; ++nn) {
     const int node_index = cells_to_nodes[(cell_to_nodes_off + nn)];
-    double g_unlimited = grad->x * (nodes_x0[(node_index)] - cell_centroid->x) +
+    double g_unlimited = phi +
+                         grad->x * (nodes_x0[(node_index)] - cell_centroid->x) +
                          grad->y * (nodes_y0[(node_index)] - cell_centroid->y) +
                          grad->z * (nodes_z0[(node_index)] - cell_centroid->z);
 
     double node_limiter = 1.0;
-    if (g_unlimited > 0.0) {
-      if (g_unlimited > EPS) {
-        node_limiter = min(1.0, ((gmax - phi) / (g_unlimited)));
+    if (g_unlimited - phi > 0.0) {
+      if (fabs(g_unlimited - phi) > EPS) {
+        node_limiter = min(1.0, (gmax / (g_unlimited - phi)));
       }
-    } else if (g_unlimited < 0.0) {
-      if (g_unlimited > EPS) {
-        node_limiter = min(1.0, ((gmin - phi) / (g_unlimited)));
+    } else if (g_unlimited - phi < 0.0) {
+      if (fabs(g_unlimited - phi) > EPS) {
+        node_limiter = min(1.0, (gmin / (g_unlimited - phi)));
       }
     }
     limiter = min(limiter, node_limiter);

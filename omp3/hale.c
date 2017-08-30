@@ -245,7 +245,6 @@ void solve_unstructured_hydro_2d(
 
   printf("\nPerforming the Lagrangian Phase\n");
 
-#if 0
   // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
   // due to the pressure (ideal gas) and artificial viscous forces
   lagrangian_phase(
@@ -275,42 +274,6 @@ void solve_unstructured_hydro_2d(
       subcell_face_offsets, faces_to_nodes, faces_to_nodes_offsets,
       faces_to_cells0, faces_to_cells1, cells_to_faces_offsets, cells_to_faces,
       cells_to_nodes);
-#endif // if 0
-
-  calc_volumes_centroids(ncells, cells_to_faces_offsets, cell_centroids_x,
-                         cell_centroids_y, cell_centroids_z, cells_to_faces,
-                         faces_to_nodes, faces_to_nodes_offsets,
-                         subcell_face_offsets, nodes_x0, nodes_y0, nodes_z0,
-                         cell_volume, subcell_centroids_x, subcell_centroids_y,
-                         subcell_centroids_z, subcell_volume);
-
-// Calculate the sub-cell internal energies
-#pragma omp parallel for
-  for (int cc = 0; cc < ncells; ++cc) {
-    // Calculating the volume dist necessary for the least squares
-    // regression
-    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
-    const int nfaces_by_cell =
-        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
-
-    // Determine the weighted volume dist for neighbouring cells
-    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
-      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
-      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-      const int nnodes_by_face =
-          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-      const int subcell_off = subcell_face_offsets[(cell_to_faces_off + ff)];
-
-      // Each face/node pair has two sub-cells
-      for (int nn = 0; nn < nnodes_by_face; ++nn) {
-        // The left and right nodes on the face for this anchor node
-        const int subcell_index = subcell_off + nn;
-
-        subcell_ie_mass0[(subcell_index)] =
-            subcell_centroids_x[(subcell_index)];
-      }
-    }
-  }
 
   subcells_to_visit(nsubcell_nodes, ncells * nsubcells_per_cell, 10,
                     subcell_data_x, subcell_data_y, subcell_data_z,
