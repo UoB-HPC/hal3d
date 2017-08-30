@@ -80,6 +80,7 @@ int main(int argc, char** argv) {
   hale_data.visc_coeff1 = get_double_parameter("visc_coeff1", hale_params);
   hale_data.visc_coeff2 = get_double_parameter("visc_coeff2", hale_params);
   allocated += init_hale_data(&hale_data, &umesh);
+  allocated += init_subcell_data_structures(&mesh, &hale_data);
 
   printf("Initialisation time %.4lfs\n", omp_get_wtime() - i0);
   printf("Allocated %.3fGB bytes of data\n", allocated / (double)GB);
@@ -125,7 +126,8 @@ int main(int argc, char** argv) {
     double w0 = omp_get_wtime();
 
     solve_unstructured_hydro_2d(
-        &mesh, umesh.ncells, umesh.nnodes, hale_data.visc_coeff1,
+        &mesh, &hale_data, umesh.ncells, umesh.nnodes, hale_data.nsubcell_nodes,
+        hale_data.nsubcells_per_cell, hale_data.visc_coeff1,
         hale_data.visc_coeff2, umesh.cell_centroids_x, umesh.cell_centroids_y,
         umesh.cell_centroids_z, umesh.cells_to_nodes, umesh.cells_offsets,
         umesh.nodes_to_cells, umesh.nodes_offsets, umesh.nodes_x0,
@@ -145,7 +147,9 @@ int main(int argc, char** argv) {
         hale_data.subcell_momentum_x, hale_data.subcell_momentum_y,
         hale_data.subcell_momentum_z, hale_data.subcell_centroids_x,
         hale_data.subcell_centroids_y, hale_data.subcell_centroids_z,
-        hale_data.subcell_kinetic_energy, hale_data.rezoned_nodes_x,
+        hale_data.subcell_kinetic_energy, hale_data.subcells_to_nodes,
+        hale_data.subcell_data_x, hale_data.subcell_data_y,
+        hale_data.subcell_data_z, hale_data.rezoned_nodes_x,
         hale_data.rezoned_nodes_y, hale_data.rezoned_nodes_z,
         umesh.nodes_to_faces_offsets, umesh.nodes_to_faces,
         umesh.faces_to_nodes, umesh.faces_to_nodes_offsets,

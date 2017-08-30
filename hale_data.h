@@ -97,6 +97,8 @@ typedef struct {
 
   int nsubcell_edges;
   int nsubcells;
+  int nsubcell_nodes;
+  int nsubcells_per_cell;
 
   double visc_coeff1;
   double visc_coeff2;
@@ -108,7 +110,7 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh);
 // This method sets up the subcell nodes and connectivity for a structured mesh
 // viewed as an unstructured mesh. This is not intended to be used for
 // production purposes, but instead should be used for debugging the code.
-void init_subcell_data_structures(Mesh* mesh, HaleData* hale_data);
+size_t init_subcell_data_structures(Mesh* mesh, HaleData* hale_data);
 
 // Initialises the cell mass, sub-cell mass and sub-cell volume
 void init_mesh_mass(const int ncells, const int* cells_offsets,

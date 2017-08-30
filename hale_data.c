@@ -106,7 +106,7 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
 // This method sets up the subcell nodes and connectivity for a structured mesh
 // viewed as an unstructured mesh. This is not intended to be used for
 // production purposes, but instead should be used for debugging the code.
-void init_subcell_data_structures(Mesh* mesh, HaleData* hale_data) {
+size_t init_subcell_data_structures(Mesh* mesh, HaleData* hale_data) {
 
   const int nx = mesh->local_nx;
   const int ny = mesh->local_ny;
@@ -121,6 +121,9 @@ void init_subcell_data_structures(Mesh* mesh, HaleData* hale_data) {
   const int subcell_face_c_zx_off = subcell_face_c_yz_off + (nx + 1) * ny * nz;
   const int subcell_cell_c_off = subcell_face_c_zx_off + nx * (ny + 1) * nz;
   const int nsubcell_nodes = subcell_cell_c_off + nx * ny * nz;
+
+  hale_data->nsubcells_per_cell = nsubcells_per_cell;
+  hale_data->nsubcell_nodes = nsubcell_nodes;
 
   size_t allocated = allocate_data(&hale_data->subcell_data_x, nsubcell_nodes);
   allocated += allocate_data(&hale_data->subcell_data_y, nsubcell_nodes);
@@ -355,6 +358,8 @@ void init_subcell_data_structures(Mesh* mesh, HaleData* hale_data) {
       }
     }
   }
+
+  return allocated;
 }
 
 // Deallocates all of the hale specific data
