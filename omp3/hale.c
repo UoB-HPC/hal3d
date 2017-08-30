@@ -80,17 +80,14 @@ void solve_unstructured_hydro_2d(
 
   printf("\nPerforming Remap Phase\n");
 
-  remap_phase(ncells, nnodes, cell_centroids_x, cell_centroids_y,
-              cell_centroids_z, cells_to_nodes, cells_offsets, nodes_x0,
-              nodes_y0, nodes_z0, cell_volume, energy0, energy1, density0,
-              velocity_x0, velocity_y0, velocity_z0, cell_mass, nodal_mass,
-              subcell_volume, subcell_ie_mass0, subcell_ie_mass1, subcell_mass0,
-              subcell_mass1, subcell_momentum_x, subcell_momentum_y,
-              subcell_momentum_z, subcell_centroids_x, subcell_centroids_y,
-              subcell_centroids_z, rezoned_nodes_x, rezoned_nodes_y,
-              rezoned_nodes_z, nodes_to_faces_offsets, nodes_to_faces,
-              faces_to_nodes, faces_to_nodes_offsets, faces_to_cells0,
-              faces_to_cells1, cells_to_faces_offsets, cells_to_faces,
+  // Performs a remap and some scattering of the subcell values
+  remap_phase(ncells, cell_centroids_x, cell_centroids_y, cell_centroids_z,
+              cells_to_nodes, cells_offsets, nodes_x0, nodes_y0, nodes_z0,
+              cell_volume, subcell_volume, subcell_ie_mass0, subcell_ie_mass1,
+              subcell_mass0, subcell_mass1, subcell_centroids_x,
+              subcell_centroids_y, subcell_centroids_z, rezoned_nodes_x,
+              rezoned_nodes_y, rezoned_nodes_z, faces_to_nodes,
+              faces_to_nodes_offsets, cells_to_faces_offsets, cells_to_faces,
               subcell_face_offsets, subcells_to_subcells);
 
   subcells_to_visit(nsubcell_nodes, ncells * nsubcells_per_cell, 10,

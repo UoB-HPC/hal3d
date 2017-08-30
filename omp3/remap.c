@@ -5,23 +5,17 @@
 #include <math.h>
 
 // Performs a remap and some scattering of the subcell values
-void remap_phase(const int ncells, const int nnodes, double* cell_centroids_x,
+void remap_phase(const int ncells, double* cell_centroids_x,
                  double* cell_centroids_y, double* cell_centroids_z,
                  int* cells_to_nodes, int* cells_offsets, double* nodes_x0,
                  double* nodes_y0, double* nodes_z0, double* cell_volume,
-                 double* energy0, double* energy1, double* density0,
-                 double* velocity_x0, double* velocity_y0, double* velocity_z0,
-                 double* cell_mass, double* nodal_mass, double* subcell_volume,
-                 double* subcell_ie_mass0, double* subcell_ie_mass1,
-                 double* subcell_mass0, double* subcell_mass1,
-                 double* subcell_momentum_x, double* subcell_momentum_y,
-                 double* subcell_momentum_z, double* subcell_centroids_x,
+                 double* subcell_volume, double* subcell_ie_mass0,
+                 double* subcell_ie_mass1, double* subcell_mass0,
+                 double* subcell_mass1, double* subcell_centroids_x,
                  double* subcell_centroids_y, double* subcell_centroids_z,
                  double* rezoned_nodes_x, double* rezoned_nodes_y,
-                 double* rezoned_nodes_z, int* nodes_to_faces_offsets,
-                 int* nodes_to_faces, int* faces_to_nodes,
-                 int* faces_to_nodes_offsets, int* faces_to_cells0,
-                 int* faces_to_cells1, int* cells_to_faces_offsets,
+                 double* rezoned_nodes_z, int* faces_to_nodes,
+                 int* faces_to_nodes_offsets, int* cells_to_faces_offsets,
                  int* cells_to_faces, int* subcell_face_offsets,
                  int* subcells_to_subcells) {
 
