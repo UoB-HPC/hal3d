@@ -14,7 +14,8 @@ extern "C" {
 
 // Solve a single timestep on the given mesh
 void solve_unstructured_hydro_2d(
-    Mesh* mesh, const int ncells, const int nnodes, const double visc_coeff1,
+    Mesh* mesh, const int ncells, const int nnodes, const int nsubcell_nodes,
+    const int nsubcells_per_cell, const double visc_coeff1,
     const double visc_coeff2, double* cell_centroids_x,
     double* cell_centroids_y, double* cell_centroids_z, int* cells_to_nodes,
     int* cells_offsets, int* nodes_to_cells, int* nodes_offsets,
@@ -28,17 +29,17 @@ void solve_unstructured_hydro_2d(
     double* velocity_z1, double* subcell_force_x, double* subcell_force_y,
     double* subcell_force_z, double* cell_mass, double* nodal_mass,
     double* nodal_volumes, double* nodal_soundspeed, double* limiter,
-    double* subcell_volume, double* subcell_ie_density0, double* subcell_mass0,
-    double* subcell_ie_density1, double* subcell_mass1,
-    double* subcell_velocity_x, double* subcell_velocity_y,
-    double* subcell_velocity_z, double* subcell_centroids_x,
-    double* subcell_centroids_y, double* subcell_centroids_z,
-    double* subcell_kinetic_energy, double* rezoned_nodes_x,
-    double* rezoned_nodes_y, double* rezoned_nodes_z,
-    int* nodes_to_faces_offsets, int* nodes_to_faces, int* faces_to_nodes,
-    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
-    int* cells_to_faces_offsets, int* cells_to_faces,
-    int* subcells_to_faces_offsets, int* subcells_to_subcells);
+    double* subcell_volume, double* subcell_ie_mass0, double* subcell_mass0,
+    double* subcell_ie_mass1, double* subcell_mass1, double* subcell_momentum_x,
+    double* subcell_momentum_y, double* subcell_momentum_z,
+    double* subcell_centroids_x, double* subcell_centroids_y,
+    double* subcell_centroids_z, double* subcell_kinetic_energy,
+    int* subcells_to_nodes, double* subcell_data_x, double* subcell_data_y,
+    double* subcell_data_z, double* rezoned_nodes_x, double* rezoned_nodes_y,
+    double* rezoned_nodes_z, int* nodes_to_faces_offsets, int* nodes_to_faces,
+    int* faces_to_nodes, int* faces_to_nodes_offsets, int* faces_to_cells0,
+    int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces,
+    int* subcell_face_offsets, int* subcells_to_subcells);
 
 // Controls the timestep for the simulation
 void set_timestep(const int ncells, const double* nodes_x,

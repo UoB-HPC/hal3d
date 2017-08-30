@@ -71,8 +71,6 @@ typedef struct {
   int* subcell_face_offsets;
   int* subcell_to_neighbour_face;
 
-  // TODO: These are large arrays, which definitely aren't used all at the same
-  // time and so there are some potential capacity reclaiming optimisations
   double* subcell_ie_density0;
   double* subcell_ie_density1;
   double* subcell_mass0;
@@ -91,6 +89,12 @@ typedef struct {
   double* rezoned_nodes_y;
   double* rezoned_nodes_z;
 
+  // NOTE: The data here is only really intended to be used for testing purposes
+  double* subcell_data_x;
+  double* subcell_data_y;
+  double* subcell_data_z;
+  int* subcells_to_nodes;
+
   int nsubcell_edges;
   int nsubcells;
 
@@ -100,6 +104,11 @@ typedef struct {
 
 // Initialises the shared_data variables for two dimensional applications
 size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh);
+
+// This method sets up the subcell nodes and connectivity for a structured mesh
+// viewed as an unstructured mesh. This is not intended to be used for
+// production purposes, but instead should be used for debugging the code.
+void init_subcell_data_structures(Mesh* mesh, HaleData* hale_data);
 
 // Initialises the cell mass, sub-cell mass and sub-cell volume
 void init_mesh_mass(const int ncells, const int* cells_offsets,
@@ -139,6 +148,12 @@ void store_rezoned_mesh(const int nnodes, const double* nodes_x,
 
 // Deallocates all of the hale specific data
 void deallocate_hale_data(HaleData* hale_data);
+
+// Writes out unstructured tetrahedral subcells to visit
+void subcells_to_visit(const int nnodes, int ncells, const int step,
+                       double* nodes_x, double* nodes_y, double* nodes_z,
+                       const int* cells_to_nodes, const double* arr,
+                       const int nodal, const int quads);
 
 // Writes out unstructured triangles to visit
 void write_unstructured_to_visit_3d(const int nnodes, int ncells,

@@ -9,7 +9,8 @@
 
 // Solve a single timestep on the given mesh
 void solve_unstructured_hydro_2d(
-    Mesh* mesh, const int ncells, const int nnodes, const double visc_coeff1,
+    Mesh* mesh, const int ncells, const int nnodes, const int nsubcell_nodes,
+    const int nsubcells_per_cell, const double visc_coeff1,
     const double visc_coeff2, double* cell_centroids_x,
     double* cell_centroids_y, double* cell_centroids_z, int* cells_to_nodes,
     int* cells_offsets, int* nodes_to_cells, int* nodes_offsets,
@@ -28,221 +29,14 @@ void solve_unstructured_hydro_2d(
     double* subcell_momentum_y, double* subcell_momentum_z,
     double* subcell_centroids_x, double* subcell_centroids_y,
     double* subcell_centroids_z, double* subcell_kinetic_energy,
-    double* rezoned_nodes_x, double* rezoned_nodes_y, double* rezoned_nodes_z,
-    int* nodes_to_faces_offsets, int* nodes_to_faces, int* faces_to_nodes,
-    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
-    int* cells_to_faces_offsets, int* cells_to_faces, int* subcell_face_offsets,
-    int* subcells_to_subcells) {
+    int* subcells_to_nodes, double* subcell_data_x, double* subcell_data_y,
+    double* subcell_data_z, double* rezoned_nodes_x, double* rezoned_nodes_y,
+    double* rezoned_nodes_z, int* nodes_to_faces_offsets, int* nodes_to_faces,
+    int* faces_to_nodes, int* faces_to_nodes_offsets, int* faces_to_cells0,
+    int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces,
+    int* subcell_face_offsets, int* subcells_to_subcells) {
 
   // Describe the subcell node layout
-  const int nx = cbrt(ncells);
-  const int ny = cbrt(ncells);
-  const int nz = cbrt(ncells);
-  const int nsubcells_per_cell = 24;
-  const int nsubcell_nodes_per_cell = nsubcells_per_cell * NTET_NODES;
-
-  // Construct the subcell mesh description
-  int* subcells_to_nodes;
-  double* subcell_data_x;
-  double* subcell_data_y;
-  double* subcell_data_z;
-
-  const int subcell_nodes_off = 0;
-  const int subcell_face_c_xy_off = (nx + 1) * (ny + 1) * (nz + 1);
-  const int subcell_face_c_yz_off = subcell_face_c_xy_off + nx * ny * (nz + 1);
-  const int subcell_face_c_zx_off = subcell_face_c_yz_off + (nx + 1) * ny * nz;
-  const int subcell_cell_c_off = subcell_face_c_zx_off + nx * (ny + 1) * nz;
-  const int nsubcell_nodes = subcell_cell_c_off + nx * ny * nz;
-
-  size_t allocated = allocate_data(&subcell_data_x, nsubcell_nodes);
-  allocated += allocate_data(&subcell_data_y, nsubcell_nodes);
-  allocated += allocate_data(&subcell_data_z, nsubcell_nodes);
-  allocated +=
-      allocate_int_data(&subcells_to_nodes, ncells * nsubcell_nodes_per_cell);
-  printf("allocated %.4lf GB for subcell output\n", allocated / GB);
-
-  // Determine subcell connectivity in a planar fashion
-  double dx = 1.0 / nx;
-  double dy = 1.0 / ny;
-  double dz = 1.0 / nz;
-
-#define NODE_IND(i, j, k)                                                      \
-  (subcell_nodes_off + ((i) * (nx + 1) * (ny + 1) + (j) * (nx + 1) + (k)))
-#define FACE_C_XY_IND(i, j, k)                                                 \
-  (subcell_face_c_xy_off + ((i)*nx * ny + (j)*nx + (k)))
-#define FACE_C_YZ_IND(i, j, k)                                                 \
-  (subcell_face_c_yz_off + ((i) * (nx + 1) * ny + (j) * (nx + 1) + (k)))
-#define FACE_C_ZX_IND(i, j, k)                                                 \
-  (subcell_face_c_zx_off + ((i)*nx * (ny + 1) + (j)*nx + (k)))
-#define CELL_C_IND(i, j, k) (subcell_cell_c_off + ((i)*nx * ny + (j)*nx + (k)))
-
-  // Construct the nodal positions
-  for (int ii = 0; ii < nz + 1; ++ii) {
-    for (int jj = 0; jj < ny + 1; ++jj) {
-      for (int kk = 0; kk < nx + 1; ++kk) {
-        subcell_data_x[NODE_IND(ii, jj, kk)] = kk * dx;
-        subcell_data_y[NODE_IND(ii, jj, kk)] = jj * dy;
-        subcell_data_z[NODE_IND(ii, jj, kk)] = ii * dz;
-
-        if (kk < nx && jj < ny) {
-          subcell_data_x[(FACE_C_XY_IND(ii, jj, kk))] = 0.5 * dx + kk * dx;
-          subcell_data_y[(FACE_C_XY_IND(ii, jj, kk))] = 0.5 * dy + jj * dy;
-          subcell_data_z[(FACE_C_XY_IND(ii, jj, kk))] = ii * dz;
-        }
-        if (jj < ny && ii < nz) {
-          subcell_data_x[FACE_C_YZ_IND(ii, jj, kk)] = kk * dx;
-          subcell_data_y[FACE_C_YZ_IND(ii, jj, kk)] = 0.5 * dy + jj * dy;
-          subcell_data_z[FACE_C_YZ_IND(ii, jj, kk)] = 0.5 * dz + ii * dz;
-        }
-        if (kk < nx && ii < nz) {
-          subcell_data_x[FACE_C_ZX_IND(ii, jj, kk)] = 0.5 * dx + kk * dx;
-          subcell_data_y[FACE_C_ZX_IND(ii, jj, kk)] = jj * dy;
-          subcell_data_z[FACE_C_ZX_IND(ii, jj, kk)] = 0.5 * dz + ii * dz;
-        }
-        if (kk < nx && jj < ny && ii < nz) {
-          subcell_data_x[CELL_C_IND(ii, jj, kk)] = 0.5 * dx + kk * dx;
-          subcell_data_y[CELL_C_IND(ii, jj, kk)] = 0.5 * dy + jj * dy;
-          subcell_data_z[CELL_C_IND(ii, jj, kk)] = 0.5 * dz + ii * dz;
-        }
-      }
-    }
-  }
-
-  for (int ii = 0; ii < nz; ++ii) {
-    for (int jj = 0; jj < ny; ++jj) {
-      for (int kk = 0; kk < nx; ++kk) {
-        const int cell_index = (ii * nx * ny + jj * nx + kk);
-        const int c_off = cell_index * nsubcell_nodes_per_cell;
-
-        // Front subcells
-        subcells_to_nodes[(c_off + 0)] = NODE_IND(ii, jj, kk);
-        subcells_to_nodes[(c_off + 1)] = NODE_IND(ii, jj, kk + 1);
-        subcells_to_nodes[(c_off + 2)] = FACE_C_XY_IND(ii, jj, kk);
-        subcells_to_nodes[(c_off + 3)] = CELL_C_IND(ii, jj, kk);
-
-        subcells_to_nodes[(c_off + 4)] = NODE_IND(ii, jj, kk + 1);
-        subcells_to_nodes[(c_off + 5)] = NODE_IND(ii, jj + 1, kk + 1);
-        subcells_to_nodes[(c_off + 6)] = FACE_C_XY_IND(ii, jj, kk);
-        subcells_to_nodes[(c_off + 7)] = CELL_C_IND(ii, jj, kk);
-
-        subcells_to_nodes[(c_off + 8)] = NODE_IND(ii, jj + 1, kk + 1);
-        subcells_to_nodes[(c_off + 9)] = NODE_IND(ii, jj + 1, kk);
-        subcells_to_nodes[(c_off + 10)] = FACE_C_XY_IND(ii, jj, kk);
-        subcells_to_nodes[(c_off + 11)] = CELL_C_IND(ii, jj, kk);
-
-        subcells_to_nodes[(c_off + 12)] = NODE_IND(ii, jj + 1, kk);
-        subcells_to_nodes[(c_off + 13)] = NODE_IND(ii, jj, kk);
-        subcells_to_nodes[(c_off + 14)] = FACE_C_XY_IND(ii, jj, kk);
-        subcells_to_nodes[(c_off + 15)] = CELL_C_IND(ii, jj, kk);
-
-        // Left subcells
-        subcells_to_nodes[(c_off + 16)] = NODE_IND(ii, jj, kk);
-        subcells_to_nodes[(c_off + 17)] = NODE_IND(ii, jj + 1, kk);
-        subcells_to_nodes[(c_off + 18)] = FACE_C_YZ_IND(ii, jj, kk);
-        subcells_to_nodes[(c_off + 19)] = CELL_C_IND(ii, jj, kk);
-
-        subcells_to_nodes[(c_off + 20)] = NODE_IND(ii, jj + 1, kk);
-        subcells_to_nodes[(c_off + 21)] = NODE_IND(ii + 1, jj + 1, kk);
-        subcells_to_nodes[(c_off + 22)] = FACE_C_YZ_IND(ii, jj, kk);
-        subcells_to_nodes[(c_off + 23)] = CELL_C_IND(ii, jj, kk);
-
-        subcells_to_nodes[(c_off + 24)] = NODE_IND(ii + 1, jj + 1, kk);
-        subcells_to_nodes[(c_off + 25)] = NODE_IND(ii + 1, jj, kk);
-        subcells_to_nodes[(c_off + 26)] = FACE_C_YZ_IND(ii, jj, kk);
-        subcells_to_nodes[(c_off + 27)] = CELL_C_IND(ii, jj, kk);
-
-        subcells_to_nodes[(c_off + 28)] = NODE_IND(ii + 1, jj, kk);
-        subcells_to_nodes[(c_off + 29)] = NODE_IND(ii, jj, kk);
-        subcells_to_nodes[(c_off + 30)] = FACE_C_YZ_IND(ii, jj, kk);
-        subcells_to_nodes[(c_off + 31)] = CELL_C_IND(ii, jj, kk);
-
-        // Bottom subcells
-        subcells_to_nodes[(c_off + 32)] = NODE_IND(ii, jj, kk);
-        subcells_to_nodes[(c_off + 33)] = NODE_IND(ii + 1, jj, kk);
-        subcells_to_nodes[(c_off + 34)] = FACE_C_ZX_IND(ii, jj, kk);
-        subcells_to_nodes[(c_off + 35)] = CELL_C_IND(ii, jj, kk);
-
-        subcells_to_nodes[(c_off + 36)] = NODE_IND(ii + 1, jj, kk);
-        subcells_to_nodes[(c_off + 37)] = NODE_IND(ii + 1, jj, kk + 1);
-        subcells_to_nodes[(c_off + 38)] = FACE_C_ZX_IND(ii, jj, kk);
-        subcells_to_nodes[(c_off + 39)] = CELL_C_IND(ii, jj, kk);
-
-        subcells_to_nodes[(c_off + 40)] = NODE_IND(ii + 1, jj, kk + 1);
-        subcells_to_nodes[(c_off + 41)] = NODE_IND(ii, jj, kk + 1);
-        subcells_to_nodes[(c_off + 42)] = FACE_C_ZX_IND(ii, jj, kk);
-        subcells_to_nodes[(c_off + 43)] = CELL_C_IND(ii, jj, kk);
-
-        subcells_to_nodes[(c_off + 44)] = NODE_IND(ii, jj, kk + 1);
-        subcells_to_nodes[(c_off + 45)] = NODE_IND(ii, jj, kk);
-        subcells_to_nodes[(c_off + 46)] = FACE_C_ZX_IND(ii, jj, kk);
-        subcells_to_nodes[(c_off + 47)] = CELL_C_IND(ii, jj, kk);
-
-        // Right subcells
-        subcells_to_nodes[(c_off + 48)] = NODE_IND(ii, jj, kk + 1);
-        subcells_to_nodes[(c_off + 49)] = NODE_IND(ii + 1, jj, kk + 1);
-        subcells_to_nodes[(c_off + 50)] = FACE_C_YZ_IND(ii, jj, kk + 1);
-        subcells_to_nodes[(c_off + 51)] = CELL_C_IND(ii, jj, kk);
-
-        subcells_to_nodes[(c_off + 52)] = NODE_IND(ii + 1, jj, kk + 1);
-        subcells_to_nodes[(c_off + 53)] = NODE_IND(ii + 1, jj + 1, kk + 1);
-        subcells_to_nodes[(c_off + 54)] = FACE_C_YZ_IND(ii, jj, kk + 1);
-        subcells_to_nodes[(c_off + 55)] = CELL_C_IND(ii, jj, kk);
-
-        subcells_to_nodes[(c_off + 56)] = NODE_IND(ii + 1, jj + 1, kk + 1);
-        subcells_to_nodes[(c_off + 57)] = NODE_IND(ii, jj + 1, kk + 1);
-        subcells_to_nodes[(c_off + 58)] = FACE_C_YZ_IND(ii, jj, kk + 1);
-        subcells_to_nodes[(c_off + 59)] = CELL_C_IND(ii, jj, kk);
-
-        subcells_to_nodes[(c_off + 60)] = NODE_IND(ii, jj + 1, kk + 1);
-        subcells_to_nodes[(c_off + 61)] = NODE_IND(ii, jj, kk + 1);
-        subcells_to_nodes[(c_off + 62)] = FACE_C_YZ_IND(ii, jj, kk + 1);
-        subcells_to_nodes[(c_off + 63)] = CELL_C_IND(ii, jj, kk);
-
-        // Top subcells
-        subcells_to_nodes[(c_off + 64)] = NODE_IND(ii, jj + 1, kk);
-        subcells_to_nodes[(c_off + 65)] = NODE_IND(ii, jj + 1, kk + 1);
-        subcells_to_nodes[(c_off + 66)] = FACE_C_ZX_IND(ii, jj + 1, kk);
-        subcells_to_nodes[(c_off + 67)] = CELL_C_IND(ii, jj, kk);
-
-        subcells_to_nodes[(c_off + 68)] = NODE_IND(ii, jj + 1, kk + 1);
-        subcells_to_nodes[(c_off + 69)] = NODE_IND(ii + 1, jj + 1, kk + 1);
-        subcells_to_nodes[(c_off + 70)] = FACE_C_ZX_IND(ii, jj + 1, kk);
-        subcells_to_nodes[(c_off + 71)] = CELL_C_IND(ii, jj, kk);
-
-        subcells_to_nodes[(c_off + 72)] = NODE_IND(ii + 1, jj + 1, kk + 1);
-        subcells_to_nodes[(c_off + 73)] = NODE_IND(ii + 1, jj + 1, kk);
-        subcells_to_nodes[(c_off + 74)] = FACE_C_ZX_IND(ii, jj + 1, kk);
-        subcells_to_nodes[(c_off + 75)] = CELL_C_IND(ii, jj, kk);
-
-        subcells_to_nodes[(c_off + 76)] = NODE_IND(ii + 1, jj + 1, kk);
-        subcells_to_nodes[(c_off + 77)] = NODE_IND(ii, jj + 1, kk);
-        subcells_to_nodes[(c_off + 78)] = FACE_C_ZX_IND(ii, jj + 1, kk);
-        subcells_to_nodes[(c_off + 79)] = CELL_C_IND(ii, jj, kk);
-
-        // Back subcells
-        subcells_to_nodes[(c_off + 80)] = NODE_IND(ii + 1, jj, kk);
-        subcells_to_nodes[(c_off + 81)] = NODE_IND(ii + 1, jj + 1, kk);
-        subcells_to_nodes[(c_off + 82)] = FACE_C_XY_IND(ii + 1, jj, kk);
-        subcells_to_nodes[(c_off + 83)] = CELL_C_IND(ii, jj, kk);
-
-        subcells_to_nodes[(c_off + 84)] = NODE_IND(ii + 1, jj + 1, kk);
-        subcells_to_nodes[(c_off + 85)] = NODE_IND(ii + 1, jj + 1, kk + 1);
-        subcells_to_nodes[(c_off + 86)] = FACE_C_XY_IND(ii + 1, jj, kk);
-        subcells_to_nodes[(c_off + 87)] = CELL_C_IND(ii, jj, kk);
-
-        subcells_to_nodes[(c_off + 88)] = NODE_IND(ii + 1, jj + 1, kk + 1);
-        subcells_to_nodes[(c_off + 89)] = NODE_IND(ii + 1, jj, kk + 1);
-        subcells_to_nodes[(c_off + 90)] = FACE_C_XY_IND(ii + 1, jj, kk);
-        subcells_to_nodes[(c_off + 91)] = CELL_C_IND(ii, jj, kk);
-
-        subcells_to_nodes[(c_off + 92)] = NODE_IND(ii + 1, jj, kk + 1);
-        subcells_to_nodes[(c_off + 93)] = NODE_IND(ii + 1, jj, kk);
-        subcells_to_nodes[(c_off + 94)] = FACE_C_XY_IND(ii + 1, jj, kk);
-        subcells_to_nodes[(c_off + 95)] = CELL_C_IND(ii, jj, kk);
-      }
-    }
-  }
-
   printf("\nPerforming the Lagrangian Phase\n");
 
   // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
