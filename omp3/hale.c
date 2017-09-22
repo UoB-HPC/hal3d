@@ -8,7 +8,7 @@
 #include <stdlib.h>
 
 // Solve a single timestep on the given mesh
-void solve_unstructured_hydro_2d(
+void solve_unstructured_hydro_3d(
     Mesh* mesh, HaleData* hale_data, const int ncells, const int nnodes,
     const int nsubcell_nodes, const int nsubcells_per_cell,
     const double visc_coeff1, const double visc_coeff2,
@@ -70,6 +70,7 @@ void solve_unstructured_hydro_2d(
       faces_to_cells0, faces_to_cells1, cells_to_faces_offsets, cells_to_faces,
       cells_to_nodes);
 
+  // Store the total mass and internal energy
   double total_mass = 0.0;
   double total_ie = 0.0;
 #pragma omp parallel for reduction(+ : total_mass, total_ie)
@@ -83,16 +84,14 @@ void solve_unstructured_hydro_2d(
   // Performs a remap and some scattering of the subcell values
   remap_phase(ncells, cell_centroids_x, cell_centroids_y, cell_centroids_z,
               cells_to_nodes, cells_offsets, nodes_x0, nodes_y0, nodes_z0,
-              cell_volume, subcell_volume, subcell_ie_mass0, subcell_ie_mass1,
-              subcell_mass0, subcell_mass1, subcell_centroids_x,
-              subcell_centroids_y, subcell_centroids_z, rezoned_nodes_x,
-              rezoned_nodes_y, rezoned_nodes_z, faces_to_nodes,
-              faces_to_nodes_offsets, cells_to_faces_offsets, cells_to_faces,
-              subcell_face_offsets, subcells_to_subcells);
-
-  subcells_to_visit(nsubcell_nodes, ncells * nsubcells_per_cell, 10,
-                    subcell_data_x, subcell_data_y, subcell_data_z,
-                    subcells_to_nodes, subcell_mass0, 0, 1);
+              cell_volume, velocity_x0, velocity_y0, velocity_z0,
+              subcell_volume, subcell_ie_mass0, subcell_ie_mass1, subcell_mass0,
+              subcell_mass1, subcell_momentum_x, subcell_momentum_y,
+              subcell_momentum_z, subcell_centroids_x, subcell_centroids_y,
+              subcell_centroids_z, rezoned_nodes_x, rezoned_nodes_y,
+              rezoned_nodes_z, faces_to_nodes, faces_to_nodes_offsets,
+              cells_to_faces_offsets, cells_to_faces, subcell_face_offsets,
+              subcells_to_subcells);
 
   printf("\nPerforming the Scattering Phase\n");
 
@@ -107,10 +106,17 @@ void solve_unstructured_hydro_2d(
                 cells_to_faces, subcell_face_offsets);
 
   printf("\nEulerian Mesh Rezone\n");
+
+  // Finalise the mesh rezone
   apply_mesh_rezoning(nnodes, rezoned_nodes_x, rezoned_nodes_y, rezoned_nodes_z,
                       nodes_x0, nodes_y0, nodes_z0);
 
+  // Determine the new cell centroids
   init_cell_centroids(ncells, cells_offsets, cells_to_nodes, nodes_x0, nodes_y0,
                       nodes_z0, cell_centroids_x, cell_centroids_y,
                       cell_centroids_z);
+
+  subcells_to_visit(nsubcell_nodes, ncells * nsubcells_per_cell, 10,
+                    subcell_data_x, subcell_data_y, subcell_data_z,
+                    subcells_to_nodes, subcell_ie_mass0, 0, 1);
 }

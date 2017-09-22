@@ -11,8 +11,8 @@ void gather_subcell_quantities(
     double* nodes_x0, const double* nodes_y0, const double* nodes_z0,
     double* energy0, double* density0, double* velocity_x0, double* velocity_y0,
     double* velocity_z0, double* cell_mass, double* subcell_volume,
-    double* subcell_ie_mass0, double* subcell_momentum_x,
-    double* subcell_momentum_y, double* subcell_momentum_z,
+    double* subcell_ie_mass0, double* subcell_momentum_flux_x,
+    double* subcell_momentum_flux_y, double* subcell_momentum_flux_z,
     double* subcell_centroids_x, double* subcell_centroids_y,
     double* subcell_centroids_z, double* cell_volume, int* subcell_face_offsets,
     int* faces_to_nodes, int* faces_to_nodes_offsets, int* faces_to_cells0,
@@ -30,14 +30,6 @@ void gather_subcell_quantities(
                          cell_volume, subcell_centroids_x, subcell_centroids_y,
                          subcell_centroids_z, subcell_volume);
 
-  gather_subcell_momentum(
-      ncells, nnodes, nodal_volumes, nodal_mass, cell_centroids_x,
-      cell_centroids_y, cell_centroids_z, cells_offsets, nodes_x0, nodes_y0,
-      nodes_z0, velocity_x0, velocity_y0, velocity_z0, subcell_volume,
-      subcell_momentum_x, subcell_momentum_y, subcell_momentum_z,
-      subcell_face_offsets, faces_to_nodes, faces_to_nodes_offsets,
-      cells_to_faces_offsets, cells_to_faces, cells_to_nodes);
-
   // Gathers all of the subcell quantities on the mesh
   gather_subcell_energy(
       ncells, cell_centroids_x, cell_centroids_y, cell_centroids_z,
@@ -45,6 +37,14 @@ void gather_subcell_quantities(
       subcell_volume, subcell_ie_mass0, subcell_centroids_x,
       subcell_centroids_y, subcell_centroids_z, subcell_face_offsets,
       faces_to_nodes, faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
+      cells_to_faces_offsets, cells_to_faces, cells_to_nodes);
+
+  gather_subcell_momentum(
+      ncells, nnodes, nodal_volumes, nodal_mass, cell_centroids_x,
+      cell_centroids_y, cell_centroids_z, cells_offsets, nodes_x0, nodes_y0,
+      nodes_z0, velocity_x0, velocity_y0, velocity_z0, subcell_volume,
+      subcell_momentum_flux_x, subcell_momentum_flux_y, subcell_momentum_flux_z,
+      subcell_face_offsets, faces_to_nodes, faces_to_nodes_offsets,
       cells_to_faces_offsets, cells_to_faces, cells_to_nodes);
 }
 
@@ -175,8 +175,8 @@ void gather_subcell_energy(
         // Determine subcell energy from linear function at cell
         subcell_ie_mass[(subcell_index)] =
             subcell_volume[(subcell_index)] *
-            (cell_ie + (grad_ie.x * (dist.x) + grad_ie.y * (dist.y) +
-                        grad_ie.z * (dist.z)));
+            (cell_ie + grad_ie.x * dist.x + grad_ie.y * dist.y +
+             grad_ie.z * dist.z);
 
         if (subcell_ie_mass[(subcell_index)] < 0.0) {
           printf("neg ie mass %d %.12f\n", subcell_index,
@@ -211,8 +211,8 @@ void gather_subcell_momentum(
     double* cell_centroids_y, double* cell_centroids_z, int* cells_offsets,
     const double* nodes_x0, const double* nodes_y0, const double* nodes_z0,
     double* velocity_x0, double* velocity_y0, double* velocity_z0,
-    double* subcell_volume, double* subcell_momentum_x,
-    double* subcell_momentum_y, double* subcell_momentum_z,
+    double* subcell_volume, double* subcell_momentum_flux_x,
+    double* subcell_momentum_flux_y, double* subcell_momentum_flux_z,
     int* subcell_face_offsets, int* faces_to_nodes, int* faces_to_nodes_offsets,
     int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes) {
 
@@ -400,17 +400,17 @@ void gather_subcell_momentum(
              cell_centroid.z + face_c.z) /
                 NTET_NODES};
 
-        subcell_momentum_x[(subsubcell_index)] =
+        subcell_momentum_flux_x[(subsubcell_index)] =
             vol *
             (node_v.x + grad_vx.x * (subsubcell_c.x - nodes_x0[(node_index)]) +
              grad_vx.y * (subsubcell_c.y - nodes_y0[(node_index)]) +
              grad_vx.z * (subsubcell_c.z - nodes_z0[(node_index)]));
-        subcell_momentum_y[(subsubcell_index)] =
+        subcell_momentum_flux_y[(subsubcell_index)] =
             vol *
             (node_v.y + grad_vy.x * (subsubcell_c.x - nodes_x0[(node_index)]) +
              grad_vy.y * (subsubcell_c.y - nodes_y0[(node_index)]) +
              grad_vy.z * (subsubcell_c.z - nodes_z0[(node_index)]));
-        subcell_momentum_z[(subsubcell_index)] =
+        subcell_momentum_flux_z[(subsubcell_index)] =
             vol *
             (node_v.z + grad_vz.x * (subsubcell_c.x - nodes_x0[(node_index)]) +
              grad_vz.y * (subsubcell_c.y - nodes_y0[(node_index)]) +
@@ -438,28 +438,28 @@ void gather_subcell_momentum(
              cell_centroid.z + face_c.z) /
                 NTET_NODES};
 
-        subcell_momentum_x[(lsubsubcell_index)] =
+        subcell_momentum_flux_x[(lsubsubcell_index)] =
             vol *
             (node_v.x + grad_vx.x * (lsubsubcell_c.x - nodes_x0[(node_index)]) +
              grad_vx.y * (lsubsubcell_c.y - nodes_y0[(node_index)]) +
              grad_vx.z * (lsubsubcell_c.z - nodes_z0[(node_index)]));
-        subcell_momentum_y[(lsubsubcell_index)] =
+        subcell_momentum_flux_y[(lsubsubcell_index)] =
             vol *
             (node_v.y + grad_vy.x * (lsubsubcell_c.x - nodes_x0[(node_index)]) +
              grad_vy.y * (lsubsubcell_c.y - nodes_y0[(node_index)]) +
              grad_vy.z * (lsubsubcell_c.z - nodes_z0[(node_index)]));
-        subcell_momentum_z[(lsubsubcell_index)] =
+        subcell_momentum_flux_z[(lsubsubcell_index)] =
             vol *
             (node_v.z + grad_vz.x * (lsubsubcell_c.x - nodes_x0[(node_index)]) +
              grad_vz.y * (lsubsubcell_c.y - nodes_y0[(node_index)]) +
              grad_vz.z * (lsubsubcell_c.z - nodes_z0[(node_index)]));
 
-        total_subcell_vx += subcell_momentum_x[(subsubcell_index)];
-        total_subcell_vy += subcell_momentum_y[(subsubcell_index)];
-        total_subcell_vz += subcell_momentum_z[(subsubcell_index)];
-        total_subcell_vx += subcell_momentum_x[(lsubsubcell_index)];
-        total_subcell_vy += subcell_momentum_y[(lsubsubcell_index)];
-        total_subcell_vz += subcell_momentum_z[(lsubsubcell_index)];
+        total_subcell_vx += subcell_momentum_flux_x[(subsubcell_index)];
+        total_subcell_vy += subcell_momentum_flux_y[(subsubcell_index)];
+        total_subcell_vz += subcell_momentum_flux_z[(subsubcell_index)];
+        total_subcell_vx += subcell_momentum_flux_x[(lsubsubcell_index)];
+        total_subcell_vy += subcell_momentum_flux_y[(lsubsubcell_index)];
+        total_subcell_vz += subcell_momentum_flux_z[(lsubsubcell_index)];
       }
     }
   }

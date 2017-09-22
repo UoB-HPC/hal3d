@@ -1,3 +1,4 @@
+#include "../hale_data.h"
 #include <stdio.h>
 
 // Perform the scatter step of the ALE remapping algorithm
@@ -7,13 +8,13 @@ void scatter_phase(const int ncells, const int nnodes, const double total_mass,
                    double* velocity_y0, double* velocity_z0, double* cell_mass,
                    double* nodal_mass, double* subcell_ie_mass0,
                    double* subcell_mass0, double* subcell_ie_mass1,
-                   double* subcell_mass1, double* subcell_momentum_x,
-                   double* subcell_momentum_y, double* subcell_momentum_z,
-                   int* nodes_to_faces_offsets, int* nodes_to_faces,
-                   int* faces_to_nodes, int* faces_to_nodes_offsets,
-                   int* faces_to_cells0, int* faces_to_cells1,
-                   int* cells_to_faces_offsets, int* cells_to_faces,
-                   int* subcell_face_offsets) {
+                   double* subcell_mass1, double* subcell_momentum_flux_x,
+                   double* subcell_momentum_flux_y,
+                   double* subcell_momentum_flux_z, int* nodes_to_faces_offsets,
+                   int* nodes_to_faces, int* faces_to_nodes,
+                   int* faces_to_nodes_offsets, int* faces_to_cells0,
+                   int* faces_to_cells1, int* cells_to_faces_offsets,
+                   int* cells_to_faces, int* subcell_face_offsets) {
 
   // Scatter energy and density, and print the conservation of mass
   double rz_total_mass = 0.0;
@@ -108,7 +109,7 @@ void scatter_phase(const int ncells, const int nnodes, const double total_mass,
       cells[1] = faces_to_cells1[(face_index)];
 
       // Add contributions from all of the cells attached to the face
-      for (int cc = 0; cc < 2; ++cc) {
+      for (int cc = 0; cc < NSUBSUBCELLS; ++cc) {
         if (cells[(cc)] == -1) {
           continue;
         }
@@ -117,13 +118,14 @@ void scatter_phase(const int ncells, const int nnodes, const double total_mass,
         const int subcell_off = subcell_face_offsets[(cell_to_faces_off + ff)];
 
         // Add contributions for both edges attached to our current node
-        for (int nn2 = 0; nn2 < 2; ++nn2) {
+        const int nedges_by_node = 2;
+        for (int nn2 = 0; nn2 < nedges_by_node; ++nn2) {
           velocity_x0[(nn)] +=
-              subcell_momentum_x[(subcell_off + node_in_face_c)];
+              subcell_momentum_flux_x[(subcell_off + node_in_face_c)];
           velocity_y0[(nn)] +=
-              subcell_momentum_y[(subcell_off + node_in_face_c)];
+              subcell_momentum_flux_y[(subcell_off + node_in_face_c)];
           velocity_z0[(nn)] +=
-              subcell_momentum_z[(subcell_off + node_in_face_c)];
+              subcell_momentum_flux_z[(subcell_off + node_in_face_c)];
         }
       }
     }

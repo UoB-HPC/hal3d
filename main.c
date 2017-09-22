@@ -125,7 +125,7 @@ int main(int argc, char** argv) {
 
     double w0 = omp_get_wtime();
 
-    solve_unstructured_hydro_2d(
+    solve_unstructured_hydro_3d(
         &mesh, &hale_data, umesh.ncells, umesh.nnodes, hale_data.nsubcell_nodes,
         hale_data.nsubcells_per_cell, hale_data.visc_coeff1,
         hale_data.visc_coeff2, umesh.cell_centroids_x, umesh.cell_centroids_y,
@@ -144,8 +144,8 @@ int main(int argc, char** argv) {
         hale_data.nodal_soundspeed, hale_data.limiter, hale_data.subcell_volume,
         hale_data.subcell_ie_density0, hale_data.subcell_mass0,
         hale_data.subcell_ie_density1, hale_data.subcell_mass1,
-        hale_data.subcell_momentum_x, hale_data.subcell_momentum_y,
-        hale_data.subcell_momentum_z, hale_data.subcell_centroids_x,
+        hale_data.subcell_momentum_flux_x, hale_data.subcell_momentum_flux_y,
+        hale_data.subcell_momentum_flux_z, hale_data.subcell_centroids_x,
         hale_data.subcell_centroids_y, hale_data.subcell_centroids_z,
         hale_data.subcell_kinetic_energy, hale_data.subcells_to_nodes,
         hale_data.subcell_data_x, hale_data.subcell_data_y,

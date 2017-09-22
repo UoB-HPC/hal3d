@@ -13,7 +13,7 @@ extern "C" {
 #endif
 
 // Solve a single timestep on the given mesh
-void solve_unstructured_hydro_2d(
+void solve_unstructured_hydro_3d(
     Mesh* mesh, HaleData* hale_data, const int ncells, const int nnodes,
     const int nsubcell_nodes, const int nsubcells_per_cell,
     const double visc_coeff1, const double visc_coeff2,
