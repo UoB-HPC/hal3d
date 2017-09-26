@@ -12,7 +12,7 @@ void remap_phase(const int ncells, double* cell_centroids_x,
                  double* velocity_x0, double* velocity_y0, double* velocity_z0,
                  double* subcell_volume, double* subcell_ie_mass0,
                  double* subcell_ie_mass1, double* subcell_mass0,
-                 double* subcell_mass1, double* subcell_momentum_flux_x,
+                 double* subcell_mass_flux, double* subcell_momentum_flux_x,
                  double* subcell_momentum_flux_y,
                  double* subcell_momentum_flux_z, double* subcell_centroids_x,
                  double* subcell_centroids_y, double* subcell_centroids_z,
@@ -353,7 +353,7 @@ void remap_phase(const int ncells, double* cell_centroids_x,
           }
         }
 
-        subcell_mass1[(subcell_index)] = mass_flux;
+        subcell_mass_flux[(subcell_index)] = mass_flux;
         subcell_ie_mass1[(subcell_index)] = energy_flux;
       }
     }

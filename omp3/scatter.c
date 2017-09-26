@@ -7,8 +7,8 @@ void scatter_phase(const int ncells, const int nnodes, const double total_mass,
                    double* energy1, double* density0, double* velocity_x0,
                    double* velocity_y0, double* velocity_z0, double* cell_mass,
                    double* nodal_mass, double* subcell_ie_mass0,
-                   double* subcell_mass0, double* subcell_ie_mass1,
-                   double* subcell_mass1, double* subcell_momentum_flux_x,
+                   double* subcell_mass0, double* subcell_ie_mass_flux,
+                   double* subcell_mass_flux, double* subcell_momentum_flux_x,
                    double* subcell_momentum_flux_y,
                    double* subcell_momentum_flux_z, int* nodes_to_faces_offsets,
                    int* nodes_to_faces, int* faces_to_nodes,
@@ -42,8 +42,9 @@ void scatter_phase(const int ncells, const int nnodes, const double total_mass,
         const int subcell_index = subcell_off + nn;
 
         // Evaluate the subcell masses
-        subcell_mass0[(subcell_index)] -= subcell_mass1[(subcell_index)];
-        subcell_ie_mass0[(subcell_index)] -= subcell_ie_mass1[(subcell_index)];
+        subcell_mass0[(subcell_index)] -= subcell_mass_flux[(subcell_index)];
+        subcell_ie_mass0[(subcell_index)] -=
+            subcell_ie_mass_flux[(subcell_index)];
 
         // Scatter the subcell mass data back to the cell
         cell_mass[(cc)] += subcell_mass0[(subcell_index)];

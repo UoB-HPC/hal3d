@@ -71,9 +71,9 @@ typedef struct {
   int* subcell_face_offsets;
 
   double* subcell_ie_density0;
-  double* subcell_ie_density1;
+  double* subcell_ie_mass_flux;
   double* subcell_mass0;
-  double* subcell_mass1;
+  double* subcell_mass_flux;
   double* subcell_momentum_flux_x;
   double* subcell_momentum_flux_y;
   double* subcell_momentum_flux_z;

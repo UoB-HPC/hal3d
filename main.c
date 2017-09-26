@@ -143,7 +143,7 @@ int main(int argc, char** argv) {
         hale_data.nodal_mass, hale_data.nodal_volumes,
         hale_data.nodal_soundspeed, hale_data.limiter, hale_data.subcell_volume,
         hale_data.subcell_ie_density0, hale_data.subcell_mass0,
-        hale_data.subcell_ie_density1, hale_data.subcell_mass1,
+        hale_data.subcell_ie_mass_flux, hale_data.subcell_mass_flux,
         hale_data.subcell_momentum_flux_x, hale_data.subcell_momentum_flux_y,
         hale_data.subcell_momentum_flux_z, hale_data.subcell_centroids_x,
         hale_data.subcell_centroids_y, hale_data.subcell_centroids_z,
