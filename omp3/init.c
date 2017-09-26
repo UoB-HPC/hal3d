@@ -151,7 +151,9 @@ void init_subcells_to_subcells(
 
 // This routine has ended up becoming messy and kludgy. It needs tidying up and
 // fixing, but for now it needs to work as it is fundamental to the correct
-// function of the application.
+// function of the application. It feels like it should be possible to re-remove
+// all of the checks for whether the face is clockwise if we are able to make
+// some better ordering or assumptions.
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
@@ -178,20 +180,25 @@ void init_subcells_to_subcells(
 
       // Have to check the orientation of the face in order to pick
       // the correct subcell neighbour at this point
-      const int n0 = faces_to_nodes[(face_to_nodes_off + 0)];
-      const int n1 = faces_to_nodes[(face_to_nodes_off + 1)];
-      const int n2 = faces_to_nodes[(face_to_nodes_off + 2)];
-
       vec_t normal = {0.0, 0.0, 0.0};
-      const int face_cclockwise = !calc_surface_normal(
-          n0, n1, n2, nodes_x, nodes_y, nodes_z, &cell_centroid, &normal);
-
-      int start = (face_cclockwise) ? 0 : nnodes_by_face - 1;
-      int finish = (face_cclockwise) ? nnodes_by_face : -1;
-      int dir = (face_cclockwise) ? 1 : -1;
+      const int face_cclockwise =
+          !calc_surface_normal(faces_to_nodes[(face_to_nodes_off + 0)],
+                               faces_to_nodes[(face_to_nodes_off + 1)],
+                               faces_to_nodes[(face_to_nodes_off + 2)], nodes_x,
+                               nodes_y, nodes_z, &cell_centroid, &normal);
+      const int start = (face_cclockwise) ? 0 : nnodes_by_face - 1;
+      const int finish = (face_cclockwise) ? nnodes_by_face : -1;
+      const int dir = (face_cclockwise) ? 1 : -1;
 
       // We have a subcell per node on a face
       for (int nn = start; nn != finish; nn += dir) {
+
+        // Choose the right face node from our current 'subcell' face node
+        const int prev_node = ((nn == 0) ? nnodes_by_face - 1 : nn - 1);
+        const int next_node = ((nn == nnodes_by_face - 1) ? 0 : nn + 1);
+        const int rnode_off = (face_cclockwise) ? next_node : prev_node;
+        const int rnode_index = faces_to_nodes[(face_to_nodes_off + rnode_off)];
+        const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
 
         /*
          * Find the subcell that exists in the neighbouring cell on this face.
@@ -215,34 +222,34 @@ void init_subcells_to_subcells(
                 faces_to_nodes_offsets[(neighbour_face_index + 1)] -
                 neighbour_face_to_nodes_off;
 
-            // We have found the adjoining face in the neighbour cell
+            // Check if we have found the adjoining face in the neighbour cell
             if (face_index != neighbour_face_index) {
               continue;
             }
 
-            // Find the node that determines the subcell on this neighbour
-            for (int nn2 = 0; nn2 < nnodes_by_neighbour_face; ++nn2) {
-              if (faces_to_nodes[(neighbour_face_to_nodes_off + nn2)] ==
-                  faces_to_nodes[(face_to_nodes_off + nn)]) {
+            // Have to check the orientation of the face in order to pick
+            // the correct subcell neighbour at this point
+            const int start2 =
+                (face_cclockwise) ? 0 : nnodes_by_neighbour_face - 1;
+            const int finish2 =
+                (face_cclockwise) ? nnodes_by_neighbour_face : -1;
+            const int dir2 = (face_cclockwise) ? 1 : -1;
 
-                const int neighbour_subcell_index =
-                    faces_to_subcells_offsets[(neighbour_to_faces_off + ff)] +
-                    nn2;
+            // Find the node that determines the subcell on this neighbour
+            for (int nn2 = start2; nn2 != finish2; nn2 += dir2) {
+              const int neighbour_node_index =
+                  faces_to_nodes[(neighbour_face_to_nodes_off + nn2)];
+
+              if (neighbour_node_index == node_index) {
                 subcells_to_subcells[(subcell_index * NSUBCELL_NEIGHBOURS)] =
-                    neighbour_subcell_index;
+                    faces_to_subcells_offsets[(neighbour_to_faces_off + ff2)] +
+                    (face_cclockwise ? nn2 : start2 - nn2);
               }
             }
           }
         } else {
           subcells_to_subcells[(subcell_index * NSUBCELL_NEIGHBOURS)] = -1;
         }
-
-        // Choose the right face node from our current 'subcell' face node
-        const int prev_node = ((nn == 0) ? nnodes_by_face - 1 : nn - 1);
-        const int next_node = ((nn == nnodes_by_face - 1) ? 0 : nn + 1);
-        const int rnode_off = (face_cclockwise) ? next_node : prev_node;
-        const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
-        const int rnode_index = faces_to_nodes[(face_to_nodes_off + rnode_off)];
 
         /*
          * Find the internal face neighbour, with a brute force search...
@@ -268,14 +275,12 @@ void init_subcells_to_subcells(
           const int n0 = faces_to_nodes[(face2_to_nodes_off + 0)];
           const int n1 = faces_to_nodes[(face2_to_nodes_off + 1)];
           const int n2 = faces_to_nodes[(face2_to_nodes_off + 2)];
-
-          vec_t normal = {0.0, 0.0, 0.0};
           const int face2_cclockwise = !calc_surface_normal(
               n0, n1, n2, nodes_x, nodes_y, nodes_z, &cell_centroid, &normal);
 
-          int start2 = (face2_cclockwise) ? 0 : nnodes_by_face2 - 1;
-          int finish2 = (face2_cclockwise) ? nnodes_by_face2 : -1;
-          int dir2 = (face2_cclockwise) ? 1 : -1;
+          const int start2 = (face2_cclockwise) ? 0 : nnodes_by_face2 - 1;
+          const int finish2 = (face2_cclockwise) ? nnodes_by_face2 : -1;
+          const int dir2 = (face2_cclockwise) ? 1 : -1;
 
           // We have a subcell per node on a face
           for (int nn2 = start2; nn2 != finish2; nn2 += dir2) {
@@ -286,11 +291,9 @@ void init_subcells_to_subcells(
               matched_nodes++;
             } else if (node_index2 == rnode_index) {
               // We are at the correct subcell position on the face implicitly
-              const int subcell_n_off =
-                  faces_to_subcells_offsets[(cell_to_faces_off + ff2)];
-              subcell_neighbour_index = (face2_cclockwise)
-                                            ? subcell_n_off + nn2
-                                            : subcell_n_off + start2 - nn2;
+              subcell_neighbour_index =
+                  faces_to_subcells_offsets[(cell_to_faces_off + ff2)] +
+                  (face2_cclockwise ? nn2 : start2 - nn2);
               matched_nodes++;
             }
           }
