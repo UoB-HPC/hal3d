@@ -22,7 +22,7 @@ void remap_phase(const int ncells, double* cell_centroids_x,
                  int* cells_to_faces, int* subcell_face_offsets,
                  int* subcells_to_subcells) {
 
-/* REMAP THE MASS AND ENERGY ENERGY */
+/* REMAP THE MASS AND ENERGY */
 
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
@@ -365,6 +365,7 @@ void remap_phase(const int ncells, double* cell_centroids_x,
                 &cell_volume[(cc)]);
   }
 
+#if 0
 /* REMAP MOMENTUM */
 
 #pragma omp parallel for
@@ -761,6 +762,18 @@ void remap_phase(const int ncells, double* cell_centroids_x,
       }
     }
   }
+
+  double total_x_flux = 0.0;
+  double total_y_flux = 0.0;
+  double total_z_flux = 0.0;
+  for (int cc = 0; cc < ncells; ++cc) {
+    total_x_flux += subcell_momentum_flux_x[(cc)];
+    total_y_flux += subcell_momentum_flux_y[(cc)];
+    total_z_flux += subcell_momentum_flux_z[(cc)];
+  }
+  printf("Total flux momentum %.12f %.12f %.12f\n", total_x_flux, total_y_flux,
+         total_z_flux);
+#endif // if 0
 }
 
 // Checks if the normal vector is pointing inward or outward

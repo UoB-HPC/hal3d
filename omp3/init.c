@@ -234,7 +234,7 @@ void init_subcells_to_subcells(
         const int next_node = ((nn == nnodes_by_face - 1) ? 0 : nn + 1);
         const int lnode_off = (face_clockwise) ? next_node : prev_node;
         const int rnode_off = (face_clockwise) ? prev_node : next_node;
-        const int rnode_index = faces_to_nodes[(face_to_nodes_off + next_node)];
+        const int rnode_index = faces_to_nodes[(face_to_nodes_off + rnode_off)];
 
         /*
          * Find the internal face neighbour, with a brute force search...
@@ -277,7 +277,9 @@ void init_subcells_to_subcells(
                   calc_surface_normal(n20, n21, n22, nodes_x, nodes_y, nodes_z,
                                       &cell_centroid, &normal);
 
+#if 0
               subcell_to_neighbour_face[(subcell_index)] = face2_index;
+#endif // if 0
               const int face_neighbour_subcell_index =
                   subcell_face_offsets[(cell_to_faces_off + ff2)] +
                   (face_clockwise != face2_clockwise ? nn2 : node);
