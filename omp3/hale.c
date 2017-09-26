@@ -178,6 +178,7 @@ void solve_unstructured_hydro_3d(
   for (int ss = 0; ss < NSUBCELL_NEIGHBOURS; ++ss) {
     const int neighbour_subcell_index =
         subcells_to_subcells[(subcell_index * NSUBCELL_NEIGHBOURS + ss)];
+    printf("%d\n", neighbour_subcell_index);
     if (neighbour_subcell_index != -1) {
       subcell_mass0[(neighbour_subcell_index)] = (double)(ss + 1.0);
     }

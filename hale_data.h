@@ -69,7 +69,6 @@ typedef struct {
 
   int* subcells_to_subcells;
   int* subcell_face_offsets;
-  int* subcell_to_neighbour_face;
 
   double* subcell_ie_density0;
   double* subcell_ie_density1;
@@ -139,7 +138,7 @@ void init_subcells_to_subcells(
     const int* faces_to_nodes, const double* cell_centroids_x,
     const double* cell_centroids_y, const double* cell_centroids_z,
     int* cells_to_faces_offsets, int* cells_to_faces, int* subcells_to_subcells,
-    int* subcell_face_offsets, int* subcell_to_neighbour_face);
+    int* subcell_face_offsets);
 
 // Stores the rezoned grid specification, in case we aren't going to use a
 // rezoning strategy and want to perform an Eulerian remap
