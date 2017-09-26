@@ -37,6 +37,7 @@ void solve_unstructured_hydro_3d(
     int* cells_to_faces_offsets, int* cells_to_faces, int* subcell_face_offsets,
     int* subcells_to_subcells) {
 
+#if 0
   //
   //
   //
@@ -90,9 +91,11 @@ void solve_unstructured_hydro_3d(
                  cells_to_faces, faces_to_nodes_offsets, faces_to_nodes,
                  subcell_face_offsets);
 
-  write_unstructured_to_visit_3d(nnodes, ncells, 10, nodes_x0, nodes_y0,
+  write_unstructured_to_visit_3d(nnodes, ncells, 10001, nodes_x0, nodes_y0,
                                  nodes_z0, cells_to_nodes, density0, 0, 1);
 
+  ////
+  //
   //
   //
   //
@@ -102,7 +105,6 @@ void solve_unstructured_hydro_3d(
   // Describe the subcell node layout
   printf("\nPerforming the Lagrangian Phase\n");
 
-#if 0
   // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
   // due to the pressure (ideal gas) and artificial viscous forces
   lagrangian_phase(
@@ -117,32 +119,6 @@ void solve_unstructured_hydro_3d(
       limiter, nodes_to_faces_offsets, nodes_to_faces, faces_to_nodes,
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
-#endif // if 0
-
-///
-//
-//
-//
-//
-//
-//
-//
-//
-
-#if 0
-  for (int nn = 0; nn < nnodes; ++nn) {
-    int x = nn % (mesh->local_nx + 1);
-    int y = nn / (mesh->local_nx + 1) % (mesh->local_ny + 1);
-
-    if (x == 0 || x == (mesh->local_nx + 1) - 1 || y == 0 ||
-        y == (mesh->local_nx + 1) - 1) {
-      continue;
-    }
-
-    rezoned_nodes_x[(nn)] += 0.01;
-    rezoned_nodes_y[(nn)] += 0.01;
-  }
-#endif // if 0
 
   ///
   //
@@ -153,6 +129,31 @@ void solve_unstructured_hydro_3d(
   //
   //
   //
+
+  for (int nn = 0; nn < nnodes; ++nn) {
+    int x = nn % (mesh->local_nx + 1);
+    int y = nn / (mesh->local_nx + 1) % (mesh->local_ny + 1);
+
+    if (x == 0 || x == (mesh->local_nx + 1) - 1 || y == 0 ||
+        y == (mesh->local_nx + 1) - 1) {
+      continue;
+    }
+
+    nodes_x0[(nn)] = 0.01;
+    nodes_y0[(nn)] = 0.01;
+  }
+
+  ///
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+  //
+#endif // if 0
 
   printf("\nPerforming Gathering Phase\n");
 
@@ -178,7 +179,6 @@ void solve_unstructured_hydro_3d(
   for (int ss = 0; ss < NSUBCELL_NEIGHBOURS; ++ss) {
     const int neighbour_subcell_index =
         subcells_to_subcells[(subcell_index * NSUBCELL_NEIGHBOURS + ss)];
-    printf("%d\n", neighbour_subcell_index);
     if (neighbour_subcell_index != -1) {
       subcell_mass0[(neighbour_subcell_index)] = (double)(ss + 1.0);
     }
@@ -235,7 +235,7 @@ void solve_unstructured_hydro_3d(
                       nodes_z0, cell_centroids_x, cell_centroids_y,
                       cell_centroids_z);
 
-  write_unstructured_to_visit_3d(nnodes, ncells, 11, nodes_x0, nodes_y0,
+  write_unstructured_to_visit_3d(nnodes, ncells, 10002, nodes_x0, nodes_y0,
                                  nodes_z0, cells_to_nodes, density0, 0, 1);
 #endif // if 0
 }

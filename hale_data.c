@@ -196,165 +196,165 @@ size_t init_subcell_data_structures(Mesh* mesh, HaleData* hale_data) {
         const int c_off = cell_index * nsubcell_nodes_per_cell;
 
         // Front subcells
-        hale_data->subcells_to_nodes[(c_off + 0)] = NODE_IND(ii, jj, kk);
-        hale_data->subcells_to_nodes[(c_off + 1)] = NODE_IND(ii, jj, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 2)] = FACE_C_XY_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 0)] = FACE_C_XY_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 1)] = NODE_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 2)] = NODE_IND(ii, jj, kk + 1);
         hale_data->subcells_to_nodes[(c_off + 3)] = CELL_C_IND(ii, jj, kk);
 
-        hale_data->subcells_to_nodes[(c_off + 4)] = NODE_IND(ii, jj, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 5)] =
+        hale_data->subcells_to_nodes[(c_off + 4)] = FACE_C_XY_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 5)] = NODE_IND(ii, jj, kk + 1);
+        hale_data->subcells_to_nodes[(c_off + 6)] =
             NODE_IND(ii, jj + 1, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 6)] = FACE_C_XY_IND(ii, jj, kk);
         hale_data->subcells_to_nodes[(c_off + 7)] = CELL_C_IND(ii, jj, kk);
 
-        hale_data->subcells_to_nodes[(c_off + 8)] =
+        hale_data->subcells_to_nodes[(c_off + 8)] = FACE_C_XY_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 9)] =
             NODE_IND(ii, jj + 1, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 9)] = NODE_IND(ii, jj + 1, kk);
-        hale_data->subcells_to_nodes[(c_off + 10)] = FACE_C_XY_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 10)] = NODE_IND(ii, jj + 1, kk);
         hale_data->subcells_to_nodes[(c_off + 11)] = CELL_C_IND(ii, jj, kk);
 
-        hale_data->subcells_to_nodes[(c_off + 12)] = NODE_IND(ii, jj + 1, kk);
-        hale_data->subcells_to_nodes[(c_off + 13)] = NODE_IND(ii, jj, kk);
-        hale_data->subcells_to_nodes[(c_off + 14)] = FACE_C_XY_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 12)] = FACE_C_XY_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 13)] = NODE_IND(ii, jj + 1, kk);
+        hale_data->subcells_to_nodes[(c_off + 14)] = NODE_IND(ii, jj, kk);
         hale_data->subcells_to_nodes[(c_off + 15)] = CELL_C_IND(ii, jj, kk);
 
         // Left subcells
-        hale_data->subcells_to_nodes[(c_off + 16)] = NODE_IND(ii, jj, kk);
-        hale_data->subcells_to_nodes[(c_off + 17)] = NODE_IND(ii, jj + 1, kk);
-        hale_data->subcells_to_nodes[(c_off + 18)] = FACE_C_YZ_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 16)] = FACE_C_YZ_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 17)] = NODE_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 18)] = NODE_IND(ii, jj + 1, kk);
         hale_data->subcells_to_nodes[(c_off + 19)] = CELL_C_IND(ii, jj, kk);
 
-        hale_data->subcells_to_nodes[(c_off + 20)] = NODE_IND(ii, jj + 1, kk);
-        hale_data->subcells_to_nodes[(c_off + 21)] =
+        hale_data->subcells_to_nodes[(c_off + 20)] = FACE_C_YZ_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 21)] = NODE_IND(ii, jj + 1, kk);
+        hale_data->subcells_to_nodes[(c_off + 22)] =
             NODE_IND(ii + 1, jj + 1, kk);
-        hale_data->subcells_to_nodes[(c_off + 22)] = FACE_C_YZ_IND(ii, jj, kk);
         hale_data->subcells_to_nodes[(c_off + 23)] = CELL_C_IND(ii, jj, kk);
 
-        hale_data->subcells_to_nodes[(c_off + 24)] =
+        hale_data->subcells_to_nodes[(c_off + 24)] = FACE_C_YZ_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 25)] =
             NODE_IND(ii + 1, jj + 1, kk);
-        hale_data->subcells_to_nodes[(c_off + 25)] = NODE_IND(ii + 1, jj, kk);
-        hale_data->subcells_to_nodes[(c_off + 26)] = FACE_C_YZ_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 26)] = NODE_IND(ii + 1, jj, kk);
         hale_data->subcells_to_nodes[(c_off + 27)] = CELL_C_IND(ii, jj, kk);
 
-        hale_data->subcells_to_nodes[(c_off + 28)] = NODE_IND(ii + 1, jj, kk);
-        hale_data->subcells_to_nodes[(c_off + 29)] = NODE_IND(ii, jj, kk);
-        hale_data->subcells_to_nodes[(c_off + 30)] = FACE_C_YZ_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 28)] = FACE_C_YZ_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 29)] = NODE_IND(ii + 1, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 30)] = NODE_IND(ii, jj, kk);
         hale_data->subcells_to_nodes[(c_off + 31)] = CELL_C_IND(ii, jj, kk);
 
         // Bottom subcells
-        hale_data->subcells_to_nodes[(c_off + 32)] = NODE_IND(ii, jj, kk);
-        hale_data->subcells_to_nodes[(c_off + 33)] = NODE_IND(ii + 1, jj, kk);
-        hale_data->subcells_to_nodes[(c_off + 34)] = FACE_C_ZX_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 32)] = FACE_C_ZX_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 33)] = NODE_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 34)] = NODE_IND(ii + 1, jj, kk);
         hale_data->subcells_to_nodes[(c_off + 35)] = CELL_C_IND(ii, jj, kk);
 
-        hale_data->subcells_to_nodes[(c_off + 36)] = NODE_IND(ii + 1, jj, kk);
-        hale_data->subcells_to_nodes[(c_off + 37)] =
+        hale_data->subcells_to_nodes[(c_off + 36)] = FACE_C_ZX_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 37)] = NODE_IND(ii + 1, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 38)] =
             NODE_IND(ii + 1, jj, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 38)] = FACE_C_ZX_IND(ii, jj, kk);
         hale_data->subcells_to_nodes[(c_off + 39)] = CELL_C_IND(ii, jj, kk);
 
-        hale_data->subcells_to_nodes[(c_off + 40)] =
+        hale_data->subcells_to_nodes[(c_off + 40)] = FACE_C_ZX_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 41)] =
             NODE_IND(ii + 1, jj, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 41)] = NODE_IND(ii, jj, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 42)] = FACE_C_ZX_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 42)] = NODE_IND(ii, jj, kk + 1);
         hale_data->subcells_to_nodes[(c_off + 43)] = CELL_C_IND(ii, jj, kk);
 
-        hale_data->subcells_to_nodes[(c_off + 44)] = NODE_IND(ii, jj, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 45)] = NODE_IND(ii, jj, kk);
-        hale_data->subcells_to_nodes[(c_off + 46)] = FACE_C_ZX_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 44)] = FACE_C_ZX_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 45)] = NODE_IND(ii, jj, kk + 1);
+        hale_data->subcells_to_nodes[(c_off + 46)] = NODE_IND(ii, jj, kk);
         hale_data->subcells_to_nodes[(c_off + 47)] = CELL_C_IND(ii, jj, kk);
 
         // Right subcells
         hale_data->subcells_to_nodes[(c_off + 48)] =
-            NODE_IND(ii + 1, jj, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 49)] =
-            NODE_IND(ii + 1, jj + 1, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 50)] =
             FACE_C_YZ_IND(ii, jj, kk + 1);
+        hale_data->subcells_to_nodes[(c_off + 49)] =
+            NODE_IND(ii + 1, jj, kk + 1);
+        hale_data->subcells_to_nodes[(c_off + 50)] =
+            NODE_IND(ii + 1, jj + 1, kk + 1);
         hale_data->subcells_to_nodes[(c_off + 51)] = CELL_C_IND(ii, jj, kk);
 
         hale_data->subcells_to_nodes[(c_off + 52)] =
-            NODE_IND(ii + 1, jj + 1, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 53)] =
-            NODE_IND(ii, jj + 1, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 54)] =
             FACE_C_YZ_IND(ii, jj, kk + 1);
+        hale_data->subcells_to_nodes[(c_off + 53)] =
+            NODE_IND(ii + 1, jj + 1, kk + 1);
+        hale_data->subcells_to_nodes[(c_off + 54)] =
+            NODE_IND(ii, jj + 1, kk + 1);
         hale_data->subcells_to_nodes[(c_off + 55)] = CELL_C_IND(ii, jj, kk);
 
         hale_data->subcells_to_nodes[(c_off + 56)] =
-            NODE_IND(ii, jj + 1, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 57)] = NODE_IND(ii, jj, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 58)] =
             FACE_C_YZ_IND(ii, jj, kk + 1);
+        hale_data->subcells_to_nodes[(c_off + 57)] =
+            NODE_IND(ii, jj + 1, kk + 1);
+        hale_data->subcells_to_nodes[(c_off + 58)] = NODE_IND(ii, jj, kk + 1);
         hale_data->subcells_to_nodes[(c_off + 59)] = CELL_C_IND(ii, jj, kk);
 
-        hale_data->subcells_to_nodes[(c_off + 60)] = NODE_IND(ii, jj, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 61)] =
-            NODE_IND(ii + 1, jj, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 62)] =
+        hale_data->subcells_to_nodes[(c_off + 60)] =
             FACE_C_YZ_IND(ii, jj, kk + 1);
+        hale_data->subcells_to_nodes[(c_off + 61)] = NODE_IND(ii, jj, kk + 1);
+        hale_data->subcells_to_nodes[(c_off + 62)] =
+            NODE_IND(ii + 1, jj, kk + 1);
         hale_data->subcells_to_nodes[(c_off + 63)] = CELL_C_IND(ii, jj, kk);
 
         // Top subcells
         hale_data->subcells_to_nodes[(c_off + 64)] =
-            NODE_IND(ii, jj + 1, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 65)] =
-            NODE_IND(ii + 1, jj + 1, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 66)] =
             FACE_C_ZX_IND(ii, jj + 1, kk);
+        hale_data->subcells_to_nodes[(c_off + 65)] =
+            NODE_IND(ii, jj + 1, kk + 1);
+        hale_data->subcells_to_nodes[(c_off + 66)] =
+            NODE_IND(ii + 1, jj + 1, kk + 1);
         hale_data->subcells_to_nodes[(c_off + 67)] = CELL_C_IND(ii, jj, kk);
 
         hale_data->subcells_to_nodes[(c_off + 68)] =
-            NODE_IND(ii + 1, jj + 1, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 69)] =
-            NODE_IND(ii + 1, jj + 1, kk);
-        hale_data->subcells_to_nodes[(c_off + 70)] =
             FACE_C_ZX_IND(ii, jj + 1, kk);
+        hale_data->subcells_to_nodes[(c_off + 69)] =
+            NODE_IND(ii + 1, jj + 1, kk + 1);
+        hale_data->subcells_to_nodes[(c_off + 70)] =
+            NODE_IND(ii + 1, jj + 1, kk);
         hale_data->subcells_to_nodes[(c_off + 71)] = CELL_C_IND(ii, jj, kk);
 
         hale_data->subcells_to_nodes[(c_off + 72)] =
-            NODE_IND(ii + 1, jj + 1, kk);
-        hale_data->subcells_to_nodes[(c_off + 73)] = NODE_IND(ii, jj + 1, kk);
-        hale_data->subcells_to_nodes[(c_off + 74)] =
             FACE_C_ZX_IND(ii, jj + 1, kk);
+        hale_data->subcells_to_nodes[(c_off + 73)] =
+            NODE_IND(ii + 1, jj + 1, kk);
+        hale_data->subcells_to_nodes[(c_off + 74)] = NODE_IND(ii, jj + 1, kk);
         hale_data->subcells_to_nodes[(c_off + 75)] = CELL_C_IND(ii, jj, kk);
 
-        hale_data->subcells_to_nodes[(c_off + 76)] = NODE_IND(ii, jj + 1, kk);
-        hale_data->subcells_to_nodes[(c_off + 77)] =
-            NODE_IND(ii, jj + 1, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 78)] =
+        hale_data->subcells_to_nodes[(c_off + 76)] =
             FACE_C_ZX_IND(ii, jj + 1, kk);
+        hale_data->subcells_to_nodes[(c_off + 77)] = NODE_IND(ii, jj + 1, kk);
+        hale_data->subcells_to_nodes[(c_off + 78)] =
+            NODE_IND(ii, jj + 1, kk + 1);
         hale_data->subcells_to_nodes[(c_off + 79)] = CELL_C_IND(ii, jj, kk);
 
         // Back subcells
         hale_data->subcells_to_nodes[(c_off + 80)] =
-            NODE_IND(ii + 1, jj + 1, kk);
-        hale_data->subcells_to_nodes[(c_off + 81)] =
-            NODE_IND(ii + 1, jj + 1, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 82)] =
             FACE_C_XY_IND(ii + 1, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 81)] =
+            NODE_IND(ii + 1, jj + 1, kk);
+        hale_data->subcells_to_nodes[(c_off + 82)] =
+            NODE_IND(ii + 1, jj + 1, kk + 1);
         hale_data->subcells_to_nodes[(c_off + 83)] = CELL_C_IND(ii, jj, kk);
 
         hale_data->subcells_to_nodes[(c_off + 84)] =
-            NODE_IND(ii + 1, jj + 1, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 85)] =
-            NODE_IND(ii + 1, jj, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 86)] =
             FACE_C_XY_IND(ii + 1, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 85)] =
+            NODE_IND(ii + 1, jj + 1, kk + 1);
+        hale_data->subcells_to_nodes[(c_off + 86)] =
+            NODE_IND(ii + 1, jj, kk + 1);
         hale_data->subcells_to_nodes[(c_off + 87)] = CELL_C_IND(ii, jj, kk);
 
         hale_data->subcells_to_nodes[(c_off + 88)] =
-            NODE_IND(ii + 1, jj, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 89)] = NODE_IND(ii + 1, jj, kk);
-        hale_data->subcells_to_nodes[(c_off + 90)] =
             FACE_C_XY_IND(ii + 1, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 89)] =
+            NODE_IND(ii + 1, jj, kk + 1);
+        hale_data->subcells_to_nodes[(c_off + 90)] = NODE_IND(ii + 1, jj, kk);
         hale_data->subcells_to_nodes[(c_off + 91)] = CELL_C_IND(ii, jj, kk);
 
-        hale_data->subcells_to_nodes[(c_off + 92)] = NODE_IND(ii + 1, jj, kk);
-        hale_data->subcells_to_nodes[(c_off + 93)] =
-            NODE_IND(ii + 1, jj + 1, kk);
-        hale_data->subcells_to_nodes[(c_off + 94)] =
+        hale_data->subcells_to_nodes[(c_off + 92)] =
             FACE_C_XY_IND(ii + 1, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 93)] = NODE_IND(ii + 1, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 94)] =
+            NODE_IND(ii + 1, jj + 1, kk);
         hale_data->subcells_to_nodes[(c_off + 95)] = CELL_C_IND(ii, jj, kk);
       }
     }

@@ -149,10 +149,9 @@ void init_subcells_to_subcells(
     }
   }
 
-// This routine uses the previously described subcell faces to determine a ring
-// ordering for the subcell neighbours. Essentially, each subcell has a pair of
-// neighbours for every external face, and those neighbours are stored in the
-// same order as the faces.
+// This routine has ended up becoming messy and kludgy. It needs tidying up and
+// fixing, but for now it needs to work as it is fundamental to the correct
+// function of the application.
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
@@ -225,6 +224,7 @@ void init_subcells_to_subcells(
             for (int nn2 = 0; nn2 < nnodes_by_neighbour_face; ++nn2) {
               if (faces_to_nodes[(neighbour_face_to_nodes_off + nn2)] ==
                   faces_to_nodes[(face_to_nodes_off + nn)]) {
+
                 const int neighbour_subcell_index =
                     faces_to_subcells_offsets[(neighbour_to_faces_off + ff)] +
                     nn2;
@@ -240,9 +240,7 @@ void init_subcells_to_subcells(
         // Choose the right face node from our current 'subcell' face node
         const int prev_node = ((nn == 0) ? nnodes_by_face - 1 : nn - 1);
         const int next_node = ((nn == nnodes_by_face - 1) ? 0 : nn + 1);
-        const int lnode_off = (face_cclockwise) ? prev_node : next_node;
         const int rnode_off = (face_cclockwise) ? next_node : prev_node;
-
         const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
         const int rnode_index = faces_to_nodes[(face_to_nodes_off + rnode_off)];
 
@@ -263,7 +261,7 @@ void init_subcells_to_subcells(
 
           // Check all nodes to see if we match
           int matched_nodes = 0;
-          int subcell_neighbour_off = -1;
+          int subcell_neighbour_index = -1;
 
           // Have to check the orientation of the face in order to pick
           // the correct subcell neighbour at this point
@@ -290,9 +288,9 @@ void init_subcells_to_subcells(
               // We are at the correct subcell position on the face implicitly
               const int subcell_n_off =
                   faces_to_subcells_offsets[(cell_to_faces_off + ff2)];
-              subcell_neighbour_off = (face2_cclockwise)
-                                          ? subcell_n_off + nn2
-                                          : subcell_n_off + start2 - nn2;
+              subcell_neighbour_index = (face2_cclockwise)
+                                            ? subcell_n_off + nn2
+                                            : subcell_n_off + start2 - nn2;
               matched_nodes++;
             }
           }
@@ -300,7 +298,7 @@ void init_subcells_to_subcells(
           // Check if we found the adjoining face
           if (matched_nodes == 2) {
             subcells_to_subcells[(subcell_index * NSUBCELL_NEIGHBOURS + 1)] =
-                subcell_neighbour_off;
+                subcell_neighbour_index;
             break;
           }
         }
@@ -310,9 +308,9 @@ void init_subcells_to_subcells(
          */
 
         subcells_to_subcells[(subcell_index * NSUBCELL_NEIGHBOURS + 2)] =
-            subcell_off + rnode_off;
+            subcell_off + (face_cclockwise ? next_node : start - next_node);
         subcells_to_subcells[(subcell_index * NSUBCELL_NEIGHBOURS + 3)] =
-            subcell_off + lnode_off;
+            subcell_off + (face_cclockwise ? prev_node : start - prev_node);
       }
     }
   }
