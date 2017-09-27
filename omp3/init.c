@@ -225,7 +225,7 @@ void init_subcells_to_subcells(
                     (nn2 == 0 ? nnodes_by_neighbour_face - 1 : nn2 - 1);
                 subcells_to_subcells[(subcell_index * NSUBCELL_NEIGHBOURS)] =
                     faces_to_subcells_offsets[(neighbour_to_faces_off + ff2)] +
-                    prev_node_off;
+                    nn2;
               }
             }
           }
@@ -261,9 +261,6 @@ void init_subcells_to_subcells(
                  next_node_index2 == next_node_index) ||
                 (node_index2 == next_node_index &&
                  next_node_index2 == node_index)) {
-
-              printf("subcell index %d face %d node %d nodes (%d,%d)\n",
-                     subcell_index, ff2, nn2, node_index, next_node_index);
               const int subcell_off2 =
                   faces_to_subcells_offsets[(cell_to_faces_off + ff2)];
               subcells_to_subcells[(subcell_index * NSUBCELL_NEIGHBOURS + 1)] =

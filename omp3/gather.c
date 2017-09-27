@@ -148,28 +148,23 @@ void gather_subcell_energy(
       calc_centroid(nnodes_by_face, nodes_x0, nodes_y0, nodes_z0,
                     faces_to_nodes, face_to_nodes_off, &face_c);
 
-      // Each face/node pair has two sub-cells
-      for (int nn = 0; nn < nnodes_by_face; ++nn) {
-        // The left and right nodes on the face for this anchor node
-        const int n0 = faces_to_nodes[(face_to_nodes_off + 0)];
-        const int n1 = faces_to_nodes[(face_to_nodes_off + 1)];
-        const int n2 = faces_to_nodes[(face_to_nodes_off + 2)];
-        const int subcell_index = subcell_off + nn;
+      // Check if the face is counter clockwise
+      vec_t normal;
+      const int face_cclockwise = !calc_surface_normal(
+          faces_to_nodes[(face_to_nodes_off + 0)],
+          faces_to_nodes[(face_to_nodes_off + 1)],
+          faces_to_nodes[(face_to_nodes_off + 2)], nodes_x0, nodes_y0, nodes_z0,
+          &cell_centroid, &normal);
+      const int start = (face_cclockwise) ? 0 : nnodes_by_face - 1;
+      const int finish = (face_cclockwise) ? nnodes_by_face : -1;
+      const int dir = (face_cclockwise) ? 1 : -1;
 
-        vec_t normal;
-        const int face_clockwise = calc_surface_normal(
-            n0, n1, n2, nodes_x0, nodes_y0, nodes_z0, &cell_centroid, &normal);
+      // Subcell per node ordered counter clockwise on face
+      for (int nn = start; nn != finish; nn += dir) {
+        const int subcell_index =
+            (face_cclockwise) ? subcell_off + nn : subcell_off + start - nn;
 
-        int rnode_index;
-        if (face_clockwise) {
-          rnode_index = faces_to_nodes[(
-              face_to_nodes_off + ((nn == 0) ? nnodes_by_face - 1 : nn - 1))];
-        } else {
-          rnode_index = faces_to_nodes[(
-              face_to_nodes_off + ((nn == nnodes_by_face - 1) ? 0 : nn + 1))];
-        }
-
-        // Calculate the center of mass
+        // Calculate the center of mass distance
         vec_t dist = {subcell_centroids_x[(subcell_index)] - cell_centroid.x,
                       subcell_centroids_y[(subcell_index)] - cell_centroid.y,
                       subcell_centroids_z[(subcell_index)] - cell_centroid.z};
