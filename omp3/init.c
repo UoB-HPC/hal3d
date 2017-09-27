@@ -149,6 +149,26 @@ void init_subcells_to_subcells(
     }
   }
 
+  for (int cc = 0; cc < 1; ++cc) {
+    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
+    const int nfaces_by_cell =
+        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
+
+    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
+      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
+      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+      const int nnodes_by_face =
+          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+
+      printf("face %d, nodes: ", ff);
+      // We have a subcell per node on a face
+      for (int nn = 0; nn < nnodes_by_face; nn++) {
+        printf("%d ", faces_to_nodes[(face_to_nodes_off + nn)]);
+      }
+      printf("\n");
+    }
+  }
+
 // This routine has ended up becoming messy and kludgy. It needs tidying up and
 // fixing, but for now it needs to work as it is fundamental to the correct
 // function of the application. It feels like it should be possible to re-remove
