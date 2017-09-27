@@ -124,7 +124,7 @@ void solve_unstructured_hydro_3d(
     subcell_mass0[(ss)] = 0.0;
   }
 
-  const int subcell_index = 16;
+  const int subcell_index = 13;
   subcell_mass0[(subcell_index)] = 5.0;
   for (int ss = 0; ss < NSUBCELL_NEIGHBOURS; ++ss) {
     const int neighbour_subcell_index =
