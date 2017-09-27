@@ -56,26 +56,6 @@ void solve_unstructured_hydro_3d(
       }
     }
   }
-#if 0
-  for (int nn = 0; nn < nnodes; ++nn) {
-    int x = nn % (mesh->local_nx + 1);
-    int y = (nn / (mesh->local_nx + 1)) % (mesh->local_ny + 1);
-
-    if (x == 0 || x == (mesh->local_nx + 1) - 1) {
-      continue;
-    }
-#if 0
-    if (y == 0 || y == (mesh->local_nx + 1) - 1) {
-      continue;
-    }
-#endif // if 0
-
-    nodes_x0[(nn)] += 0.01;
-#if 0
-    nodes_y0[(nn)] += 0.01;
-#endif // if 0
-  }
-#endif // if 0
 
   init_cell_centroids(ncells, cells_offsets, cells_to_nodes, nodes_x0, nodes_y0,
                       nodes_z0, cell_centroids_x, cell_centroids_y,
@@ -92,23 +72,21 @@ void solve_unstructured_hydro_3d(
     for (int y = 0; y < mesh->local_ny; ++y) {
       for (int x = 0; x < mesh->local_nx; ++x) {
         int c = z * mesh->local_nx * mesh->local_ny + y * mesh->local_nx + x;
-        cell_mass[(c)] =
-            // 1.0 + 3.0 * (double)x + 2.0 * (double)z + (double)y;
-            1.0 + 3.0 * (double)y;
+        cell_mass[(c)] = 1.0 + 3.0 * (double)x + 2.0 * (double)z + (double)y;
         density0[(c)] = cell_mass[(c)] / cell_volume[(c)];
         energy0[(c)] = 1.0;
       }
     }
   }
 
+  write_unstructured_to_visit_3d(nnodes, ncells, 10001, nodes_x0, nodes_y0,
+                                 nodes_z0, cells_to_nodes, cell_mass, 0, 1);
+
   init_mesh_mass(ncells, cells_offsets, cell_centroids_x, cell_centroids_y,
                  cell_centroids_z, cells_to_nodes, density0, nodes_x0, nodes_y0,
                  nodes_z0, cell_mass, subcell_mass0, cells_to_faces_offsets,
                  cells_to_faces, faces_to_nodes_offsets, faces_to_nodes,
                  subcell_face_offsets);
-
-  write_unstructured_to_visit_3d(nnodes, ncells, 10001, nodes_x0, nodes_y0,
-                                 nodes_z0, cells_to_nodes, density0, 0, 1);
 
 ////
 //
@@ -153,7 +131,12 @@ void solve_unstructured_hydro_3d(
       faces_to_cells0, faces_to_cells1, cells_to_faces_offsets, cells_to_faces,
       cells_to_nodes);
 
-#if 0
+  subcells_to_visit(nsubcell_nodes, ncells * nsubcells_per_cell, 10,
+                    subcell_data_x, subcell_data_y, subcell_data_z,
+                    subcells_to_nodes, subcell_ie_mass0, 0, 1);
+
+  return;
+
   // Store the total mass and internal energy
   double total_mass = 0.0;
   double total_ie = 0.0;
@@ -163,6 +146,7 @@ void solve_unstructured_hydro_3d(
     total_ie += energy0[(cc)] * cell_mass[(cc)];
   }
 
+#if 0
   printf("\nPerforming Remap Phase\n");
 
   // Performs a remap and some scattering of the subcell values
@@ -176,6 +160,7 @@ void solve_unstructured_hydro_3d(
               rezoned_nodes_y, rezoned_nodes_z, faces_to_nodes,
               faces_to_nodes_offsets, cells_to_faces_offsets, cells_to_faces,
               subcell_face_offsets, subcells_to_subcells);
+#endif // if 0
 
   printf("\nPerforming the Scattering Phase\n");
 
@@ -199,5 +184,4 @@ void solve_unstructured_hydro_3d(
   init_cell_centroids(ncells, cells_offsets, cells_to_nodes, nodes_x0, nodes_y0,
                       nodes_z0, cell_centroids_x, cell_centroids_y,
                       cell_centroids_z);
-#endif // if 0
 }

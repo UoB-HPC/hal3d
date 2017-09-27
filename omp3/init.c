@@ -25,6 +25,8 @@ void init_mesh_mass(const int ncells, const int* cells_offsets,
     const int nfaces_by_cell =
         cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
 
+    double cm = 0.0;
+
     // Look at all of the faces attached to the cell
     for (int ff = 0; ff < nfaces_by_cell; ++ff) {
       const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
@@ -76,11 +78,12 @@ void init_mesh_mass(const int ncells, const int* cells_offsets,
 
         subcell_mass[(subcell_off + nn2)] = density[(cc)] * subcell_volume;
         total_subcell_mass += subcell_mass[(subcell_off + nn2)];
-        cell_mass[(cc)] += density[(cc)] * subcell_volume;
+        cm += density[(cc)] * subcell_volume;
       }
     }
 
-    total_mass += cell_mass[(cc)];
+    cell_mass[(cc)] = cm;
+    total_mass += cm;
   }
   STOP_PROFILING(&compute_profile, __func__);
 
@@ -221,8 +224,6 @@ void init_subcells_to_subcells(
                   faces_to_nodes[(neighbour_face_to_nodes_off + nn2)];
 
               if (neighbour_node_index == node_index) {
-                const int prev_node_off =
-                    (nn2 == 0 ? nnodes_by_neighbour_face - 1 : nn2 - 1);
                 subcells_to_subcells[(subcell_index * NSUBCELL_NEIGHBOURS)] =
                     faces_to_subcells_offsets[(neighbour_to_faces_off + ff2)] +
                     nn2;

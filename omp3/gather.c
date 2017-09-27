@@ -148,7 +148,7 @@ void gather_subcell_energy(
       calc_centroid(nnodes_by_face, nodes_x0, nodes_y0, nodes_z0,
                     faces_to_nodes, face_to_nodes_off, &face_c);
 
-      // Subcell per node ordered counter clockwise on face
+      // Subcells are ordered with the nodes on a face
       for (int nn = 0; nn < nnodes_by_face; ++nn) {
         const int subcell_index = subcell_off + nn;
 
