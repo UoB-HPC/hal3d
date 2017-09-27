@@ -37,7 +37,6 @@ void solve_unstructured_hydro_3d(
     int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces,
     int* subcell_face_offsets, int* subcells_to_subcells) {
 
-#if 0
   //
   //
   //
@@ -53,7 +52,7 @@ void solve_unstructured_hydro_3d(
         int n = z * (mesh->local_nx + 1) * (mesh->local_ny + 1) +
                 y * (mesh->local_nx + 1) + x;
         nodes_x0[(n)] += a;
-        a += x * 0.05;
+        a += x * 0.01;
       }
     }
   }
@@ -111,15 +110,15 @@ void solve_unstructured_hydro_3d(
   write_unstructured_to_visit_3d(nnodes, ncells, 10001, nodes_x0, nodes_y0,
                                  nodes_z0, cells_to_nodes, density0, 0, 1);
 
-  ////
-  //
-  //
-  //
-  //
-  //
-  //
-#endif // if 0
+////
+//
+//
+//
+//
+//
+//
 
+#if 0
   // Describe the subcell node layout
   printf("\nPerforming the Lagrangian Phase\n");
 
@@ -137,6 +136,7 @@ void solve_unstructured_hydro_3d(
       limiter, nodes_to_faces_offsets, nodes_to_faces, faces_to_nodes,
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
+#endif // if 0
 
   printf("\nPerforming Gathering Phase\n");
 
@@ -153,6 +153,7 @@ void solve_unstructured_hydro_3d(
       faces_to_cells0, faces_to_cells1, cells_to_faces_offsets, cells_to_faces,
       cells_to_nodes);
 
+#if 0
   // Store the total mass and internal energy
   double total_mass = 0.0;
   double total_ie = 0.0;
@@ -198,4 +199,5 @@ void solve_unstructured_hydro_3d(
   init_cell_centroids(ncells, cells_offsets, cells_to_nodes, nodes_x0, nodes_y0,
                       nodes_z0, cell_centroids_x, cell_centroids_y,
                       cell_centroids_z);
+#endif // if 0
 }
