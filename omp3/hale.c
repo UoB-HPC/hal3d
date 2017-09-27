@@ -37,6 +37,7 @@ void solve_unstructured_hydro_3d(
     int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces,
     int* subcell_face_offsets, int* subcells_to_subcells) {
 
+#if 0
   //
   //
   //
@@ -95,8 +96,8 @@ void solve_unstructured_hydro_3d(
 //
 //
 //
+#endif // if 0
 
-#if 0
   // Describe the subcell node layout
   printf("\nPerforming the Lagrangian Phase\n");
 
@@ -114,7 +115,6 @@ void solve_unstructured_hydro_3d(
       limiter, nodes_to_faces_offsets, nodes_to_faces, faces_to_nodes,
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
-#endif // if 0
 
   printf("\nPerforming Gathering Phase\n");
 
@@ -131,12 +131,6 @@ void solve_unstructured_hydro_3d(
       faces_to_cells0, faces_to_cells1, cells_to_faces_offsets, cells_to_faces,
       cells_to_nodes);
 
-  subcells_to_visit(nsubcell_nodes, ncells * nsubcells_per_cell, 10,
-                    subcell_data_x, subcell_data_y, subcell_data_z,
-                    subcells_to_nodes, subcell_ie_mass0, 0, 1);
-
-  return;
-
   // Store the total mass and internal energy
   double total_mass = 0.0;
   double total_ie = 0.0;
@@ -146,7 +140,6 @@ void solve_unstructured_hydro_3d(
     total_ie += energy0[(cc)] * cell_mass[(cc)];
   }
 
-#if 0
   printf("\nPerforming Remap Phase\n");
 
   // Performs a remap and some scattering of the subcell values
@@ -160,7 +153,6 @@ void solve_unstructured_hydro_3d(
               rezoned_nodes_y, rezoned_nodes_z, faces_to_nodes,
               faces_to_nodes_offsets, cells_to_faces_offsets, cells_to_faces,
               subcell_face_offsets, subcells_to_subcells);
-#endif // if 0
 
   printf("\nPerforming the Scattering Phase\n");
 
