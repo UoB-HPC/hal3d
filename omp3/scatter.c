@@ -6,8 +6,8 @@ void scatter_phase(const int ncells, const int nnodes, const double total_mass,
                    const double total_ie, double* cell_volume, double* energy0,
                    double* energy1, double* density0, double* velocity_x0,
                    double* velocity_y0, double* velocity_z0, double* cell_mass,
-                   double* nodal_mass, double* subcell_ie_mass0,
-                   double* subcell_mass0, double* subcell_ie_mass_flux,
+                   double* nodal_mass, double* subcell_ie_mass,
+                   double* subcell_mass, double* subcell_ie_mass_flux,
                    double* subcell_mass_flux, double* subcell_momentum_flux_x,
                    double* subcell_momentum_flux_y,
                    double* subcell_momentum_flux_z, int* nodes_to_faces_offsets,
@@ -35,20 +35,17 @@ void scatter_phase(const int ncells, const int nnodes, const double total_mass,
       const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
       const int nnodes_by_face =
           faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-      const int subcell_off = subcell_face_offsets[(cell_to_faces_off + ff)];
 
       /* LOOP OVER FACE NODES */
       for (int nn = 0; nn < nnodes_by_face; ++nn) {
-        const int subcell_index = subcell_off + nn;
-
-        // Evaluate the subcell masses
-        subcell_mass0[(subcell_index)] -= subcell_mass_flux[(subcell_index)];
-        subcell_ie_mass0[(subcell_index)] -=
-            subcell_ie_mass_flux[(subcell_index)];
+        const int subcell_index =
+            subcell_face_offsets[(cell_to_faces_off + ff)] + nn;
 
         // Scatter the subcell mass data back to the cell
-        cell_mass[(cc)] += subcell_mass0[(subcell_index)];
-        energy1[(cc)] += subcell_ie_mass0[(subcell_index)];
+        cell_mass[(cc)] += (subcell_mass[(subcell_index)] -
+                            subcell_mass_flux[(subcell_index)]);
+        energy1[(cc)] += (subcell_ie_mass[(subcell_index)] -
+                          subcell_ie_mass_flux[(subcell_index)]);
       }
     }
 
