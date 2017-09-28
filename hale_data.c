@@ -42,11 +42,6 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
                                  hale_data->nsubcells * 4);
   allocated += allocate_int_data(&hale_data->subcell_face_offsets,
                                  umesh->ncells * nfaces_by_cell + 1);
-#if 0
-  allocated += allocate_int_data(&hale_data->subcell_to_neighbour_face,
-                                 hale_data->nsubcells);
-#endif // if 0
-
   allocated += allocate_data(&hale_data->subcell_momentum_flux_x,
                              hale_data->nsubcells * 2);
   allocated += allocate_data(&hale_data->subcell_momentum_flux_y,
@@ -83,17 +78,16 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
                       umesh->cell_centroids_y, umesh->cell_centroids_z);
 
   init_subcells_to_subcells(
-      umesh->ncells, umesh->nodes_x0, umesh->nodes_y0, umesh->nodes_z0,
-      umesh->faces_to_cells0, umesh->faces_to_cells1,
+      umesh->ncells, umesh->faces_to_cells0, umesh->faces_to_cells1,
       umesh->faces_to_nodes_offsets, umesh->faces_to_nodes,
       umesh->cell_centroids_x, umesh->cell_centroids_y, umesh->cell_centroids_z,
       umesh->cells_to_faces_offsets, umesh->cells_to_faces,
       hale_data->subcells_to_subcells, hale_data->subcell_face_offsets);
 
-  init_mesh_mass(umesh->ncells, umesh->cells_offsets, umesh->cell_centroids_x,
+  init_mesh_mass(umesh->ncells, umesh->cell_centroids_x,
                  umesh->cell_centroids_y, umesh->cell_centroids_z,
-                 umesh->cells_to_nodes, hale_data->density0, umesh->nodes_x0,
-                 umesh->nodes_y0, umesh->nodes_z0, hale_data->cell_mass,
+                 hale_data->density0, umesh->nodes_x0, umesh->nodes_y0,
+                 umesh->nodes_z0, hale_data->cell_mass,
                  hale_data->subcell_mass0, umesh->cells_to_faces_offsets,
                  umesh->cells_to_faces, umesh->faces_to_nodes_offsets,
                  umesh->faces_to_nodes, hale_data->subcell_face_offsets);

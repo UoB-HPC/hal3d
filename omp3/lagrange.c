@@ -54,10 +54,7 @@ void lagrangian_phase(
     const int nfaces_by_node =
         nodes_to_faces_offsets[(nn + 1)] - node_to_faces_off;
 
-    vec_t node_c;
-    node_c.x = nodes_x0[(nn)];
-    node_c.y = nodes_y0[(nn)];
-    node_c.z = nodes_z0[(nn)];
+    vec_t node_c = {nodes_x0[(nn)], nodes_y0[(nn)], nodes_z0[(nn)]};
 
     // Consider all faces attached to node
     for (int ff = 0; ff < nfaces_by_node; ++ff) {
@@ -109,28 +106,23 @@ void lagrangian_phase(
         // Add contributions for both edges attached to our current node
         for (int nn2 = 0; nn2 < 2; ++nn2) {
           // Get the halfway point on the right edge
-          vec_t half_edge;
-          half_edge.x = 0.5 * (nodes_x0[(nodes[(nn2)])] + nodes_x0[(nn)]);
-          half_edge.y = 0.5 * (nodes_y0[(nodes[(nn2)])] + nodes_y0[(nn)]);
-          half_edge.z = 0.5 * (nodes_z0[(nodes[(nn2)])] + nodes_z0[(nn)]);
+          vec_t half_edge = {0.5 * (nodes_x0[(nodes[(nn2)])] + nodes_x0[(nn)]),
+                             0.5 * (nodes_y0[(nodes[(nn2)])] + nodes_y0[(nn)]),
+                             0.5 * (nodes_z0[(nodes[(nn2)])] + nodes_z0[(nn)])};
 
           // Setup basis on plane of tetrahedron
           vec_t a = {(face_c.x - node_c.x), (face_c.y - node_c.y),
                      (face_c.z - node_c.z)};
-          vec_t b;
-          b.x = (face_c.x - half_edge.x);
-          b.y = (face_c.y - half_edge.y);
-          b.z = (face_c.z - half_edge.z);
-          vec_t ab;
-          ab.x = (cell_centroids_x[(cells[cc])] - face_c.x);
-          ab.y = (cell_centroids_y[(cells[cc])] - face_c.y);
-          ab.z = (cell_centroids_z[(cells[cc])] - face_c.z);
+          vec_t b = {(face_c.x - half_edge.x), (face_c.y - half_edge.y),
+                     (face_c.z - half_edge.z)};
+          vec_t ab = {(cell_centroids_x[(cells[cc])] - face_c.x),
+                      (cell_centroids_y[(cells[cc])] - face_c.y),
+                      (cell_centroids_z[(cells[cc])] - face_c.z)};
 
           // Calculate the area vector S using cross product
-          vec_t A;
-          A.x = 0.5 * (a.y * b.z - a.z * b.y);
-          A.y = -0.5 * (a.x * b.z - a.z * b.x);
-          A.z = 0.5 * (a.x * b.y - a.y * b.x);
+          vec_t A = {0.5 * (a.y * b.z - a.z * b.y),
+                     -0.5 * (a.x * b.z - a.z * b.x),
+                     0.5 * (a.x * b.y - a.y * b.x)};
 
           const double subcell_volume =
               fabs((ab.x * A.x + ab.y * A.y + ab.z * A.z) / 3.0);
@@ -814,10 +806,8 @@ void lagrangian_phase(
         S.z = 0.5 * (a.x * b.y - a.y * b.x);
 
         // TODO: WE MULTIPLY BY 2 HERE BECAUSE WE ARE ADDING THE VOLUME TO
-        // BOTH
-        // THE CURRENT AND NEXT NODE, OTHERWISE WE ONLY ACCOUNT FOR HALF OF
-        // THE
-        // 'HALF' TETRAHEDRONS
+        // BOTH THE CURRENT AND NEXT NODE, OTHERWISE WE ONLY ACCOUNT FOR HALF OF
+        // THE 'HALF' TETRAHEDRONS
         cell_volume +=
             fabs(2.0 * ((half_edge.x - nodes_x0[(current_node)]) * S.x +
                         (half_edge.y - nodes_y0[(current_node)]) * S.y +
@@ -1092,8 +1082,7 @@ void calc_artificial_viscosity(
         double expansion_term = (dvel.x * S.x + dvel.y * S.y + dvel.z * S.z);
 
         // If the cell is compressing, calculate the edge forces and add
-        // their
-        // contributions to the node forces
+        // their contributions to the node forces
         if (expansion_term <= 0.0) {
           // Calculate the minimum soundspeed
           const double cs = min(nodal_soundspeed[(current_node)],

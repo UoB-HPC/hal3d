@@ -365,7 +365,6 @@ void remap_phase(const int ncells, double* cell_centroids_x,
                 &cell_volume[(cc)]);
   }
 
-#if 0
 /* REMAP MOMENTUM */
 
 #pragma omp parallel for
@@ -773,7 +772,6 @@ void remap_phase(const int ncells, double* cell_centroids_x,
   }
   printf("Total flux momentum %.12f %.12f %.12f\n", total_x_flux, total_y_flux,
          total_z_flux);
-#endif // if 0
 }
 
 // Checks if the normal vector is pointing inward or outward

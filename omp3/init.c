@@ -4,16 +4,14 @@
 #include <math.h>
 
 // Initialises the cell mass, sub-cell mass and sub-cell volume
-void init_mesh_mass(const int ncells, const int* cells_offsets,
-                    const double* cell_centroids_x,
+void init_mesh_mass(const int ncells, const double* cell_centroids_x,
                     const double* cell_centroids_y,
-                    const double* cell_centroids_z, const int* cells_to_nodes,
-                    const double* density, const double* nodes_x,
-                    const double* nodes_y, const double* nodes_z,
-                    double* cell_mass, double* subcell_mass,
-                    int* cells_to_faces_offsets, int* cells_to_faces,
-                    int* faces_to_nodes_offsets, int* faces_to_nodes,
-                    int* faces_to_subcells_offsets) {
+                    const double* cell_centroids_z, const double* density,
+                    const double* nodes_x, const double* nodes_y,
+                    const double* nodes_z, double* cell_mass,
+                    double* subcell_mass, int* cells_to_faces_offsets,
+                    int* cells_to_faces, int* faces_to_nodes_offsets,
+                    int* faces_to_nodes, int* faces_to_subcells_offsets) {
 
   // Calculate the predicted energy
   START_PROFILING(&compute_profile);
@@ -97,6 +95,7 @@ void init_cell_centroids(const int ncells, const int* cells_offsets,
                          const double* nodes_y, const double* nodes_z,
                          double* cell_centroids_x, double* cell_centroids_y,
                          double* cell_centroids_z) {
+
   // Calculate the cell centroids
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
@@ -117,12 +116,11 @@ void init_cell_centroids(const int ncells, const int* cells_offsets,
 
 // Initialises the list of neighbours to a subcell
 void init_subcells_to_subcells(
-    const int ncells, const double* nodes_x, const double* nodes_y,
-    const double* nodes_z, const int* faces_to_cells0,
-    const int* faces_to_cells1, const int* faces_to_nodes_offsets,
-    const int* faces_to_nodes, const double* cell_centroids_x,
-    const double* cell_centroids_y, const double* cell_centroids_z,
-    int* cells_to_faces_offsets, int* cells_to_faces, int* subcells_to_subcells,
+    const int ncells, const int* faces_to_cells0, const int* faces_to_cells1,
+    const int* faces_to_nodes_offsets, const int* faces_to_nodes,
+    const double* cell_centroids_x, const double* cell_centroids_y,
+    const double* cell_centroids_z, int* cells_to_faces_offsets,
+    int* cells_to_faces, int* subcells_to_subcells,
     int* faces_to_subcells_offsets) {
 
 #pragma omp parallel for
@@ -157,9 +155,7 @@ void init_subcells_to_subcells(
 // function of the application. It feels like it should be possible to re-remove
 // all of the checks for whether the face is clockwise if we are able to make
 // some better ordering or assumptions.
-#if 0
 #pragma omp parallel for
-#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =

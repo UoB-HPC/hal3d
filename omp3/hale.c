@@ -116,6 +116,7 @@ void solve_unstructured_hydro_3d(
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
 
+#if 0
   printf("\nPerforming Gathering Phase\n");
 
   // Gather the subcell quantities for mass, internal and kinetic energy
@@ -176,4 +177,5 @@ void solve_unstructured_hydro_3d(
   init_cell_centroids(ncells, cells_offsets, cells_to_nodes, nodes_x0, nodes_y0,
                       nodes_z0, cell_centroids_x, cell_centroids_y,
                       cell_centroids_z);
+#endif // if 0
 }

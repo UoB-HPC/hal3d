@@ -39,7 +39,6 @@ void gather_subcell_quantities(
       faces_to_nodes, faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces, cells_to_nodes);
 
-#if 0
   gather_subcell_momentum(
       ncells, nnodes, nodal_volumes, nodal_mass, cell_centroids_x,
       cell_centroids_y, cell_centroids_z, cells_offsets, nodes_x0, nodes_y0,
@@ -47,7 +46,6 @@ void gather_subcell_quantities(
       subcell_momentum_flux_x, subcell_momentum_flux_y, subcell_momentum_flux_z,
       subcell_face_offsets, faces_to_nodes, faces_to_nodes_offsets,
       cells_to_faces_offsets, cells_to_faces, cells_to_nodes);
-#endif // if 0
 }
 
 // Gathers all of the subcell quantities on the mesh
