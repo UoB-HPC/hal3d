@@ -66,8 +66,8 @@ void remap_phase(const int ncells, double* cell_centroids_x,
         const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
         const int subcell_index = subcell_off + nn;
 
-        double mass_flux = 0.0;
-        double energy_flux = 0.0;
+        subcell_mass_flux[(subcell_index)] = 0.0;
+        subcell_ie_mass_flux[(subcell_index)] = 0.0;
 
         // We always determine the subcell with the value that is prescribed in
         // the subcell index to relate to the current node and its subsequent
@@ -88,7 +88,11 @@ void remap_phase(const int ncells, double* cell_centroids_x,
         const int ccw_node_index = (face_clockwise) ? rnode_index : node_index;
         const int ccw_rnode_index = (face_clockwise) ? node_index : rnode_index;
 
-        // Describe the subcell tetrahedron connectivity
+// Describe the subcell tetrahedron connectivity
+#if 0
+        const int subcell_faces_to_nodes[] = {0, 1, 2, 0, 3, 1,
+                                              0, 2, 3, 1, 2, 3};
+#endif // if 0
         const int subcell_faces_to_nodes[] = {0, 1, 2, 0, 3, 1,
                                               1, 3, 2, 0, 2, 3};
         const vec_t subcell[] = {
@@ -107,6 +111,17 @@ void remap_phase(const int ncells, double* cell_centroids_x,
              rezoned_nodes_z[(ccw_rnode_index)]},
             {rz_face_c.x, rz_face_c.y, rz_face_c.z},
             {rz_cell_centroid.x, rz_cell_centroid.y, rz_cell_centroid.z}};
+
+#if 0
+    const int subcell_faces_to_nodes_offsets[] = {0, 3, 6, 9, 12};
+    const int subcell_to_faces[] = {0, 1, 2, 3};
+          double subcell_volume = 0.0;
+          calc_volume(0, NPRISM_FACES, swept_edge_to_faces,
+                      swept_edge_faces_to_nodes,
+                      swept_edge_faces_to_nodes_offsets, swept_edge_nodes_x,
+                      swept_edge_nodes_y, swept_edge_nodes_z,
+                      &swept_edge_centroid, &swept_edge_vol);
+#endif // if 0
 
         /* LOOP OVER SUBCELL FACES */
         for (int pp = 0; pp < NTET_FACES; ++pp) {
@@ -151,6 +166,9 @@ void remap_phase(const int ncells, double* cell_centroids_x,
 
           // Ignore the special case of an empty swept edge region
           if (swept_edge_vol < EPS) {
+            if (swept_edge_vol < 0.) {
+              printf("something went wrong in cell %d\n", cc);
+            }
             continue;
           }
 
@@ -349,16 +367,13 @@ void remap_phase(const int ncells, double* cell_centroids_x,
 
           // Either mass and energy is flowing into or out of the subcell
           if (is_outflux) {
-            mass_flux += local_mass_flux;
-            energy_flux += local_energy_flux;
+            subcell_mass_flux[(subcell_index)] += local_mass_flux;
+            subcell_ie_mass_flux[(subcell_index)] += local_energy_flux;
           } else {
-            mass_flux -= local_mass_flux;
-            energy_flux -= local_energy_flux;
+            subcell_mass_flux[(subcell_index)] -= local_mass_flux;
+            subcell_ie_mass_flux[(subcell_index)] -= local_energy_flux;
           }
         }
-
-        subcell_mass_flux[(subcell_index)] = mass_flux;
-        subcell_ie_mass_flux[(subcell_index)] = energy_flux;
       }
     }
 
@@ -369,6 +384,7 @@ void remap_phase(const int ncells, double* cell_centroids_x,
                 &cell_volume[(cc)]);
   }
 
+#if 0
 /* REMAP MOMENTUM */
 
 #pragma omp parallel for
@@ -406,32 +422,30 @@ void remap_phase(const int ncells, double* cell_centroids_x,
 
       /* LOOP OVER FACE NODES */
       for (int nn = 0; nn < nnodes_by_face; ++nn) {
+        double x_momentum_flux = 0.0;
+        double y_momentum_flux = 0.0;
+        double z_momentum_flux = 0.0;
+
+        // We always determine the subcell with the value that is prescribed in
+        // the subcell index to relate to the current node and its subsequent
+        // node in the face list.
+        const int next_off = ((nn == nnodes_by_face - 1) ? 0 : nn + 1);
         const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
+        const int rnode_index = faces_to_nodes[(face_to_nodes_off + next_off)];
         const int subcell_index = subcell_off + nn;
 
-        // The face is non planar but the normal doesn't have to be accurate
-        // except for the general direction it faces in
         const int n0 = faces_to_nodes[(face_to_nodes_off + 0)];
         const int n1 = faces_to_nodes[(face_to_nodes_off + 1)];
         const int n2 = faces_to_nodes[(face_to_nodes_off + 2)];
-
         vec_t face_normal;
         const int face_clockwise =
             calc_surface_normal(n0, n1, n2, nodes_x0, nodes_y0, nodes_z0,
                                 &cell_centroid, &face_normal);
 
-        double x_momentum_flux = 0.0;
-        double y_momentum_flux = 0.0;
-        double z_momentum_flux = 0.0;
-
-        int rnode_index;
-        if (face_clockwise) {
-          rnode_index = faces_to_nodes[(
-              face_to_nodes_off + ((nn == 0) ? nnodes_by_face - 1 : nn - 1))];
-        } else {
-          rnode_index = faces_to_nodes[(
-              face_to_nodes_off + ((nn == nnodes_by_face - 1) ? 0 : nn + 1))];
-        }
+        // We may need to reorder the two corner nodes for the tet given that
+        // the face may be ordered clockwise, rather than counter-clockwise.
+        const int ccw_node_index = (face_clockwise) ? rnode_index : node_index;
+        const int ccw_rnode_index = (face_clockwise) ? node_index : rnode_index;
 
         // Describe the subcell tetrahedron connectivity
         const int subcell_faces_to_nodes[] = {0, 1, 2, 0, 3, 1,
@@ -447,22 +461,24 @@ void remap_phase(const int ncells, double* cell_centroids_x,
           // this manner is that we are able to return the nodal values
           // trivially and accurately.
           const vec_t subcell[] = {
-              {nodes_x0[(node_index)], nodes_y0[(node_index)],
-               nodes_z0[(node_index)]},
-              {0.5 * (nodes_x0[(node_index)] + nodes_x0[(rnode_index)]),
-               0.5 * (nodes_y0[(node_index)] + nodes_y0[(rnode_index)]),
-               0.5 * (nodes_z0[(node_index)] + nodes_z0[(rnode_index)])},
+              {nodes_x0[(ccw_node_index)], nodes_y0[(ccw_node_index)],
+               nodes_z0[(ccw_node_index)]},
+              {0.5 * (nodes_x0[(ccw_node_index)] + nodes_x0[(ccw_rnode_index)]),
+               0.5 * (nodes_y0[(ccw_node_index)] + nodes_y0[(ccw_rnode_index)]),
+               0.5 *
+                   (nodes_z0[(ccw_node_index)] + nodes_z0[(ccw_rnode_index)])},
               {face_c.x, face_c.y, face_c.z},
               {cell_centroid.x, cell_centroid.y, cell_centroid.z}};
           const vec_t rz_subcell[] = {
-              {rezoned_nodes_x[(node_index)], rezoned_nodes_y[(node_index)],
-               rezoned_nodes_z[(node_index)]},
-              {0.5 * (rezoned_nodes_x[(node_index)] +
-                      rezoned_nodes_x[(rnode_index)]),
-               0.5 * (rezoned_nodes_y[(node_index)] +
-                      rezoned_nodes_y[(rnode_index)]),
-               0.5 * (rezoned_nodes_z[(node_index)] +
-                      rezoned_nodes_z[(rnode_index)])},
+              {rezoned_nodes_x[(ccw_node_index)],
+               rezoned_nodes_y[(ccw_node_index)],
+               rezoned_nodes_z[(ccw_node_index)]},
+              {0.5 * (rezoned_nodes_x[(ccw_node_index)] +
+                      rezoned_nodes_x[(ccw_rnode_index)]),
+               0.5 * (rezoned_nodes_y[(ccw_node_index)] +
+                      rezoned_nodes_y[(ccw_rnode_index)]),
+               0.5 * (rezoned_nodes_z[(ccw_node_index)] +
+                      rezoned_nodes_z[(ccw_rnode_index)])},
               {rz_face_c.x, rz_face_c.y, rz_face_c.z},
               {rz_cell_centroid.x, rz_cell_centroid.y, rz_cell_centroid.z}};
 
@@ -776,6 +792,7 @@ void remap_phase(const int ncells, double* cell_centroids_x,
   }
   printf("Total flux momentum %.12f %.12f %.12f\n", total_x_flux, total_y_flux,
          total_z_flux);
+#endif // if 0
 }
 
 // Checks if the normal vector is pointing inward or outward
@@ -1179,13 +1196,6 @@ void calc_volumes_centroids(
       const int nnodes_by_face =
           faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
 
-      const int n0 = faces_to_nodes[(face_to_nodes_off + 0)];
-      const int n1 = faces_to_nodes[(face_to_nodes_off + 1)];
-      const int n2 = faces_to_nodes[(face_to_nodes_off + 2)];
-      vec_t normal;
-      const int face_clockwise = calc_surface_normal(
-          n0, n1, n2, nodes_x0, nodes_y0, nodes_z0, &cell_centroid, &normal);
-
       const int subcell_off = subcell_face_offsets[(cell_to_faces_off + ff)];
 
       // The face centroid is the same for all nodes on the face
@@ -1200,25 +1210,31 @@ void calc_volumes_centroids(
       // Each face/node pair has two sub-cells
       for (int nn = 0; nn < nnodes_by_face; ++nn) {
         // The left and right nodes on the face for this anchor node
+        const int next_off = ((nn == nnodes_by_face - 1) ? 0 : nn + 1);
         const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
+        const int rnode_index = faces_to_nodes[(face_to_nodes_off + next_off)];
         const int subcell_index = subcell_off + nn;
 
-        int rnode_index;
-        if (face_clockwise) {
-          rnode_index = faces_to_nodes[(
-              face_to_nodes_off + ((nn == 0) ? nnodes_by_face - 1 : nn - 1))];
-        } else {
-          rnode_index = faces_to_nodes[(
-              face_to_nodes_off + ((nn == nnodes_by_face - 1) ? 0 : nn + 1))];
-        }
+        const int n0 = faces_to_nodes[(face_to_nodes_off + 0)];
+        const int n1 = faces_to_nodes[(face_to_nodes_off + 1)];
+        const int n2 = faces_to_nodes[(face_to_nodes_off + 2)];
+        vec_t face_normal;
+        const int face_clockwise =
+            calc_surface_normal(n0, n1, n2, nodes_x0, nodes_y0, nodes_z0,
+                                &cell_centroid, &face_normal);
+
+        // We may need to reorder the two corner nodes for the tet given that
+        // the face may be ordered clockwise, rather than counter-clockwise.
+        const int ccw_node_index = (face_clockwise) ? rnode_index : node_index;
+        const int ccw_rnode_index = (face_clockwise) ? node_index : rnode_index;
 
         // Store the right and left nodes
-        subcell_nodes_x[1] = nodes_x0[(rnode_index)];
-        subcell_nodes_y[1] = nodes_y0[(rnode_index)];
-        subcell_nodes_z[1] = nodes_z0[(rnode_index)];
-        subcell_nodes_x[0] = nodes_x0[(node_index)];
-        subcell_nodes_y[0] = nodes_y0[(node_index)];
-        subcell_nodes_z[0] = nodes_z0[(node_index)];
+        subcell_nodes_x[1] = nodes_x0[(ccw_rnode_index)];
+        subcell_nodes_y[1] = nodes_y0[(ccw_rnode_index)];
+        subcell_nodes_z[1] = nodes_z0[(ccw_rnode_index)];
+        subcell_nodes_x[0] = nodes_x0[(ccw_node_index)];
+        subcell_nodes_y[0] = nodes_y0[(ccw_node_index)];
+        subcell_nodes_z[0] = nodes_z0[(ccw_node_index)];
 
         // Determine the sub-cell centroid
         vec_t subcell_centroid = {0.0, 0.0, 0.0};

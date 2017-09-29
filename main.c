@@ -39,7 +39,6 @@ int main(int argc, char** argv) {
   mesh.dt_h = mesh.dt;
   mesh.rank = MASTER;
   mesh.nranks = 1;
-  const int visit_dump = get_int_parameter("visit_dump", hale_params);
   const int read_umesh = get_int_parameter("read_umesh", hale_params);
 
   double i0 = omp_get_wtime();
@@ -79,6 +78,8 @@ int main(int argc, char** argv) {
   // Initialise the hale-specific data arrays
   hale_data.visc_coeff1 = get_double_parameter("visc_coeff1", hale_params);
   hale_data.visc_coeff2 = get_double_parameter("visc_coeff2", hale_params);
+  hale_data.perform_remap = get_int_parameter("perform_remap", hale_params);
+  hale_data.visit_dump = get_int_parameter("visit_dump", hale_params);
   allocated += init_hale_data(&hale_data, &umesh);
   allocated += init_subcell_data_structures(&mesh, &hale_data);
 
@@ -92,13 +93,6 @@ int main(int argc, char** argv) {
   if (mesh.rank == MASTER) {
     printf("Number of ranks: %d\n", mesh.nranks);
     printf("Number of threads: %d\n", nthreads);
-  }
-
-  if (visit_dump) {
-    write_unstructured_to_visit_3d(
-        umesh.nnodes, umesh.ncells, 0, umesh.nodes_x0, umesh.nodes_y0,
-        umesh.nodes_z0, umesh.cells_to_nodes, hale_data.density0, 0,
-        umesh.nnodes_by_cell == 8);
   }
 
   // Prepare for solve
@@ -126,14 +120,14 @@ int main(int argc, char** argv) {
     double w0 = omp_get_wtime();
 
     solve_unstructured_hydro_3d(
-        &mesh, &hale_data, umesh.ncells, umesh.nnodes, hale_data.nsubcell_nodes,
-        hale_data.nsubcells_per_cell, hale_data.visc_coeff1,
-        hale_data.visc_coeff2, umesh.cell_centroids_x, umesh.cell_centroids_y,
-        umesh.cell_centroids_z, umesh.cells_to_nodes, umesh.cells_offsets,
-        umesh.nodes_to_cells, umesh.nodes_offsets, umesh.nodes_x0,
-        umesh.nodes_y0, umesh.nodes_z0, umesh.nodes_x1, umesh.nodes_y1,
-        umesh.nodes_z1, umesh.boundary_index, umesh.boundary_type,
-        umesh.boundary_normal_x, umesh.boundary_normal_y,
+        &mesh, &hale_data, umesh.ncells, umesh.nnodes, tt,
+        hale_data.nsubcell_nodes, hale_data.nsubcells_per_cell,
+        hale_data.visc_coeff1, hale_data.visc_coeff2, umesh.cell_centroids_x,
+        umesh.cell_centroids_y, umesh.cell_centroids_z, umesh.cells_to_nodes,
+        umesh.cells_offsets, umesh.nodes_to_cells, umesh.nodes_offsets,
+        umesh.nodes_x0, umesh.nodes_y0, umesh.nodes_z0, umesh.nodes_x1,
+        umesh.nodes_y1, umesh.nodes_z1, umesh.boundary_index,
+        umesh.boundary_type, umesh.boundary_normal_x, umesh.boundary_normal_y,
         umesh.boundary_normal_z, hale_data.cell_volume, hale_data.energy0,
         hale_data.energy1, hale_data.density0, hale_data.density1,
         hale_data.pressure0, hale_data.pressure1, hale_data.velocity_x0,
@@ -169,13 +163,6 @@ int main(int argc, char** argv) {
     if (mesh.rank == MASTER) {
       printf("simulation time: %.4lfs\nwallclock: %.4lfs\n", elapsed_sim_time,
              wallclock);
-    }
-
-    if (visit_dump) {
-      write_unstructured_to_visit_3d(
-          umesh.nnodes, umesh.ncells, tt + 1, umesh.nodes_x0, umesh.nodes_y0,
-          umesh.nodes_z0, umesh.cells_to_nodes, hale_data.density0, 0,
-          umesh.nnodes_by_cell == 8);
     }
   }
 

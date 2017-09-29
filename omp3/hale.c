@@ -10,7 +10,7 @@
 // Solve a single timestep on the given mesh
 void solve_unstructured_hydro_3d(
     Mesh* mesh, HaleData* hale_data, const int ncells, const int nnodes,
-    const int nsubcell_nodes, const int nsubcells_per_cell,
+    const int timestep, const int nsubcell_nodes, const int nsubcells_per_cell,
     const double visc_coeff1, const double visc_coeff2,
     double* cell_centroids_x, double* cell_centroids_y,
     double* cell_centroids_z, int* cells_to_nodes, int* cells_offsets,
@@ -55,64 +55,78 @@ void solve_unstructured_hydro_3d(
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
 
-  printf("\nPerforming Gathering Phase\n");
-
-  // Gather the subcell quantities for mass, internal and kinetic energy
-  // density, and momentum
-  gather_subcell_quantities(
-      ncells, nnodes, nodal_volumes, nodal_mass, cell_centroids_x,
-      cell_centroids_y, cell_centroids_z, cells_offsets, nodes_x0, nodes_y0,
-      nodes_z0, energy0, density0, velocity_x0, velocity_y0, velocity_z0,
-      cell_mass, subcell_volume, subcell_ie_mass, subcell_momentum_x,
-      subcell_momentum_y, subcell_momentum_z, subcell_centroids_x,
-      subcell_centroids_y, subcell_centroids_z, cell_volume,
-      subcell_face_offsets, faces_to_nodes, faces_to_nodes_offsets,
-      faces_to_cells0, faces_to_cells1, cells_to_faces_offsets, cells_to_faces,
-      cells_to_nodes);
-
-  // Store the total mass and internal energy
-  double total_mass = 0.0;
-  double total_ie = 0.0;
-#pragma omp parallel for reduction(+ : total_mass, total_ie)
-  for (int cc = 0; cc < ncells; ++cc) {
-    total_mass += cell_mass[(cc)];
-    total_ie += energy0[(cc)] * cell_mass[(cc)];
+  if (hale_data->visit_dump) {
+    write_unstructured_to_visit_3d(nnodes, ncells, timestep * 2, nodes_x0,
+                                   nodes_y0, nodes_z0, cells_to_nodes, density0,
+                                   0, 1);
   }
 
-  printf("\nPerforming Remap Phase\n");
+  if (hale_data->perform_remap) {
+    printf("\nPerforming Gathering Phase\n");
 
-  // Performs a remap and some scattering of the subcell values
-  remap_phase(ncells, cell_centroids_x, cell_centroids_y, cell_centroids_z,
-              cells_to_nodes, cells_offsets, nodes_x0, nodes_y0, nodes_z0,
-              cell_volume, velocity_x0, velocity_y0, velocity_z0,
-              subcell_volume, subcell_ie_mass, subcell_ie_mass_flux,
-              subcell_mass, subcell_mass_flux, subcell_momentum_x,
-              subcell_momentum_y, subcell_momentum_z, subcell_centroids_x,
-              subcell_centroids_y, subcell_centroids_z, rezoned_nodes_x,
-              rezoned_nodes_y, rezoned_nodes_z, faces_to_nodes,
-              faces_to_nodes_offsets, cells_to_faces_offsets, cells_to_faces,
-              subcell_face_offsets, subcells_to_subcells);
+    // Gather the subcell quantities for mass, internal and kinetic energy
+    // density, and momentum
+    gather_subcell_quantities(
+        ncells, nnodes, nodal_volumes, nodal_mass, cell_centroids_x,
+        cell_centroids_y, cell_centroids_z, cells_offsets, nodes_x0, nodes_y0,
+        nodes_z0, energy0, density0, velocity_x0, velocity_y0, velocity_z0,
+        cell_mass, subcell_volume, subcell_ie_mass, subcell_momentum_x,
+        subcell_momentum_y, subcell_momentum_z, subcell_centroids_x,
+        subcell_centroids_y, subcell_centroids_z, cell_volume,
+        subcell_face_offsets, faces_to_nodes, faces_to_nodes_offsets,
+        faces_to_cells0, faces_to_cells1, cells_to_faces_offsets,
+        cells_to_faces, cells_to_nodes);
 
-  printf("\nPerforming the Scattering Phase\n");
+    // Store the total mass and internal energy
+    double total_mass = 0.0;
+    double total_ie = 0.0;
+#pragma omp parallel for reduction(+ : total_mass, total_ie)
+    for (int cc = 0; cc < ncells; ++cc) {
+      total_mass += cell_mass[(cc)];
+      total_ie += energy0[(cc)] * cell_mass[(cc)];
+    }
 
-  // Finalise the mesh rezone
-  apply_mesh_rezoning(nnodes, rezoned_nodes_x, rezoned_nodes_y, rezoned_nodes_z,
-                      nodes_x0, nodes_y0, nodes_z0);
+    printf("\nPerforming Remap Phase\n");
 
-  // Determine the new cell centroids
-  init_cell_centroids(ncells, cells_offsets, cells_to_nodes, nodes_x0, nodes_y0,
-                      nodes_z0, cell_centroids_x, cell_centroids_y,
-                      cell_centroids_z);
+    // Performs a remap and some scattering of the subcell values
+    remap_phase(ncells, cell_centroids_x, cell_centroids_y, cell_centroids_z,
+                cells_to_nodes, cells_offsets, nodes_x0, nodes_y0, nodes_z0,
+                cell_volume, velocity_x0, velocity_y0, velocity_z0,
+                subcell_volume, subcell_ie_mass, subcell_ie_mass_flux,
+                subcell_mass, subcell_mass_flux, subcell_momentum_x,
+                subcell_momentum_y, subcell_momentum_z, subcell_centroids_x,
+                subcell_centroids_y, subcell_centroids_z, rezoned_nodes_x,
+                rezoned_nodes_y, rezoned_nodes_z, faces_to_nodes,
+                faces_to_nodes_offsets, cells_to_faces_offsets, cells_to_faces,
+                subcell_face_offsets, subcells_to_subcells);
 
-  // Scatter the primary variables into the new mesh cells
-  scatter_phase(ncells, nnodes, total_mass, total_ie, cell_volume, energy0,
-                energy1, density0, velocity_x0, velocity_y0, velocity_z0,
-                cell_mass, nodal_mass, subcell_ie_mass, subcell_mass,
-                subcell_ie_mass_flux, subcell_mass_flux, subcell_momentum_x,
-                subcell_momentum_y, subcell_momentum_z, nodes_to_faces_offsets,
-                nodes_to_faces, faces_to_nodes, faces_to_nodes_offsets,
-                faces_to_cells0, faces_to_cells1, cells_to_faces_offsets,
-                cells_to_faces, subcell_face_offsets);
+    printf("\nPerforming the Scattering Phase\n");
 
-  printf("\nEulerian Mesh Rezone\n");
+    // Finalise the mesh rezone
+    apply_mesh_rezoning(nnodes, rezoned_nodes_x, rezoned_nodes_y,
+                        rezoned_nodes_z, nodes_x0, nodes_y0, nodes_z0);
+
+    // Determine the new cell centroids
+    init_cell_centroids(ncells, cells_offsets, cells_to_nodes, nodes_x0,
+                        nodes_y0, nodes_z0, cell_centroids_x, cell_centroids_y,
+                        cell_centroids_z);
+
+    // Scatter the primary variables into the new mesh cells
+    scatter_phase(ncells, nnodes, total_mass, total_ie, cell_volume, energy0,
+                  energy1, density0, velocity_x0, velocity_y0, velocity_z0,
+                  cell_mass, nodal_mass, subcell_ie_mass, subcell_mass,
+                  subcell_ie_mass_flux, subcell_mass_flux, subcell_momentum_x,
+                  subcell_momentum_y, subcell_momentum_z,
+                  nodes_to_faces_offsets, nodes_to_faces, faces_to_nodes,
+                  faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
+                  cells_to_faces_offsets, cells_to_faces, subcell_face_offsets);
+
+    printf("\nEulerian Mesh Rezone\n");
+
+    if (hale_data->visit_dump) {
+      write_unstructured_to_visit_3d(nnodes, ncells, timestep * 2 + 1, nodes_x0,
+                                     nodes_y0, nodes_z0, cells_to_nodes,
+                                     density0, 0, 1);
+    }
+  }
 }

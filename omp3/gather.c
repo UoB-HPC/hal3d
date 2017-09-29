@@ -39,6 +39,7 @@ void gather_subcell_quantities(
       faces_to_nodes, faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces, cells_to_nodes);
 
+#if 0
   gather_subcell_momentum(
       ncells, nnodes, nodal_volumes, nodal_mass, cell_centroids_x,
       cell_centroids_y, cell_centroids_z, cells_offsets, nodes_x0, nodes_y0,
@@ -46,6 +47,7 @@ void gather_subcell_quantities(
       subcell_momentum_flux_x, subcell_momentum_flux_y, subcell_momentum_flux_z,
       subcell_face_offsets, faces_to_nodes, faces_to_nodes_offsets,
       cells_to_faces_offsets, cells_to_faces, cells_to_nodes);
+#endif // if 0
 }
 
 // Gathers all of the subcell quantities on the mesh
@@ -201,7 +203,7 @@ void gather_subcell_momentum(
 
   // The following method is a homegrown solution. It doesn't feel totally
   // precise, but it is a quite reasonable approach based on the popular
-  // methods and seems to end up with lots of computational work (much of which
+  // methods but seems to end up with lots of computational work (much of which
   // is redundant).
   double total_subcell_vx = 0.0;
   double total_subcell_vy = 0.0;
@@ -233,29 +235,19 @@ void gather_subcell_momentum(
 
       /* LOOP OVER FACE NODES */
       for (int nn = 0; nn < nnodes_by_face; ++nn) {
-        // The subcell index is doubled into sub-subcells, hence the index
-        const int subsubcell_index = (subcell_off + nn) * NSUBSUBCELLS;
 
-        // Determine the outward facing unit normal vector
-        vec_t normal = {0.0, 0.0, 0.0};
-        const int n0 = faces_to_nodes[(face_to_nodes_off + 0)];
-        const int n1 = faces_to_nodes[(face_to_nodes_off + 1)];
-        const int n2 = faces_to_nodes[(face_to_nodes_off + 2)];
-        const int face_clockwise = calc_surface_normal(
-            n0, n1, n2, nodes_x0, nodes_y0, nodes_z0, &cell_centroid, &normal);
-        const int rnode = (nn == nnodes_by_face - 1) ? 0 : nn + 1;
-        const int lnode = (nn == 0) ? nnodes_by_face - 1 : nn - 1;
-        const int rnode_index = faces_to_nodes[(
-            face_to_nodes_off + (face_clockwise ? lnode : rnode))];
-        const int lnode_index = faces_to_nodes[(
-            face_to_nodes_off + (!face_clockwise ? lnode : rnode))];
-
+        // Fetch the right and left node indices
+        const int rnode_off = (nn == nnodes_by_face - 1) ? 0 : nn + 1;
+        const int lnode_off = (nn == 0) ? nnodes_by_face - 1 : nn - 1;
+        const int rnode_index = faces_to_nodes[(face_to_nodes_off + rnode_off)];
+        const int lnode_index = faces_to_nodes[(face_to_nodes_off + lnode_off)];
         const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
-        vec_t gmax = {-DBL_MAX, -DBL_MAX, -DBL_MAX};
-        vec_t gmin = {DBL_MAX, DBL_MAX, DBL_MAX};
+
         vec_t rhsx = {0.0, 0.0, 0.0};
         vec_t rhsy = {0.0, 0.0, 0.0};
         vec_t rhsz = {0.0, 0.0, 0.0};
+        vec_t gmin = {DBL_MAX, DBL_MAX, DBL_MAX};
+        vec_t gmax = {-DBL_MAX, -DBL_MAX, -DBL_MAX};
         vec_t coeff[3] = {{0.0, 0.0, 0.0}};
 
         const double nodal_density =
@@ -361,10 +353,7 @@ void gather_subcell_momentum(
                       node_v.z, gmax.z, gmin.z);
 #endif // if 0
 
-        // Now that we have the gradient for the node, we can determine the
-        // values at the two adjoining sub-subcells on the face.
-
-        // Calculate the center of mass
+        // Now we will construct and determine flux for right subsubcell
         const int subcell_index = (subcell_off + nn);
         double vol = 0.5 * subcell_volume[(subcell_index)];
 
@@ -383,6 +372,7 @@ void gather_subcell_momentum(
              cell_centroid.z + face_c.z) /
                 NTET_NODES};
 
+        const int subsubcell_index = (subcell_off + nn) * NSUBSUBCELLS;
         subcell_momentum_flux_x[(subsubcell_index)] =
             vol *
             (node_v.x + grad_vx.x * (subsubcell_c.x - nodes_x0[(node_index)]) +
@@ -399,9 +389,8 @@ void gather_subcell_momentum(
              grad_vz.y * (subsubcell_c.y - nodes_y0[(node_index)]) +
              grad_vz.z * (subsubcell_c.z - nodes_z0[(node_index)]));
 
-        const int lsubsubcell_index =
-            (subcell_off + (face_clockwise ? lnode : rnode)) * 2 + 1;
-        const int lsubcell_index = (subcell_off + nn);
+        const int lsubcell_index = (subcell_off + lnode_off);
+        const int lsubsubcell_index = (subcell_off + nn * NSUBSUBCELLS + 1);
 
         // Calculate the center of mass
         vol = subcell_volume[(lsubcell_index)] / NSUBSUBCELLS;
@@ -437,12 +426,12 @@ void gather_subcell_momentum(
              grad_vz.y * (lsubsubcell_c.y - nodes_y0[(node_index)]) +
              grad_vz.z * (lsubsubcell_c.z - nodes_z0[(node_index)]));
 
-        total_subcell_vx += subcell_momentum_flux_x[(subsubcell_index)];
-        total_subcell_vy += subcell_momentum_flux_y[(subsubcell_index)];
-        total_subcell_vz += subcell_momentum_flux_z[(subsubcell_index)];
-        total_subcell_vx += subcell_momentum_flux_x[(lsubsubcell_index)];
-        total_subcell_vy += subcell_momentum_flux_y[(lsubsubcell_index)];
-        total_subcell_vz += subcell_momentum_flux_z[(lsubsubcell_index)];
+        total_subcell_vx += subcell_momentum_flux_x[(subsubcell_index)] +
+                            subcell_momentum_flux_x[(lsubsubcell_index)];
+        total_subcell_vy += subcell_momentum_flux_y[(subsubcell_index)] +
+                            subcell_momentum_flux_y[(lsubsubcell_index)];
+        total_subcell_vz += subcell_momentum_flux_z[(subsubcell_index)] +
+                            subcell_momentum_flux_z[(lsubsubcell_index)];
       }
     }
   }

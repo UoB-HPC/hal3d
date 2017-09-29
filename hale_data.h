@@ -101,6 +101,10 @@ typedef struct {
 
   double visc_coeff1;
   double visc_coeff2;
+
+  int perform_remap;
+  int visit_dump;
+
 } HaleData;
 
 // Initialises the shared_data variables for two dimensional applications
