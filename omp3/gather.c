@@ -8,8 +8,9 @@ void gather_subcell_quantities(
     const int ncells, const int nnodes, const double* nodal_volumes,
     const double* nodal_mass, double* cell_centroids_x,
     double* cell_centroids_y, double* cell_centroids_z, int* cells_offsets,
-    double* nodes_x0, const double* nodes_y0, const double* nodes_z0,
-    double* energy0, double* density0, double* velocity_x0, double* velocity_y0,
+    int* nodes_to_cells, int* nodes_offsets, double* nodes_x0,
+    const double* nodes_y0, const double* nodes_z0, double* energy0,
+    double* density0, double* velocity_x0, double* velocity_y0,
     double* velocity_z0, double* cell_mass, double* subcell_volume,
     double* subcell_ie_mass0, double* subcell_momentum_flux_x,
     double* subcell_momentum_flux_y, double* subcell_momentum_flux_z,
@@ -42,11 +43,12 @@ void gather_subcell_quantities(
 #if 0
   gather_subcell_momentum(
       ncells, nnodes, nodal_volumes, nodal_mass, cell_centroids_x,
-      cell_centroids_y, cell_centroids_z, cells_offsets, nodes_x0, nodes_y0,
-      nodes_z0, velocity_x0, velocity_y0, velocity_z0, subcell_volume,
-      subcell_momentum_flux_x, subcell_momentum_flux_y, subcell_momentum_flux_z,
-      subcell_face_offsets, faces_to_nodes, faces_to_nodes_offsets,
-      cells_to_faces_offsets, cells_to_faces, cells_to_nodes);
+      cell_centroids_y, cell_centroids_z, cells_offsets, nodes_to_cells,
+      nodes_offsets, nodes_x0, nodes_y0, nodes_z0, velocity_x0, velocity_y0,
+      velocity_z0, subcell_volume, subcell_momentum_flux_x,
+      subcell_momentum_flux_y, subcell_momentum_flux_z, subcell_face_offsets,
+      faces_to_nodes, faces_to_nodes_offsets, cells_to_faces_offsets,
+      cells_to_faces, cells_to_nodes);
 #endif // if 0
 }
 
@@ -131,9 +133,9 @@ void gather_subcell_energy(
                      inv[1].x * rhs.x + inv[1].y * rhs.y + inv[1].z * rhs.z,
                      inv[2].x * rhs.x + inv[2].y * rhs.y + inv[2].z * rhs.z};
 
-    apply_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes, &grad_ie,
-                  &cell_centroid, nodes_x0, nodes_y0, nodes_z0, cell_ie, gmax,
-                  gmin);
+    apply_cell_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
+                       &grad_ie, &cell_centroid, nodes_x0, nodes_y0, nodes_z0,
+                       cell_ie, gmax, gmin);
 
     // Determine the weighted volume dist for neighbouring cells
     for (int ff = 0; ff < nfaces_by_cell; ++ff) {
@@ -194,11 +196,12 @@ void gather_subcell_momentum(
     const int ncells, const int nnodes, const double* nodal_volumes,
     const double* nodal_mass, double* cell_centroids_x,
     double* cell_centroids_y, double* cell_centroids_z, int* cells_offsets,
-    const double* nodes_x0, const double* nodes_y0, const double* nodes_z0,
-    double* velocity_x0, double* velocity_y0, double* velocity_z0,
-    double* subcell_volume, double* subcell_momentum_flux_x,
-    double* subcell_momentum_flux_y, double* subcell_momentum_flux_z,
-    int* subcell_face_offsets, int* faces_to_nodes, int* faces_to_nodes_offsets,
+    int* nodes_to_cells, int* nodes_offsets, const double* nodes_x0,
+    const double* nodes_y0, const double* nodes_z0, double* velocity_x0,
+    double* velocity_y0, double* velocity_z0, double* subcell_volume,
+    double* subcell_momentum_flux_x, double* subcell_momentum_flux_y,
+    double* subcell_momentum_flux_z, int* subcell_face_offsets,
+    int* faces_to_nodes, int* faces_to_nodes_offsets,
     int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes) {
 
   // The following method is a homegrown solution. It doesn't feel totally
@@ -319,15 +322,12 @@ void gather_subcell_momentum(
         grad_vx.y = inv[1].x * rhsx.x + inv[1].y * rhsx.y + inv[1].z * rhsx.z;
         grad_vx.z = inv[2].x * rhsx.x + inv[2].y * rhsx.y + inv[2].z * rhsx.z;
 
-#if 0
-        // TODO: Need to adapt the BJ limiter to work with node-centered 
-        // quantities. Essentially seems that we need to take the unlimited 
-        // values from the nodes to the cell centers... which is the same
-        // idea as the current approach but in reverse.
-        apply_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
-                      &grad_vx, &cell_centroid, nodes_x0, nodes_y0, nodes_z0,
-                      node_v.x, gmax.x, gmin.x);
-#endif // if 0
+        const int node_to_cells_off = nodes_offsets[(node_index)];
+        const int ncells_by_node =
+            nodes_offsets[(node_index + 1)] - node_to_cells_off;
+        apply_node_limiter(ncells_by_node, node_to_cells_off, nodes_to_cells,
+                           &grad_vx, &cell_centroid, nodes_x0, nodes_y0,
+                           nodes_z0, node_v.x, gmax.x, gmin.x);
 
         // Solve for the y velocity gradient
         vec_t grad_vy;
@@ -335,11 +335,9 @@ void gather_subcell_momentum(
         grad_vy.y = inv[1].x * rhsy.x + inv[1].y * rhsy.y + inv[1].z * rhsy.z;
         grad_vy.z = inv[2].x * rhsy.x + inv[2].y * rhsy.y + inv[2].z * rhsy.z;
 
-#if 0
-        apply_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
-                      &grad_vy, &cell_centroid, nodes_x0, nodes_y0, nodes_z0,
-                      node_v.y, gmax.y, gmin.y);
-#endif // if 0
+        apply_node_limiter(ncells_by_node, cell_to_nodes_off, nodes_to_cells,
+                           &grad_vy, &cell_centroid, nodes_x0, nodes_y0,
+                           nodes_z0, node_v.y, gmax.y, gmin.y);
 
         // Solve for the z velocity gradient
         vec_t grad_vz;
@@ -347,11 +345,9 @@ void gather_subcell_momentum(
         grad_vz.y = inv[1].x * rhsz.x + inv[1].y * rhsz.y + inv[1].z * rhsz.z;
         grad_vz.z = inv[2].x * rhsz.x + inv[2].y * rhsz.y + inv[2].z * rhsz.z;
 
-#if 0
-        apply_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
-                      &grad_vz, &cell_centroid, nodes_x0, nodes_y0, nodes_z0,
-                      node_v.z, gmax.z, gmin.z);
-#endif // if 0
+        apply_node_limiter(ncells_by_node, cell_to_nodes_off, nodes_to_cells,
+                           &grad_vz, &cell_centroid, nodes_x0, nodes_y0,
+                           nodes_z0, node_v.z, gmax.z, gmin.z);
 
         // Now we will construct and determine flux for right subsubcell
         const int subcell_index = (subcell_off + nn);

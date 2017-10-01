@@ -42,10 +42,11 @@ void scatter_phase(const int ncells, const int nnodes, const double total_mass,
             subcell_face_offsets[(cell_to_faces_off + ff)] + nn;
 
         // Scatter the subcell mass data back to the cell
-        cell_mass[(cc)] += (subcell_mass[(subcell_index)] -
-                            subcell_mass_flux[(subcell_index)]);
-        energy1[(cc)] += (subcell_ie_mass[(subcell_index)] -
-                          subcell_ie_mass_flux[(subcell_index)]);
+        subcell_mass[(subcell_index)] -= subcell_mass_flux[(subcell_index)];
+        subcell_ie_mass[(subcell_index)] -=
+            subcell_ie_mass_flux[(subcell_index)];
+        cell_mass[(cc)] += subcell_mass[(subcell_index)];
+        energy1[(cc)] += subcell_ie_mass[(subcell_index)];
       }
     }
 
