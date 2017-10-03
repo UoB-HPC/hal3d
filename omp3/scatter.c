@@ -65,7 +65,7 @@ void scatter_phase(const int ncells, const int nnodes, const double total_mass,
   printf("Rezoned Total Internal Energy %.12f, Initial Total Energy %.12f, "
          "Difference "
          "%.12f\n",
-         rz_total_ie, total_ie, total_ie - rz_total_ie);
+         rz_total_ie, total_ie, rz_total_ie - total_ie);
 
 #if 0
   // Scattering the momentum

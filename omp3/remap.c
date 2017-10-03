@@ -273,8 +273,10 @@ void remap_phase(
                 dphi * (subcell_centroids_z[(neighbour_subcell_index)] -
                         subcell_centroids_z[(sweep_subcell_index)]);
 
-            gmax_m = max(gmax_m, dphi);
-            gmin_m = min(gmin_m, dphi);
+            gmax_m = max(gmax_m, subcell_mass[(neighbour_subcell_index)] /
+                                     subcell_volume[(neighbour_subcell_index)]);
+            gmin_m = min(gmin_m, subcell_mass[(neighbour_subcell_index)] /
+                                     subcell_volume[(neighbour_subcell_index)]);
           }
 
           vec_t grad_m = {inv[0].x * mass_rhs.x + inv[0].y * mass_rhs.y +
@@ -284,9 +286,11 @@ void remap_phase(
                           inv[2].x * mass_rhs.x + inv[2].y * mass_rhs.y +
                               inv[2].z * mass_rhs.z};
 
+#if 0
           apply_cell_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
                              &grad_m, &cell_centroid, nodes_x0, nodes_y0,
                              nodes_z0, subcell_m, gmax_m, gmin_m);
+#endif // if 0
 
           // Calculate the flux for internal energy density in the subcell
           const double local_mass_flux =
@@ -332,8 +336,12 @@ void remap_phase(
                 dphi * (subcell_centroids_z[(neighbour_subcell_index)] -
                         subcell_centroids_z[(sweep_subcell_index)]);
 
-            gmax_ie = max(gmax_ie, dphi);
-            gmin_ie = min(gmin_ie, dphi);
+            gmax_ie =
+                max(gmax_ie, subcell_ie_mass[(neighbour_subcell_index)] /
+                                 subcell_volume[(neighbour_subcell_index)]);
+            gmin_ie =
+                min(gmin_ie, subcell_ie_mass[(neighbour_subcell_index)] /
+                                 subcell_volume[(neighbour_subcell_index)]);
           }
 
           vec_t grad_ie = {inv[0].x * energy_rhs.x + inv[0].y * energy_rhs.y +
@@ -343,9 +351,11 @@ void remap_phase(
                            inv[2].x * energy_rhs.x + inv[2].y * energy_rhs.y +
                                inv[2].z * energy_rhs.z};
 
+#if 0
           apply_cell_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
                              &grad_ie, &cell_centroid, nodes_x0, nodes_y0,
                              nodes_z0, subcell_ie, gmax_ie, gmin_ie);
+#endif // if 0
 
           // Calculate the flux for internal energy density in the subcell
           const double local_energy_flux =
@@ -366,8 +376,6 @@ void remap_phase(
             subcell_mass_flux[(subcell_index)] -= local_mass_flux;
             subcell_ie_mass_flux[(subcell_index)] -= local_energy_flux;
           }
-
-          subcell_momentum_flux_x[(subcell_index)] += swept_edge_vol;
         }
       }
     }
@@ -1113,7 +1121,7 @@ double apply_cell_limiter(const int nnodes_by_cell, const int cell_to_nodes_off,
                           const double gmin) {
 
   // Calculate the limiter for the gradient
-  double limiter = DBL_MAX;
+  double limiter = 1.0;
   for (int nn = 0; nn < nnodes_by_cell; ++nn) {
     const int node_index = cells_to_nodes[(cell_to_nodes_off + nn)];
     double g_unlimited = phi +
@@ -1123,13 +1131,9 @@ double apply_cell_limiter(const int nnodes_by_cell, const int cell_to_nodes_off,
 
     double node_limiter = 1.0;
     if (g_unlimited - phi > 0.0) {
-      if (fabs(g_unlimited - phi) > EPS) {
-        node_limiter = min(1.0, (gmax / (g_unlimited - phi)));
-      }
+      node_limiter = min(1.0, ((gmax - phi) / (g_unlimited - phi)));
     } else if (g_unlimited - phi < 0.0) {
-      if (fabs(g_unlimited - phi) > EPS) {
-        node_limiter = min(1.0, (gmin / (g_unlimited - phi)));
-      }
+      node_limiter = min(1.0, ((gmin - phi) / (g_unlimited - phi)));
     }
     limiter = min(limiter, node_limiter);
   }

@@ -37,66 +37,6 @@ void solve_unstructured_hydro_3d(
     int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces,
     int* subcell_face_offsets, int* subcells_to_subcells) {
 
-#if 0
-  const int swept_edge_faces_to_nodes_offsets[] = {0, 4, 7, 10, 14, 18};
-  const int swept_edge_faces_to_nodes[] = {0, 1, 2, 3, 0, 3, 4, 2, 1,
-                                           5, 3, 2, 5, 4, 0, 4, 5, 1};
-  const int swept_edge_to_faces[] = {0, 1, 2, 3, 4};
-  double swept_edge_nodes_x[] = {1.00000000000000000, 1.00000000000000000,
-                                 0.94999999999999996, 0.95000000000000007,
-                                 1.00000000000000000, 1.00000000000000000};
-  double swept_edge_nodes_y[] = {0.20000000000000004, 0.20000000000000001,
-                                 0.15000000000000002, 0.14999999999999999,
-                                 0.19999999999999998, 0.20000000000000001};
-  double swept_edge_nodes_z[] = {0.90000000000000002, 0.90000000000000002,
-                                 0.94999999999999996, 0.94999999999999996,
-                                 1.00000000000000000, 1.00000000000000000};
-
-  // Determine the swept edge prism's centroid
-  vec_t swept_edge_centroid = {0.0, 0.0, 0.0};
-  for (int pn = 0; pn < NPRISM_NODES; ++pn) {
-    swept_edge_centroid.x += swept_edge_nodes_x[(pn)] / NPRISM_NODES;
-    swept_edge_centroid.y += swept_edge_nodes_y[(pn)] / NPRISM_NODES;
-    swept_edge_centroid.z += swept_edge_nodes_z[(pn)] / NPRISM_NODES;
-  }
-
-  printf("*secent %.12f %.12f %.12f\n", swept_edge_centroid.x,
-         swept_edge_centroid.y, swept_edge_centroid.z);
-
-  // Calculate the volume of the swept edge prism
-  double swept_edge_vol = 0.0;
-  calc_volume(0, NPRISM_FACES, swept_edge_to_faces, swept_edge_faces_to_nodes,
-              swept_edge_faces_to_nodes_offsets, swept_edge_nodes_x,
-              swept_edge_nodes_y, swept_edge_nodes_z, &swept_edge_centroid,
-              &swept_edge_vol);
-
-  printf("*sevol %.12f\n\n\n", swept_edge_vol);
-#endif // if 0
-
-#if 0
-  const int subcell_faces_to_nodes_offsets[] = {0, 3, 6, 9, 12};
-  const int subcell_faces_to_nodes[] = {0, 1, 2, 0, 3, 1, 0, 2, 3, 1, 2, 3};
-  const int subcell_to_faces[] = {0, 1, 2, 3};
-  double subcell_nodes_x[] = {0.1, 0.1, 0.05, 0.05};
-  double subcell_nodes_y[] = {0.0, 0.1, 0.05, 0.05};
-  double subcell_nodes_z[] = {0.0, 0.0, 0.0, 0.05};
-
-  // Determine the sub-cell centroid
-  vec_t subcell_centroid = {0.0, 0.0, 0.0};
-  for (int ii = 0; ii < NTET_NODES; ++ii) {
-    subcell_centroid.x += subcell_nodes_x[(ii)] / NTET_NODES;
-    subcell_centroid.y += subcell_nodes_y[(ii)] / NTET_NODES;
-    subcell_centroid.z += subcell_nodes_z[(ii)] / NTET_NODES;
-  }
-
-  // Precompute the volume of the subcell
-  double scvol = 0.0;
-  calc_volume(0, NTET_FACES, subcell_to_faces, subcell_faces_to_nodes,
-              subcell_faces_to_nodes_offsets, subcell_nodes_x, subcell_nodes_y,
-              subcell_nodes_z, &subcell_centroid, &scvol);
-  printf("scvol %.12f\n", scvol);
-#endif
-
   // Describe the subcell node layout
   printf("\nPerforming the Lagrangian Phase\n");
 
@@ -115,13 +55,15 @@ void solve_unstructured_hydro_3d(
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
 
-#if 0
+  subcells_to_visit(nsubcell_nodes, ncells * nsubcells_per_cell, 500 + timestep,
+                    subcell_data_x, subcell_data_y, subcell_data_z,
+                    subcells_to_nodes, subcell_mass, 0, 1);
+
   if (hale_data->visit_dump) {
     write_unstructured_to_visit_3d(nnodes, ncells, timestep * 2, nodes_x0,
                                    nodes_y0, nodes_z0, cells_to_nodes, density0,
                                    0, 1);
   }
-#endif // if 0
 
   if (hale_data->perform_remap) {
     printf("\nPerforming Gathering Phase\n");
@@ -138,13 +80,6 @@ void solve_unstructured_hydro_3d(
         subcell_centroids_z, cell_volume, subcell_face_offsets, faces_to_nodes,
         faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
         cells_to_faces_offsets, cells_to_faces, cells_to_nodes);
-
-#if 0
-    subcells_to_visit(nsubcell_nodes, ncells * nsubcells_per_cell,
-                      1000 + timestep, subcell_data_x, subcell_data_y,
-                      subcell_data_z, subcells_to_nodes, subcell_momentum_x, 0,
-                      1);
-#endif // if 0
 
     // Store the total mass and internal energy
     double total_mass = 0.0;
@@ -190,12 +125,19 @@ void solve_unstructured_hydro_3d(
                   faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
                   cells_to_faces_offsets, cells_to_faces, subcell_face_offsets);
 
+    subcells_to_visit(nsubcell_nodes, ncells * nsubcells_per_cell,
+                      1000 + timestep, subcell_data_x, subcell_data_y,
+                      subcell_data_z, subcells_to_nodes, subcell_mass_flux, 0,
+                      1);
+
     printf("\nEulerian Mesh Rezone\n");
 
+#if 0
     if (hale_data->visit_dump) {
       write_unstructured_to_visit_3d(nnodes, ncells, timestep * 2 + 1, nodes_x0,
                                      nodes_y0, nodes_z0, cells_to_nodes,
                                      density0, 0, 1);
     }
+#endif // if 0
   }
 }

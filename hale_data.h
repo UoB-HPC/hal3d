@@ -13,7 +13,7 @@
 #define C_M (1.5 / C_T)
 #define EPS 1.0e-15
 
-#define CFL 0.3
+#define CFL 0.1
 #define VALIDATE_TOLERANCE 1.0e-5
 #define ARCH_ROOT_PARAMS "../arch.params"
 #define HALE_PARAMS "hale.params"
