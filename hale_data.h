@@ -13,7 +13,7 @@
 #define C_M (1.5 / C_T)
 #define EPS 1.0e-15
 
-#define CFL 0.1
+#define CFL 0.3
 #define VALIDATE_TOLERANCE 1.0e-5
 #define ARCH_ROOT_PARAMS "../arch.params"
 #define HALE_PARAMS "hale.params"
@@ -116,14 +116,15 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh);
 size_t init_subcell_data_structures(Mesh* mesh, HaleData* hale_data);
 
 // Initialises the cell mass, sub-cell mass and sub-cell volume
-void init_mesh_mass(const int ncells, const double* cell_centroids_x,
-                    const double* cell_centroids_y,
-                    const double* cell_centroids_z, const double* density,
-                    const double* nodes_x, const double* nodes_y,
-                    const double* nodes_z, double* cell_mass,
-                    double* subcell_mass, int* cells_to_faces_offsets,
-                    int* cells_to_faces, int* faces_to_nodes_offsets,
-                    int* faces_to_nodes, int* faces_to_subcells_offsets);
+void init_mesh_mass(
+    const int ncells, const int nnodes, const double* cell_centroids_x,
+    const double* cell_centroids_y, const double* cell_centroids_z,
+    const double* density, const double* nodes_x, const double* nodes_y,
+    const double* nodes_z, double* cell_mass, double* subcell_mass,
+    double* nodal_mass, int* cells_to_faces_offsets, int* cells_to_faces,
+    int* faces_to_nodes_offsets, int* faces_to_nodes,
+    int* faces_to_subcells_offsets, int* nodes_to_faces_offsets,
+    int* nodes_to_faces, int* faces_to_cells0, int* faces_to_cells1);
 
 // Initialises the centroids for each cell
 void init_cell_centroids(const int ncells, const int* cells_offsets,

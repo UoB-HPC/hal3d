@@ -138,9 +138,8 @@ void calc_normal(const int n0, const int n1, const int n2,
                  const double* nodes_x, const double* nodes_y,
                  const double* nodes_z, vec_t* normal);
 
-// Resolves the volume center_of_mass in alpha-beta-gamma basis
+// Resolves the volume dist in alpha-beta-gamma basis
 void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
-                         const int basis, const int face_clockwise,
                          const double omega, const int* faces_to_nodes,
                          const double* nodes_alpha, const double* nodes_beta,
                          vec_t normal, double* vol);

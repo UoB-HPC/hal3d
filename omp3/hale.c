@@ -55,9 +55,11 @@ void solve_unstructured_hydro_3d(
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
 
+#if 0
   subcells_to_visit(nsubcell_nodes, ncells * nsubcells_per_cell, 500 + timestep,
                     subcell_data_x, subcell_data_y, subcell_data_z,
                     subcells_to_nodes, subcell_mass, 0, 1);
+#endif // if 0
 
   if (hale_data->visit_dump) {
     write_unstructured_to_visit_3d(nnodes, ncells, timestep * 2, nodes_x0,
@@ -65,6 +67,7 @@ void solve_unstructured_hydro_3d(
                                    0, 1);
   }
 
+#if 0
   if (hale_data->perform_remap) {
     printf("\nPerforming Gathering Phase\n");
 
@@ -140,4 +143,5 @@ void solve_unstructured_hydro_3d(
     }
 #endif // if 0
   }
+#endif // if 0
 }

@@ -31,7 +31,6 @@ void lagrangian_phase(
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for (int nn = 0; nn < nnodes; ++nn) {
-    nodal_mass[(nn)] = 0.0;
     nodal_volumes[(nn)] = 0.0;
     nodal_soundspeed[(nn)] = 0.0;
   }
@@ -127,7 +126,6 @@ void lagrangian_phase(
           const double subcell_volume =
               fabs((ab.x * A.x + ab.y * A.y + ab.z * A.z) / 3.0);
 
-          nodal_mass[(nn)] += density0[(cells[(cc)])] * subcell_volume;
           nodal_soundspeed[(nn)] +=
               sqrt(GAM * (GAM - 1.0) * energy0[(cells[(cc)])]) * subcell_volume;
           nodal_volumes[(nn)] += 0.5 * subcell_volume;
