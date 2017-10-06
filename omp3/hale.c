@@ -30,12 +30,12 @@ void solve_unstructured_hydro_3d(
     double* subcell_momentum_y, double* subcell_momentum_z,
     double* subcell_centroids_x, double* subcell_centroids_y,
     double* subcell_centroids_z, double* subcell_kinetic_energy,
-    int* subcells_to_nodes, double* subcell_data_x, double* subcell_data_y,
-    double* subcell_data_z, double* rezoned_nodes_x, double* rezoned_nodes_y,
+    int* subcells_to_nodes, double* subcell_nodes_x, double* subcell_nodes_y,
+    double* subcell_nodes_z, double* rezoned_nodes_x, double* rezoned_nodes_y,
     double* rezoned_nodes_z, int* nodes_to_faces_offsets, int* nodes_to_faces,
     int* faces_to_nodes, int* faces_to_nodes_offsets, int* faces_to_cells0,
     int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces,
-    int* subcell_face_offsets, int* subcells_to_subcells) {
+    int* subcells_to_faces_offsets, int* subcells_to_subcells) {
 
   // Describe the subcell node layout
   printf("\nPerforming the Lagrangian Phase\n");
@@ -55,14 +55,13 @@ void solve_unstructured_hydro_3d(
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
 
-#if 0
-  subcells_to_visit(nsubcell_nodes, ncells * nsubcells_per_cell, 500 + timestep,
-                    subcell_data_x, subcell_data_y, subcell_data_z,
-                    subcells_to_nodes, subcell_mass, 0, 1);
-#endif // if 0
+  write_unstructured_to_visit_3d(nsubcell_nodes, ncells * nsubcells_per_cell,
+                                 timestep * 2 + 1, subcell_nodes_x,
+                                 subcell_nodes_y, subcell_nodes_z,
+                                 subcells_to_nodes, subcell_mass, 0, 1);
 
   if (hale_data->visit_dump) {
-    write_unstructured_to_visit_3d(nnodes, ncells, timestep * 2, nodes_x0,
+    write_unstructured_to_visit_3d(nnodes, ncells, 2 + timestep * 2, nodes_x0,
                                    nodes_y0, nodes_z0, cells_to_nodes, density0,
                                    0, 1);
   }
@@ -80,7 +79,7 @@ void solve_unstructured_hydro_3d(
         velocity_x0, velocity_y0, velocity_z0, cell_mass, subcell_volume,
         subcell_ie_mass, subcell_momentum_x, subcell_momentum_y,
         subcell_momentum_z, subcell_centroids_x, subcell_centroids_y,
-        subcell_centroids_z, cell_volume, subcell_face_offsets, faces_to_nodes,
+        subcell_centroids_z, cell_volume, subcells_to_faces_offsets, faces_to_nodes,
         faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
         cells_to_faces_offsets, cells_to_faces, cells_to_nodes);
 
@@ -105,7 +104,7 @@ void solve_unstructured_hydro_3d(
                 subcell_centroids_x, subcell_centroids_y, subcell_centroids_z,
                 rezoned_nodes_x, rezoned_nodes_y, rezoned_nodes_z,
                 faces_to_nodes, faces_to_nodes_offsets, cells_to_faces_offsets,
-                cells_to_faces, subcell_face_offsets, subcells_to_subcells);
+                cells_to_faces, subcells_to_faces_offsets, subcells_to_subcells);
 
     printf("\nPerforming the Scattering Phase\n");
 
@@ -126,11 +125,11 @@ void solve_unstructured_hydro_3d(
                   subcell_momentum_y, subcell_momentum_z,
                   nodes_to_faces_offsets, nodes_to_faces, faces_to_nodes,
                   faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
-                  cells_to_faces_offsets, cells_to_faces, subcell_face_offsets);
+                  cells_to_faces_offsets, cells_to_faces, subcells_to_faces_offsets);
 
     subcells_to_visit(nsubcell_nodes, ncells * nsubcells_per_cell,
-                      1000 + timestep, subcell_data_x, subcell_data_y,
-                      subcell_data_z, subcells_to_nodes, subcell_mass_flux, 0,
+                      1000 + timestep, subcell_nodes_x, subcell_nodes_y,
+                      subcell_nodes_z, subcells_to_nodes, subcell_mass_flux, 0,
                       1);
 
     printf("\nEulerian Mesh Rezone\n");

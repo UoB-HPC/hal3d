@@ -1173,6 +1173,7 @@ double apply_node_limiter(const int ncells_by_node, const int node_to_cells_off,
 // Calculates the cell volume, subcell volume and the subcell centroids
 void calc_volumes_centroids(
     const int ncells, const int* cells_to_faces_offsets,
+    const int* cells_offsets, const int* nodes_to_faces_offsets,
     const double* cell_centroids_x, const double* cell_centroids_y,
     const double* cell_centroids_z, const int* cells_to_faces,
     const int* faces_to_nodes, const int* faces_to_nodes_offsets,
@@ -1187,13 +1188,25 @@ void calc_volumes_centroids(
 #pragma omp parallel for reduction(+ : total_subcell_volume, total_volume)
 #endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
-    const int nfaces_by_cell =
-        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
+    const int cell_to_nodes_off = cells_offsets[(cc)];
+    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
 
     vec_t cell_centroid = {cell_centroids_x[(cc)], cell_centroids_y[(cc)],
                            cell_centroids_z[(cc)]};
 
+    for (int nn = 0; nn < nnodes_by_cell; ++nn) {
+      const int node_to_faces_off = nodes_to_faces_offsets[(nn)];
+      const int nfaces_by_node =
+          nodes_to_faces_offsets[(nn + 1)] - node_to_faces_off;
+
+      const int subcell_index = cell_to_nodes_off + nn;
+
+      for (int ff = 0; ff < nfaces_by_node; ++ff) {
+      }
+    }
+  }
+
+#if 0
     // Precompute the volume of the cell
     calc_volume(cell_to_faces_off, nfaces_by_cell, cells_to_faces,
                 faces_to_nodes, faces_to_nodes_offsets, nodes_x0, nodes_y0,
@@ -1271,7 +1284,7 @@ void calc_volumes_centroids(
         total_subcell_volume += subcell_volume[(subcell_index)];
       }
     }
-  }
+#endif // if 0
 
   printf("Total Cell Volume %.12f\n", total_volume);
   printf("Total Subcell Volume %.12f\n", total_subcell_volume);

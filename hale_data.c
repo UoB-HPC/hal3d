@@ -10,11 +10,11 @@
 
 // Initialises the shared_data variables for two dimensional applications
 size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
-  const int nfaces_by_cell = 6;
-  const int nnodes_by_cell = 8;
   const int nfaces_by_node = 3;
-  hale_data->nsubcells = umesh->ncells * umesh->nnodes;
-  hale_data->nsubcell_edges = 4;
+  hale_data->nnodes_per_subcell = 8;
+  hale_data->nsubcells_per_cell = 8;
+  hale_data->nnodes_per_subcell = 8;
+  hale_data->nsubcells = umesh->ncells * hale_data->nsubcells_per_cell;
 
   size_t allocated = allocate_data(&hale_data->pressure0, umesh->ncells);
   allocated += allocate_data(&hale_data->velocity_x0, umesh->nnodes);
@@ -36,11 +36,13 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
   allocated += allocate_data(&hale_data->rezoned_nodes_z, umesh->nnodes);
   allocated += allocate_data(&hale_data->cell_volume, umesh->ncells);
 
-  // TODO: This constant is the number of subcells that might neighbour a
-  // subcell, which is the number of subcell faces
   allocated += allocate_int_data(&hale_data->subcells_to_subcells,
                                  hale_data->nsubcells * nfaces_by_node * 2);
-  allocated += allocate_int_data(&hale_data->subcell_face_offsets,
+  allocated += allocate_int_data(&hale_data->subcells_to_subcells_offsets,
+                                 hale_data->nsubcells + 1);
+  allocated += allocate_int_data(&hale_data->subcells_to_faces,
+                                 hale_data->nsubcells * nfaces_by_node);
+  allocated += allocate_int_data(&hale_data->subcells_to_faces_offsets,
                                  hale_data->nsubcells + 1);
   allocated +=
       allocate_data(&hale_data->subcell_momentum_flux_x, hale_data->nsubcells);
@@ -74,12 +76,14 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
                       umesh->nodes_z0, umesh->cell_centroids_x,
                       umesh->cell_centroids_y, umesh->cell_centroids_z);
 
+  // Initialises the list of neighbours to a subcell
   init_subcells_to_subcells(
       umesh->ncells, umesh->faces_to_cells0, umesh->faces_to_cells1,
-      umesh->faces_to_nodes_offsets, umesh->faces_to_nodes,
-      umesh->cell_centroids_x, umesh->cell_centroids_y, umesh->cell_centroids_z,
-      umesh->cells_to_faces_offsets, umesh->cells_to_faces,
-      hale_data->subcells_to_subcells, hale_data->subcell_face_offsets);
+      umesh->faces_to_nodes_offsets, umesh->faces_to_nodes, umesh->nodes_x0,
+      umesh->nodes_y0, umesh->nodes_z0, hale_data->subcells_to_subcells,
+      hale_data->subcells_to_subcells_offsets, umesh->cells_offsets,
+      umesh->nodes_to_faces_offsets, umesh->nodes_to_faces,
+      umesh->cells_to_nodes);
 
   // Initialises the cell mass, sub-cell mass and sub-cell volume
   init_mesh_mass(
@@ -104,36 +108,6 @@ void deallocate_hale_data(HaleData* hale_data) {
   // TODO: Populate this correctly !
 }
 
-// Writes out unstructured triangles to visit
-void write_unstructured_to_visit_2d(const int nnodes, int ncells,
-                                    const int step, double* nodes_x0,
-                                    double* nodes_y0, const int* cells_to_nodes,
-                                    const double* arr, const int nodal,
-                                    const int quads) {
-  // Only triangles
-  double* coords[] = {(double*)nodes_x0, (double*)nodes_y0};
-  int shapesize[] = {(quads ? 4 : 3)};
-  int shapecounts[] = {ncells};
-  int shapetype[] = {(quads ? DB_ZONETYPE_QUAD : DB_ZONETYPE_TRIANGLE)};
-  int ndims = 2;
-  int nshapes = 1;
-
-  char filename[MAX_STR_LEN];
-  sprintf(filename, "output%04d.silo", step);
-
-  DBfile* dbfile =
-      DBCreate(filename, DB_CLOBBER, DB_LOCAL, "simulation time step", DB_HDF5);
-
-  DBPutZonelist2(dbfile, "zonelist", ncells, ndims, cells_to_nodes,
-                 ncells * shapesize[0], 0, 0, 0, shapetype, shapesize,
-                 shapecounts, nshapes, NULL);
-  DBPutUcdmesh(dbfile, "mesh", ndims, NULL, coords, nnodes, ncells, "zonelist",
-               NULL, DB_DOUBLE, NULL);
-  DBPutUcdvar1(dbfile, "arr", "mesh", arr, (nodal ? nnodes : ncells), NULL, 0,
-               DB_DOUBLE, (nodal ? DB_NODECENT : DB_ZONECENT), NULL);
-  DBClose(dbfile);
-}
-
 // Writes out unstructured mesh data to visit
 void write_unstructured_to_visit_3d(const int nnodes, int ncells,
                                     const int step, double* nodes_x,
@@ -147,42 +121,6 @@ void write_unstructured_to_visit_3d(const int nnodes, int ncells,
   int shapecounts[] = {ncells};
   int shapesize[] = {8};
   int shapetype[] = {DB_ZONETYPE_HEX};
-
-  int ndims = 3;
-  int nshapes = 1;
-
-  char filename[MAX_STR_LEN];
-  sprintf(filename, "output%04d.silo", step);
-
-  DBfile* dbfile =
-      DBCreate(filename, DB_CLOBBER, DB_LOCAL, "simulation time step", DB_HDF5);
-
-  /* Write out connectivity information. */
-  DBPutZonelist2(dbfile, "zonelist", ncells, ndims, cells_to_nodes,
-                 ncells * shapesize[0], 0, 0, 0, shapetype, shapesize,
-                 shapecounts, nshapes, NULL);
-
-  /* Write an unstructured mesh. */
-  DBPutUcdmesh(dbfile, "mesh", ndims, NULL, coords, nnodes, ncells, "zonelist",
-               NULL, DB_DOUBLE, NULL);
-
-  DBPutUcdvar1(dbfile, "arr", "mesh", arr, (nodal ? nnodes : ncells), NULL, 0,
-               DB_DOUBLE, (nodal ? DB_NODECENT : DB_ZONECENT), NULL);
-
-  DBClose(dbfile);
-}
-
-// Writes out unstructured tetrahedral subcells to visit
-void subcells_to_visit(const int nnodes, int ncells, const int step,
-                       double* nodes_x, double* nodes_y, double* nodes_z,
-                       const int* cells_to_nodes, const double* arr,
-                       const int nodal, const int quads) {
-
-  double* coords[] = {(double*)nodes_x, (double*)nodes_y, (double*)nodes_z};
-
-  int shapecounts[] = {ncells};
-  int shapesize[] = {4};
-  int shapetype[] = {DB_ZONETYPE_TET};
 
   int ndims = 3;
   int nshapes = 1;

@@ -67,9 +67,6 @@ typedef struct {
   double* nodal_soundspeed;
   double* limiter;
 
-  int* subcells_to_subcells;
-  int* subcell_face_offsets;
-
   double* subcell_ie_density0;
   double* subcell_ie_mass_flux;
   double* subcell_mass0;
@@ -88,16 +85,10 @@ typedef struct {
   double* rezoned_nodes_y;
   double* rezoned_nodes_z;
 
-  // NOTE: The data here is only really intended to be used for testing purposes
-  double* subcell_data_x;
-  double* subcell_data_y;
-  double* subcell_data_z;
-  int* subcells_to_nodes;
-
-  int nsubcell_edges;
   int nsubcells;
   int nsubcell_nodes;
   int nsubcells_per_cell;
+  int nnodes_per_subcell;
 
   double visc_coeff1;
   double visc_coeff2;
@@ -105,15 +96,26 @@ typedef struct {
   int perform_remap;
   int visit_dump;
 
+  int* subcells_to_nodes;
+  int* subcells_to_subcells_offsets;
+  int* subcells_to_subcells;
+  int* subcells_to_faces;
+  int* subcells_to_faces_offsets;
+
+  // Only intended for testing purposes
+  double* subcell_nodes_x;
+  double* subcell_nodes_y;
+  double* subcell_nodes_z;
+
 } HaleData;
 
 // Initialises the shared_data variables for two dimensional applications
 size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh);
 
-// This method sets up the subcell nodes and connectivity for a structured mesh
-// viewed as an unstructured mesh. This is not intended to be used for
-// production purposes, but instead should be used for debugging the code.
-size_t init_subcell_data_structures(Mesh* mesh, HaleData* hale_data);
+// NOTE: This is not intended to be a production device, rather used for
+// debugging the code against a well tested description of the subcell mesh.
+size_t init_subcell_data_structures(Mesh* mesh, HaleData* hale_data,
+                                    UnstructuredMesh* umesh);
 
 // Initialises the cell mass, sub-cell mass and sub-cell volume
 void init_mesh_mass(
@@ -134,12 +136,24 @@ void init_cell_centroids(const int ncells, const int* cells_offsets,
                          double* cell_centroids_z);
 
 // Initialises the list of neighbours to a subcell
-void init_subcells_to_subcells(
-    const int ncells, const int* faces_to_cells0, const int* faces_to_cells1,
-    const int* faces_to_nodes_offsets, const int* faces_to_nodes,
-    const double* cell_centroids_x, const double* cell_centroids_y,
-    const double* cell_centroids_z, int* cells_to_faces_offsets,
-    int* cells_to_faces, int* subcells_to_subcells, int* subcell_face_offsets);
+void init_subcells_to_subcells(const int ncells, const int* faces_to_cells0,
+                               const int* faces_to_cells1,
+                               const int* faces_to_nodes_offsets,
+                               const int* faces_to_nodes, const double* nodes_x,
+                               const double* nodes_y, const double* nodes_z,
+                               int* subcells_to_subcells,
+                               int* subcells_to_subcells_offsets,
+                               int* cells_offsets, int* nodes_to_faces_offsets,
+                               int* nodes_to_faces, int* cells_to_nodes);
+
+void init_subcells_to_faces(
+    const int ncells, const int nsubcells, const int* cells_offsets,
+    const int* nodes_to_faces_offsets, const int* cells_to_nodes,
+    const int* faces_to_cells0, const int* faces_to_cells1,
+    const int* nodes_to_faces, const int* faces_to_nodes,
+    const int* faces_to_nodes_offsets, int* subcells_to_faces,
+    const double* nodes_x, const double* nodes_y, const double* nodes_z,
+    int* subcells_to_faces_offsets);
 
 // Stores the rezoned grid specification, in case we aren't going to use a
 // rezoning strategy and want to perform an Eulerian remap
@@ -150,12 +164,6 @@ void store_rezoned_mesh(const int nnodes, const double* nodes_x,
 
 // Deallocates all of the hale specific data
 void deallocate_hale_data(HaleData* hale_data);
-
-// Writes out unstructured tetrahedral subcells to visit
-void subcells_to_visit(const int nnodes, int ncells, const int step,
-                       double* nodes_x, double* nodes_y, double* nodes_z,
-                       const int* cells_to_nodes, const double* arr,
-                       const int nodal, const int quads);
 
 // Writes out unstructured triangles to visit
 void write_unstructured_to_visit_3d(const int nnodes, int ncells,

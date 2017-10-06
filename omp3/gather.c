@@ -15,28 +15,29 @@ void gather_subcell_quantities(
     double* subcell_ie_mass0, double* subcell_momentum_flux_x,
     double* subcell_momentum_flux_y, double* subcell_momentum_flux_z,
     double* subcell_centroids_x, double* subcell_centroids_y,
-    double* subcell_centroids_z, double* cell_volume, int* subcell_face_offsets,
-    int* faces_to_nodes, int* faces_to_nodes_offsets, int* faces_to_cells0,
-    int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces,
-    int* cells_to_nodes) {
+    double* subcell_centroids_z, double* cell_volume,
+    int* subcells_to_faces_offsets, int* faces_to_nodes,
+    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
+    int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes,
+    int* nodes_to_faces_offsets) {
 
   /*
   *      GATHERING STAGE OF THE REMAP
   */
 
-  calc_volumes_centroids(ncells, cells_to_faces_offsets, cell_centroids_x,
-                         cell_centroids_y, cell_centroids_z, cells_to_faces,
-                         faces_to_nodes, faces_to_nodes_offsets,
-                         subcell_face_offsets, nodes_x0, nodes_y0, nodes_z0,
-                         cell_volume, subcell_centroids_x, subcell_centroids_y,
-                         subcell_centroids_z, subcell_volume);
+  calc_volumes_centroids(
+      ncells, cells_to_faces_offsets, cells_offsets, nodes_to_faces_offsets,
+      cell_centroids_x, cell_centroids_y, cell_centroids_z, cells_to_faces,
+      faces_to_nodes, faces_to_nodes_offsets, subcells_to_faces_offsets,
+      nodes_x0, nodes_y0, nodes_z0, cell_volume, subcell_centroids_x,
+      subcell_centroids_y, subcell_centroids_z, subcell_volume);
 
   // Gathers all of the subcell quantities on the mesh
   gather_subcell_energy(
       ncells, cell_centroids_x, cell_centroids_y, cell_centroids_z,
       cells_offsets, nodes_x0, nodes_y0, nodes_z0, energy0, density0, cell_mass,
       subcell_volume, subcell_ie_mass0, subcell_centroids_x,
-      subcell_centroids_y, subcell_centroids_z, subcell_face_offsets,
+      subcell_centroids_y, subcell_centroids_z, subcells_to_faces_offsets,
       faces_to_nodes, faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces, cells_to_nodes);
 
@@ -46,7 +47,7 @@ void gather_subcell_quantities(
       cell_centroids_y, cell_centroids_z, cells_offsets, nodes_to_cells,
       nodes_offsets, nodes_x0, nodes_y0, nodes_z0, velocity_x0, velocity_y0,
       velocity_z0, subcell_volume, subcell_momentum_flux_x,
-      subcell_momentum_flux_y, subcell_momentum_flux_z, subcell_face_offsets,
+      subcell_momentum_flux_y, subcell_momentum_flux_z, subcells_to_faces_offsets,
       faces_to_nodes, faces_to_nodes_offsets, cells_to_faces_offsets,
       cells_to_faces, cells_to_nodes);
 #endif // if 0
@@ -60,9 +61,9 @@ void gather_subcell_energy(
     double* density0, double* cell_mass, double* subcell_volume,
     double* subcell_ie_mass, double* subcell_centroids_x,
     double* subcell_centroids_y, double* subcell_centroids_z,
-    int* subcell_face_offsets, int* faces_to_nodes, int* faces_to_nodes_offsets,
-    int* faces_to_cells0, int* faces_to_cells1, int* cells_to_faces_offsets,
-    int* cells_to_faces, int* cells_to_nodes) {
+    int* subcells_to_faces_offsets, int* faces_to_nodes,
+    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
+    int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes) {
 
 // Calculate the sub-cell internal energies
 #pragma omp parallel for
@@ -143,7 +144,8 @@ void gather_subcell_energy(
       const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
       const int nnodes_by_face =
           faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-      const int subcell_off = subcell_face_offsets[(cell_to_faces_off + ff)];
+      const int subcell_off =
+          subcells_to_faces_offsets[(cell_to_faces_off + ff)];
 
       // The face centroid is the same for all nodes on the face
       vec_t face_c = {0.0, 0.0, 0.0};
@@ -200,7 +202,7 @@ void gather_subcell_momentum(
     const double* nodes_y0, const double* nodes_z0, double* velocity_x0,
     double* velocity_y0, double* velocity_z0, double* subcell_volume,
     double* subcell_momentum_flux_x, double* subcell_momentum_flux_y,
-    double* subcell_momentum_flux_z, int* subcell_face_offsets,
+    double* subcell_momentum_flux_z, int* subcells_to_faces_offsets,
     int* faces_to_nodes, int* faces_to_nodes_offsets,
     int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes) {
 
@@ -229,7 +231,8 @@ void gather_subcell_momentum(
       const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
       const int nnodes_by_face =
           faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-      const int subcell_off = subcell_face_offsets[(cell_to_faces_off + ff)];
+      const int subcell_off =
+          subcells_to_faces_offsets[(cell_to_faces_off + ff)];
 
       // The face centroid is the same for all nodes on the face
       vec_t face_c = {0.0, 0.0, 0.0};

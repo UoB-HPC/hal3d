@@ -53,10 +53,11 @@ void gather_subcell_quantities(
     double* subcell_ie_mass0, double* subcell_momentum_flux_x,
     double* subcell_momentum_flux_y, double* subcell_momentum_flux_z,
     double* subcell_centroids_x, double* subcell_centroids_y,
-    double* subcell_centroids_z, double* cell_volume, int* subcell_face_offsets,
-    int* faces_to_nodes, int* faces_to_nodes_offsets, int* faces_to_cells0,
-    int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces,
-    int* cells_to_nodes);
+    double* subcell_centroids_z, double* cell_volume,
+    int* subcells_to_faces_offsets, int* faces_to_nodes,
+    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
+    int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes,
+    int* nodes_to_faces_offsets);
 
 void gather_subcell_momentum(
     const int ncells, const int nnodes, const double* nodal_volumes,
@@ -204,6 +205,7 @@ double apply_node_limiter(const int ncells_by_node, const int node_to_cells_off,
 // Calculates the cell volume, subcell volume and the subcell centroids
 void calc_volumes_centroids(
     const int ncells, const int* cells_to_faces_offsets,
+    const int* cells_offsets, const int* nodes_to_faces_offsets,
     const double* cell_centroids_x, const double* cell_centroids_y,
     const double* cell_centroids_z, const int* cells_to_faces,
     const int* faces_to_nodes, const int* faces_to_nodes_offsets,
