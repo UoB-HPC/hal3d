@@ -252,9 +252,7 @@ void init_subcells_to_faces(
     subcells_to_faces_offsets[(ss + 1)] += subcells_to_faces_offsets[(ss)];
   }
 
-#if 0
 #pragma omp parallel for
-#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
@@ -293,7 +291,7 @@ void init_subcells_to_faces(
       subcells_to_faces[(subcell_to_faces_off)] = faces[0];
 
       for (int ff = 0; ff < nfaces_by_subcell - 1; ++ff) {
-        const int face_index = faces[(ff)];
+        const int face_index = subcells_to_faces[(subcell_to_faces_off + ff)];
         const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
         const int nnodes_by_face =
             faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
@@ -305,6 +303,7 @@ void init_subcells_to_faces(
           }
         }
 
+        // TODO: SOMETHING TO DO WITH THE CLOCKWISENESS
         const int n0 = faces_to_nodes[(face_to_nodes_off + 0)];
         const int n1 = faces_to_nodes[(face_to_nodes_off + 1)];
         const int n2 = faces_to_nodes[(face_to_nodes_off + 2)];
@@ -314,25 +313,26 @@ void init_subcells_to_faces(
                                 &cell_centroid, &face_normal);
         const int next_node = (nn2 == nnodes_by_face - 1) ? 0 : nn2 + 1;
         const int prev_node = (nn2 == 0) ? nnodes_by_face - 1 : nn2 - 1;
-        const int rnode_index = faces_to_nodes[(
-            face_to_nodes_off + (face_clockwise ? prev_node : next_node))];
+        const int rnode_off = (face_clockwise ? prev_node : next_node);
+        const int rnode_index = faces_to_nodes[(face_to_nodes_off + rnode_off)];
 
         subcells_to_faces[(subcell_to_faces_off + ff + 1)] = -1;
 
+        // Essentially have to perform a search through the faces.
         for (int ff2 = 1; ff2 < nfaces_by_subcell; ++ff2) {
-          if (ff == ff2) {
+          const int face_index2 = faces[(ff2)];
+
+          if (face_index == face_index2) {
             continue;
           }
 
-          const int face_index2 = faces[(ff2)];
           const int face_to_nodes_off2 = faces_to_nodes_offsets[(face_index2)];
           const int nnodes_by_face2 =
               faces_to_nodes_offsets[(face_index2 + 1)] - face_to_nodes_off2;
 
+          // Check if this face shares an edge
           for (int nn2 = 0; nn2 < nnodes_by_face2; ++nn2) {
-            const int node_index = faces_to_nodes[(face_to_nodes_off2 + nn2)];
-            // Check if this face shares an edge
-            if (node_index == rnode_index) {
+            if (faces_to_nodes[(face_to_nodes_off2 + nn2)] == rnode_index) {
               subcells_to_faces[(subcell_to_faces_off + ff + 1)] = face_index2;
               break;
             }
@@ -342,11 +342,6 @@ void init_subcells_to_faces(
             break;
           }
         }
-      }
-
-      printf("cc %d nn %d\n", cc, nn);
-      for (int ff = 0; ff < nfaces_by_subcell; ++ff) {
-        printf("%d\n", subcells_to_faces[(subcell_to_faces_off + ff)]);
       }
     }
   }
