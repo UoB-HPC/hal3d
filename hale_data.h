@@ -23,6 +23,9 @@
 #define NSUBCELL_NEIGHBOURS 4
 #define NSUBSUBCELLS 2
 
+#define NNODES_BY_SUBCELL_FACE 4
+
+#if 0
 // The number of faces of swept edge prism
 #define NPRISM_FACES 5
 #define NPRISM_NODES 6
@@ -31,6 +34,7 @@
 #define NTET_FACES 4
 #define NTET_NODES 4
 #define NTET_NODES_PER_FACE 3
+#endif // if 0
 
 enum { XYZ, YZX, ZXY };
 
@@ -136,15 +140,14 @@ void init_cell_centroids(const int ncells, const int* cells_offsets,
                          double* cell_centroids_z);
 
 // Initialises the list of neighbours to a subcell
-void init_subcells_to_subcells(const int ncells, const int* faces_to_cells0,
-                               const int* faces_to_cells1,
-                               const int* faces_to_nodes_offsets,
-                               const int* faces_to_nodes, const double* nodes_x,
-                               const double* nodes_y, const double* nodes_z,
-                               int* subcells_to_subcells,
-                               int* subcells_to_subcells_offsets,
-                               int* cells_offsets, int* nodes_to_faces_offsets,
-                               int* nodes_to_faces, int* cells_to_nodes);
+void init_subcells_to_subcells(
+    const int ncells, const int nsubcells, const int* faces_to_cells0,
+    const int* faces_to_cells1, const int* faces_to_nodes_offsets,
+    const int* faces_to_nodes, const double* nodes_x, const double* nodes_y,
+    const double* nodes_z, int* subcells_to_subcells,
+    int* subcells_to_subcells_offsets, int* cells_offsets,
+    int* nodes_to_faces_offsets, int* nodes_to_faces, int* cells_to_nodes,
+    int* subcells_to_faces, int* subcells_to_faces_offsets);
 
 void init_subcells_to_faces(
     const int ncells, const int nsubcells, const int* cells_offsets,

@@ -35,12 +35,13 @@ void solve_unstructured_hydro_3d(
     double* subcell_momentum_z, double* subcell_centroids_x,
     double* subcell_centroids_y, double* subcell_centroids_z,
     double* subcell_kinetic_energy, int* subcells_to_nodes,
-    double* subcell_data_x, double* subcell_data_y, double* subcell_data_z,
+    double* subcell_nodes_x, double* subcell_nodes_y, double* subcell_nodes_z,
     double* rezoned_nodes_x, double* rezoned_nodes_y, double* rezoned_nodes_z,
     int* nodes_to_faces_offsets, int* nodes_to_faces, int* faces_to_nodes,
     int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
-    int* cells_to_faces_offsets, int* cells_to_faces, int* subcell_face_offsets,
-    int* subcells_to_subcells);
+    int* cells_to_faces_offsets, int* cells_to_faces, int* subcells_to_subcells,
+    int* subcells_to_subcells_offsets, int* subcells_to_faces,
+    int* subcells_to_faces_offsets);
 
 // Controls the timestep for the simulation
 void set_timestep(const int ncells, const double* nodes_x,

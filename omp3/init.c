@@ -3,13 +3,6 @@
 #include "hale.h"
 #include <math.h>
 
-void search_for_neighbour_face(const int ff, const int nfaces_by_subcell,
-                               const int rnode_index,
-                               const int subcell_to_faces_off, int* faces,
-                               const int* faces_to_nodes_offsets,
-                               const int* faces_to_nodes,
-                               int* subcells_to_faces);
-
 // Initialises the cell mass, sub-cell mass and sub-cell volume
 void init_mesh_mass(
     const int ncells, const int nnodes, const double* cell_centroids_x,
@@ -239,8 +232,8 @@ void init_subcells_to_faces(
 
       for (int ff = 0; ff < nfaces_by_node; ++ff) {
         const int face_index = nodes_to_faces[(node_to_faces_off + ff)];
-        if (faces_to_cells0[(face_index)] == cc ||
-            faces_to_cells1[(face_index)] == cc) {
+        if (face_index != -1 && (faces_to_cells0[(face_index)] == cc ||
+                                 faces_to_cells1[(face_index)] == cc)) {
           subcells_to_faces_offsets[(subcell_index + 1)]++;
         }
       }
@@ -347,69 +340,49 @@ void init_subcells_to_faces(
   }
 }
 
-void search_for_neighbour_face(const int ff, const int nfaces_by_subcell,
-                               const int rnode_index,
-                               const int subcell_to_faces_off, int* faces,
-                               const int* faces_to_nodes_offsets,
-                               const int* faces_to_nodes,
-                               int* subcells_to_faces) {}
-
 // Initialises the list of neighbours to a subcell
-void init_subcells_to_subcells(const int ncells, const int* faces_to_cells0,
-                               const int* faces_to_cells1,
-                               const int* faces_to_nodes_offsets,
-                               const int* faces_to_nodes, const double* nodes_x,
-                               const double* nodes_y, const double* nodes_z,
-                               int* subcells_to_subcells,
-                               int* subcells_to_subcells_offsets,
-                               int* cells_offsets, int* nodes_to_faces_offsets,
-                               int* nodes_to_faces, int* cells_to_nodes) {
+void init_subcells_to_subcells(
+    const int ncells, const int nsubcells, const int* faces_to_cells0,
+    const int* faces_to_cells1, const int* faces_to_nodes_offsets,
+    const int* faces_to_nodes, const double* nodes_x, const double* nodes_y,
+    const double* nodes_z, int* subcells_to_subcells,
+    int* subcells_to_subcells_offsets, int* cells_offsets,
+    int* nodes_to_faces_offsets, int* nodes_to_faces, int* cells_to_nodes,
+    int* subcells_to_faces, int* subcells_to_faces_offsets) {
 
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
-    const int subcell_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - subcell_off;
     const int cell_to_nodes_off = cells_offsets[(cc)];
+    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
 
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int node_index = cells_to_nodes[(cell_to_nodes_off + nn)];
       const int node_to_faces_off = nodes_to_faces_offsets[(node_index)];
       const int nfaces_by_node =
           nodes_to_faces_offsets[(node_index + 1)] - node_to_faces_off;
-      const int subcell_index = subcell_off + nn;
+      const int subcell_index = cell_to_nodes_off + nn;
 
-      int nsubcell_neighbours = 0;
       // Consider all faces attached to node
       for (int ff = 0; ff < nfaces_by_node; ++ff) {
         const int face_index = nodes_to_faces[(node_to_faces_off + ff)];
-        if (faces_to_cells0[(face_index)] != cc &&
-            faces_to_cells1[(face_index)] != cc) {
-          continue;
+        if (face_index != -1 && (faces_to_cells0[(face_index)] == cc ||
+                                 faces_to_cells1[(face_index)] == cc)) {
+          // A pair of subcell neighbours for every face
+          subcells_to_subcells_offsets[(subcell_index + 1)] += 2;
         }
-
-        nsubcell_neighbours++;
       }
-
-      subcells_to_subcells_offsets[(subcell_index)] = nsubcell_neighbours * 2;
     }
   }
 
-  // TODO: PREFIX SUM PARALLELISATION?
-  for (int cc = 0; cc < ncells; ++cc) {
-    const int subcell_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - subcell_off;
-    for (int nn = 0; nn < nnodes_by_cell; ++nn) {
-      const int subcell_index = subcell_off + nn;
-      subcells_to_subcells_offsets[(subcell_index + 1)] +=
-          subcells_to_subcells_offsets[(subcell_index)];
-    }
+  for (int ss = 0; ss < nsubcells; ++ss) {
+    subcells_to_subcells_offsets[(ss + 1)] +=
+        subcells_to_subcells_offsets[(ss)];
   }
 
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
-    const int subcell_off = cells_offsets[(cc)];
     const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - subcell_off;
+    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
 
     vec_t cell_centroid = {0.0, 0.0, 0.0};
     calc_centroid(nnodes_by_cell, nodes_x, nodes_y, nodes_z, cells_to_nodes,
@@ -417,24 +390,20 @@ void init_subcells_to_subcells(const int ncells, const int* faces_to_cells0,
 
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int node_index = cells_to_nodes[(cell_to_nodes_off + nn)];
-      const int node_to_faces_off = nodes_to_faces_offsets[(node_index)];
-      const int nfaces_by_node =
-          nodes_to_faces_offsets[(node_index + 1)] - node_to_faces_off;
-      const int subcell_index = subcell_off + nn;
+      const int subcell_index = cell_to_nodes_off + nn;
       const int subcell_to_subcells_off =
           subcells_to_subcells_offsets[(subcell_index)];
+      const int subcell_to_faces_off =
+          subcells_to_faces_offsets[(subcell_index)];
+      const int nfaces_by_subcell =
+          subcells_to_faces_offsets[(subcell_index + 1)] - subcell_to_faces_off;
 
       // Consider all faces attached to node
-      for (int ff = 0; ff < nfaces_by_node; ++ff) {
-        const int face_index = nodes_to_faces[(node_to_faces_off + ff)];
+      for (int ff = 0; ff < nfaces_by_subcell; ++ff) {
+        const int face_index = subcells_to_faces[(subcell_to_faces_off + ff)];
         const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
         const int nnodes_by_face =
             faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-        if (faces_to_cells0[(face_index)] != cc &&
-            faces_to_cells1[(face_index)] != cc) {
-          continue;
-        }
-
         const int neighbour_cell_index = (faces_to_cells0[(face_index)] == cc)
                                              ? faces_to_cells1[(face_index)]
                                              : faces_to_cells0[(face_index)];
@@ -453,30 +422,33 @@ void init_subcells_to_subcells(const int ncells, const int* faces_to_cells0,
                                 &cell_centroid, &face_normal);
 
         // We have to find our position on the face
-        // The nodes will mostly be in cache anyway so this is actually cheap
-        int neighbour_subcell_index;
+        // The nodes will mostly be in cache anyway so should be cheap
+        int rnode_index;
         for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
           if (faces_to_nodes[(face_to_nodes_off + nn2)] == node_index) {
             const int next_node = (nn2 == nnodes_by_face - 1) ? 0 : nn2 + 1;
             const int prev_node = (nn2 == 0) ? nnodes_by_face - 1 : nn2 - 1;
-            neighbour_subcell_index = faces_to_nodes[(
-                face_to_nodes_off + (face_clockwise) ? prev_node : next_node)];
+            const int rnode_off = (face_clockwise) ? prev_node : next_node;
+            rnode_index = faces_to_nodes[(face_to_nodes_off + rnode_off)];
             break;
           }
         }
 
         // Now we have to work back to find our location in the cell
-        // NOTE: Cells to nodes is essentially cells to subcells here
         for (int nn2 = 0; nn2 < nnodes_by_cell; ++nn2) {
-          if (cells_to_nodes[(cell_to_nodes_off + nn2)] ==
-              neighbour_subcell_index) {
-            subcells_to_subcells[(subcell_to_subcells_off + ff)] =
+          if (cells_to_nodes[(cell_to_nodes_off + nn2)] == rnode_index) {
+            subcells_to_subcells[(subcell_to_subcells_off + ff * 2)] =
                 cell_to_nodes_off + nn2;
             break;
           }
         }
 
         /* EXTERNAL NEIGHBOUR */
+
+        if (neighbour_cell_index == -1) {
+          subcells_to_subcells[(subcell_to_subcells_off + ff * 2 + 1)] = -1;
+          continue;
+        }
 
         const int neighbour_to_nodes_off =
             cells_offsets[(neighbour_cell_index)];
@@ -485,13 +457,12 @@ void init_subcells_to_subcells(const int ncells, const int* faces_to_cells0,
 
         // NOTE: Cells to nodes is essentially cells to subcells here
         for (int nn2 = 0; nn2 < nnodes_by_neighbour; ++nn2) {
-          if (cells_to_nodes[(neighbour_to_nodes_off + nn2)] ==
-              neighbour_subcell_index) {
-            const int neighbour_subcell_index = neighbour_to_nodes_off + nn2;
-            const int neighbour_subcell_to_subcells_off =
-                subcells_to_subcells_offsets[(neighbour_subcell_index)];
-            subcells_to_subcells[(neighbour_subcell_to_subcells_off + ff)] =
-                neighbour_to_nodes_off + nn2;
+          const int neighbour_subcell_index = neighbour_to_nodes_off + nn2;
+          const int neighbour_node_index =
+              cells_to_nodes[(neighbour_subcell_index)];
+          if (neighbour_node_index == node_index) {
+            subcells_to_subcells[(subcell_to_subcells_off + ff * 2 + 1)] =
+                neighbour_subcell_index;
             break;
           }
         }
@@ -727,35 +698,35 @@ size_t init_subcell_data_structures(Mesh* mesh, HaleData* hale_data,
             FACE_C_YZ_IND(ii, jj, kk + 1);
         hale_data->subcells_to_nodes[(c_off + 15)] = CELL_C_IND(ii, jj, kk);
 
-        // Top left subcell
-        hale_data->subcells_to_nodes[(c_off + 16)] =
-            HALF_NODE_Y_IND(ii, jj, kk);
-        hale_data->subcells_to_nodes[(c_off + 17)] = FACE_C_XY_IND(ii, jj, kk);
-        hale_data->subcells_to_nodes[(c_off + 18)] =
-            HALF_NODE_X_IND(ii, jj + 1, kk);
-        hale_data->subcells_to_nodes[(c_off + 19)] = NODE_IND(ii, jj + 1, kk);
-        hale_data->subcells_to_nodes[(c_off + 20)] = FACE_C_YZ_IND(ii, jj, kk);
-        hale_data->subcells_to_nodes[(c_off + 21)] = CELL_C_IND(ii, jj, kk);
-        hale_data->subcells_to_nodes[(c_off + 22)] =
-            FACE_C_ZX_IND(ii, jj + 1, kk);
-        hale_data->subcells_to_nodes[(c_off + 23)] =
-            HALF_NODE_Z_IND(ii, jj + 1, kk);
-
         // Top right subcell
-        hale_data->subcells_to_nodes[(c_off + 24)] = FACE_C_XY_IND(ii, jj, kk);
-        hale_data->subcells_to_nodes[(c_off + 25)] =
+        hale_data->subcells_to_nodes[(c_off + 16)] = FACE_C_XY_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 17)] =
             HALF_NODE_Y_IND(ii, jj, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 26)] =
+        hale_data->subcells_to_nodes[(c_off + 18)] =
             NODE_IND(ii, jj + 1, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 27)] =
+        hale_data->subcells_to_nodes[(c_off + 19)] =
             HALF_NODE_X_IND(ii, jj + 1, kk);
-        hale_data->subcells_to_nodes[(c_off + 28)] = CELL_C_IND(ii, jj, kk);
-        hale_data->subcells_to_nodes[(c_off + 29)] =
+        hale_data->subcells_to_nodes[(c_off + 20)] = CELL_C_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 21)] =
             FACE_C_YZ_IND(ii, jj, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 30)] =
+        hale_data->subcells_to_nodes[(c_off + 22)] =
             HALF_NODE_Z_IND(ii, jj + 1, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 31)] =
+        hale_data->subcells_to_nodes[(c_off + 23)] =
             FACE_C_ZX_IND(ii, jj + 1, kk);
+
+        // Top left subcell
+        hale_data->subcells_to_nodes[(c_off + 24)] =
+            HALF_NODE_Y_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 25)] = FACE_C_XY_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 26)] =
+            HALF_NODE_X_IND(ii, jj + 1, kk);
+        hale_data->subcells_to_nodes[(c_off + 27)] = NODE_IND(ii, jj + 1, kk);
+        hale_data->subcells_to_nodes[(c_off + 28)] = FACE_C_YZ_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 29)] = CELL_C_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 30)] =
+            FACE_C_ZX_IND(ii, jj + 1, kk);
+        hale_data->subcells_to_nodes[(c_off + 31)] =
+            HALF_NODE_Z_IND(ii, jj + 1, kk);
 
         // Bottom back left subcell
         hale_data->subcells_to_nodes[(c_off + 32)] =
@@ -787,38 +758,38 @@ size_t init_subcell_data_structures(Mesh* mesh, HaleData* hale_data,
         hale_data->subcells_to_nodes[(c_off + 47)] =
             FACE_C_XY_IND(ii + 1, jj, kk);
 
-        // Top back left subcell
-        hale_data->subcells_to_nodes[(c_off + 48)] = FACE_C_YZ_IND(ii, jj, kk);
-        hale_data->subcells_to_nodes[(c_off + 49)] = CELL_C_IND(ii, jj, kk);
-        hale_data->subcells_to_nodes[(c_off + 50)] =
-            FACE_C_ZX_IND(ii, jj + 1, kk);
-        hale_data->subcells_to_nodes[(c_off + 51)] =
-            HALF_NODE_Z_IND(ii, jj + 1, kk);
-        hale_data->subcells_to_nodes[(c_off + 52)] =
-            HALF_NODE_Y_IND(ii + 1, jj, kk);
-        hale_data->subcells_to_nodes[(c_off + 53)] =
-            FACE_C_XY_IND(ii + 1, jj, kk);
-        hale_data->subcells_to_nodes[(c_off + 54)] =
-            HALF_NODE_X_IND(ii + 1, jj + 1, kk);
-        hale_data->subcells_to_nodes[(c_off + 55)] =
-            NODE_IND(ii + 1, jj + 1, kk);
-
         // Top back right subcell
-        hale_data->subcells_to_nodes[(c_off + 56)] = CELL_C_IND(ii, jj, kk);
-        hale_data->subcells_to_nodes[(c_off + 57)] =
+        hale_data->subcells_to_nodes[(c_off + 48)] = CELL_C_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 49)] =
             FACE_C_YZ_IND(ii, jj, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 58)] =
+        hale_data->subcells_to_nodes[(c_off + 50)] =
             HALF_NODE_Z_IND(ii, jj + 1, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 59)] =
+        hale_data->subcells_to_nodes[(c_off + 51)] =
             FACE_C_ZX_IND(ii, jj + 1, kk);
-        hale_data->subcells_to_nodes[(c_off + 60)] =
+        hale_data->subcells_to_nodes[(c_off + 52)] =
             FACE_C_XY_IND(ii + 1, jj, kk);
-        hale_data->subcells_to_nodes[(c_off + 61)] =
+        hale_data->subcells_to_nodes[(c_off + 53)] =
             HALF_NODE_Y_IND(ii + 1, jj, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 62)] =
+        hale_data->subcells_to_nodes[(c_off + 54)] =
             NODE_IND(ii + 1, jj + 1, kk + 1);
-        hale_data->subcells_to_nodes[(c_off + 63)] =
+        hale_data->subcells_to_nodes[(c_off + 55)] =
             HALF_NODE_X_IND(ii + 1, jj + 1, kk);
+
+        // Top back left subcell
+        hale_data->subcells_to_nodes[(c_off + 56)] = FACE_C_YZ_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 57)] = CELL_C_IND(ii, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 58)] =
+            FACE_C_ZX_IND(ii, jj + 1, kk);
+        hale_data->subcells_to_nodes[(c_off + 59)] =
+            HALF_NODE_Z_IND(ii, jj + 1, kk);
+        hale_data->subcells_to_nodes[(c_off + 60)] =
+            HALF_NODE_Y_IND(ii + 1, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 61)] =
+            FACE_C_XY_IND(ii + 1, jj, kk);
+        hale_data->subcells_to_nodes[(c_off + 62)] =
+            HALF_NODE_X_IND(ii + 1, jj + 1, kk);
+        hale_data->subcells_to_nodes[(c_off + 63)] =
+            NODE_IND(ii + 1, jj + 1, kk);
       }
     }
   }

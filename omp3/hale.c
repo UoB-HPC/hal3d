@@ -24,18 +24,19 @@ void solve_unstructured_hydro_3d(
     double* velocity_y1, double* velocity_z1, double* subcell_force_x,
     double* subcell_force_y, double* subcell_force_z, double* cell_mass,
     double* nodal_mass, double* nodal_volumes, double* nodal_soundspeed,
-    double* limiter, double* subcell_volume, double* subcell_ie_mass,
-    double* subcell_mass, double* subcell_ie_mass_flux,
-    double* subcell_mass_flux, double* subcell_momentum_x,
-    double* subcell_momentum_y, double* subcell_momentum_z,
-    double* subcell_centroids_x, double* subcell_centroids_y,
-    double* subcell_centroids_z, double* subcell_kinetic_energy,
-    int* subcells_to_nodes, double* subcell_nodes_x, double* subcell_nodes_y,
-    double* subcell_nodes_z, double* rezoned_nodes_x, double* rezoned_nodes_y,
-    double* rezoned_nodes_z, int* nodes_to_faces_offsets, int* nodes_to_faces,
-    int* faces_to_nodes, int* faces_to_nodes_offsets, int* faces_to_cells0,
-    int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces,
-    int* subcells_to_faces_offsets, int* subcells_to_subcells) {
+    double* limiter, double* subcell_volume, double* subcell_ie_mass0,
+    double* subcell_mass0, double* subcell_ie_mass1, double* subcell_mass1,
+    double* subcell_momentum_flux_x, double* subcell_momentum_flux_y,
+    double* subcell_momentum_flux_z, double* subcell_centroids_x,
+    double* subcell_centroids_y, double* subcell_centroids_z,
+    double* subcell_kinetic_energy, int* subcells_to_nodes,
+    double* subcell_nodes_x, double* subcell_nodes_y, double* subcell_nodes_z,
+    double* rezoned_nodes_x, double* rezoned_nodes_y, double* rezoned_nodes_z,
+    int* nodes_to_faces_offsets, int* nodes_to_faces, int* faces_to_nodes,
+    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
+    int* cells_to_faces_offsets, int* cells_to_faces, int* subcells_to_subcells,
+    int* subcells_to_subcells_offsets, int* subcells_to_faces,
+    int* subcells_to_faces_offsets) {
 
   // Describe the subcell node layout
   printf("\nPerforming the Lagrangian Phase\n");
@@ -55,34 +56,30 @@ void solve_unstructured_hydro_3d(
       faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
       cells_to_faces_offsets, cells_to_faces);
 
-  write_unstructured_to_visit_3d(nsubcell_nodes, ncells * nsubcells_per_cell,
-                                 timestep * 2 + 1, subcell_nodes_x,
-                                 subcell_nodes_y, subcell_nodes_z,
-                                 subcells_to_nodes, subcell_mass, 0, 1);
-
   if (hale_data->visit_dump) {
     write_unstructured_to_visit_3d(nnodes, ncells, 2 + timestep * 2, nodes_x0,
                                    nodes_y0, nodes_z0, cells_to_nodes, density0,
                                    0, 1);
   }
 
-#if 0
   if (hale_data->perform_remap) {
     printf("\nPerforming Gathering Phase\n");
 
-    // Gather the subcell quantities for mass, internal and kinetic energy
-    // density, and momentum
+    // Gathers all of the subcell quantities on the mesh
     gather_subcell_quantities(
         ncells, nnodes, nodal_volumes, nodal_mass, cell_centroids_x,
         cell_centroids_y, cell_centroids_z, cells_offsets, nodes_to_cells,
         nodes_offsets, nodes_x0, nodes_y0, nodes_z0, energy0, density0,
         velocity_x0, velocity_y0, velocity_z0, cell_mass, subcell_volume,
-        subcell_ie_mass, subcell_momentum_x, subcell_momentum_y,
-        subcell_momentum_z, subcell_centroids_x, subcell_centroids_y,
-        subcell_centroids_z, cell_volume, subcells_to_faces_offsets, faces_to_nodes,
-        faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
-        cells_to_faces_offsets, cells_to_faces, cells_to_nodes);
+        subcell_ie_mass0, subcell_momentum_flux_x, subcell_momentum_flux_y,
+        subcell_momentum_flux_z, subcell_centroids_x, subcell_centroids_y,
+        subcell_centroids_z, cell_volume, subcells_to_faces_offsets,
+        faces_to_nodes, faces_to_nodes_offsets, faces_to_cells0,
+        faces_to_cells1, cells_to_faces_offsets, cells_to_faces, cells_to_nodes,
+        nodes_to_faces_offsets, subcells_to_subcells_offsets,
+        subcells_to_subcells, subcells_to_faces);
 
+#if 0
     // Store the total mass and internal energy
     double total_mass = 0.0;
     double total_ie = 0.0;
@@ -134,7 +131,6 @@ void solve_unstructured_hydro_3d(
 
     printf("\nEulerian Mesh Rezone\n");
 
-#if 0
     if (hale_data->visit_dump) {
       write_unstructured_to_visit_3d(nnodes, ncells, timestep * 2 + 1, nodes_x0,
                                      nodes_y0, nodes_z0, cells_to_nodes,
@@ -142,5 +138,4 @@ void solve_unstructured_hydro_3d(
     }
 #endif // if 0
   }
-#endif // if 0
 }

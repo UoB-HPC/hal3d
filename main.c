@@ -81,14 +81,8 @@ int main(int argc, char** argv) {
   hale_data.perform_remap = get_int_parameter("perform_remap", hale_params);
   hale_data.visit_dump = get_int_parameter("visit_dump", hale_params);
   allocated += init_hale_data(&hale_data, &umesh);
-  allocated += init_subcell_data_structures(&mesh, &hale_data, &umesh);
 
-  init_subcells_to_faces(
-      umesh.ncells, umesh.ncells * umesh.nnodes_by_cell, umesh.cells_offsets,
-      umesh.nodes_to_faces_offsets, umesh.cells_to_nodes, umesh.faces_to_cells0,
-      umesh.faces_to_cells1, umesh.nodes_to_faces, umesh.faces_to_nodes,
-      umesh.faces_to_nodes_offsets, hale_data.subcells_to_faces, umesh.nodes_x0,
-      umesh.nodes_y0, umesh.nodes_z0, hale_data.subcells_to_faces_offsets);
+  allocated += init_subcell_data_structures(&mesh, &hale_data, &umesh);
 
   printf("Initialisation time %.4lfs\n", omp_get_wtime() - i0);
   printf("Allocated %.3fGB bytes of data\n", allocated / (double)GB);
@@ -156,7 +150,8 @@ int main(int argc, char** argv) {
         umesh.faces_to_nodes, umesh.faces_to_nodes_offsets,
         umesh.faces_to_cells0, umesh.faces_to_cells1,
         umesh.cells_to_faces_offsets, umesh.cells_to_faces,
-        hale_data.subcells_to_faces_offsets, hale_data.subcells_to_subcells);
+        hale_data.subcells_to_subcells, hale_data.subcells_to_subcells_offsets,
+        hale_data.subcells_to_faces, hale_data.subcells_to_faces_offsets);
 
     //
     //

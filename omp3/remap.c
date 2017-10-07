@@ -24,7 +24,6 @@ void remap_phase(
 
 #if 0
 #pragma omp parallel for
-#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
@@ -781,6 +780,7 @@ void remap_phase(
   printf("Total flux momentum %.12f %.12f %.12f\n", total_x_flux, total_y_flux,
          total_z_flux);
 #endif // if 0
+#endif // if 0
 }
 
 // Checks if the normal vector is pointing inward or outward
@@ -863,6 +863,79 @@ void calc_normal(const int n0, const int n1, const int n2,
   normal->z = (dn0.x * dn1.y - dn1.x * dn0.y);
 }
 
+// Contributes a face to the volume of some cell
+void contribute_face_volume(const int nnodes_by_face, const int* faces_to_nodes,
+                            const double* nodes_x, const double* nodes_y,
+                            const double* nodes_z, const vec_t* cell_centroid,
+                            double* vol) {
+
+  // Determine the outward facing unit normal vector
+  vec_t normal = {0.0, 0.0, 0.0};
+  const int face_clockwise = calc_surface_normal(
+      faces_to_nodes[(0)], faces_to_nodes[(1)], faces_to_nodes[(2)], nodes_x,
+      nodes_y, nodes_z, cell_centroid, &normal);
+
+  vec_t face_c = {0.0, 0.0, 0.0};
+  calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes, 0,
+                &face_c);
+
+  double tn_x[3];
+  double tn_y[3];
+  double tn_z[3];
+
+  // We have a triangle per edge, which are per node on the face
+  for (int tt = 0; tt < nnodes_by_face; ++tt) {
+    const int next_node = (tt == nnodes_by_face - 1) ? 0 : tt + 1;
+    const int prev_node = (tt == 0) ? nnodes_by_face - 1 : tt - 1;
+    const int n0 = faces_to_nodes[(tt)];
+    const int n1n = faces_to_nodes[(next_node)];
+    const int n1p = faces_to_nodes[(prev_node)];
+    const int faces_to_nodes_tri[3] = {0, 1, 2};
+
+    // Construct the face triangle associated with the node
+    tn_x[0] = nodes_x[(n0)];
+    tn_y[0] = nodes_y[(n0)];
+    tn_z[0] = nodes_z[(n0)];
+    tn_x[1] = (face_clockwise ? nodes_x[(n1p)] : nodes_x[(n1n)]);
+    tn_y[1] = (face_clockwise ? nodes_y[(n1p)] : nodes_y[(n1n)]);
+    tn_z[1] = (face_clockwise ? nodes_z[(n1p)] : nodes_z[(n1n)]);
+    tn_x[2] = face_c.x;
+    tn_y[2] = face_c.y;
+    tn_z[2] = face_c.z;
+
+    vec_t tnormal = {0.0, 0.0, 0.0};
+    calc_surface_normal(0, 1, 2, tn_x, tn_y, tn_z, cell_centroid, &tnormal);
+
+    // The projection of the normal vector onto a point on the face
+    double omega = -(tnormal.x * tn_x[(2)] + tnormal.y * tn_y[(2)] +
+                     tnormal.z * tn_z[(2)]);
+
+    // Select the orientation based on the face area
+    int basis;
+    if (fabs(tnormal.x) > fabs(tnormal.y)) {
+      basis = (fabs(tnormal.x) > fabs(tnormal.z)) ? YZX : XYZ;
+    } else {
+      basis = (fabs(tnormal.z) > fabs(tnormal.y)) ? XYZ : ZXY;
+    }
+
+    // The basis ensures that gamma is always maximised
+    if (basis == XYZ) {
+      calc_face_integrals(3, 0, omega, faces_to_nodes_tri, tn_x, tn_y, tnormal,
+                          vol);
+    } else if (basis == YZX) {
+      dswap(tnormal.x, tnormal.y);
+      dswap(tnormal.y, tnormal.z);
+      calc_face_integrals(3, 0, omega, faces_to_nodes_tri, tn_y, tn_z, tnormal,
+                          vol);
+    } else if (basis == ZXY) {
+      dswap(tnormal.x, tnormal.y);
+      dswap(tnormal.x, tnormal.z);
+      calc_face_integrals(3, 0, omega, faces_to_nodes_tri, tn_z, tn_x, tnormal,
+                          vol);
+    }
+  }
+}
+
 // Calculates the weighted volume dist for a provided cell along x-y-z
 void calc_volume(const int cell_to_faces_off, const int nfaces_by_cell,
                  const int* cells_to_faces, const int* faces_to_nodes,
@@ -880,74 +953,8 @@ void calc_volume(const int cell_to_faces_off, const int nfaces_by_cell,
     const int nnodes_by_face =
         faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
 
-    // Determine the outward facing unit normal vector
-    vec_t normal = {0.0, 0.0, 0.0};
-    const int face_clockwise =
-        calc_surface_normal(faces_to_nodes[(face_to_nodes_off + 0)],
-                            faces_to_nodes[(face_to_nodes_off + 1)],
-                            faces_to_nodes[(face_to_nodes_off + 2)], nodes_x,
-                            nodes_y, nodes_z, cell_centroid, &normal);
-
-    vec_t face_c = {0.0, 0.0, 0.0};
-    calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes,
-                  face_to_nodes_off, &face_c);
-
-    double tn_x[3];
-    double tn_y[3];
-    double tn_z[3];
-
-    // We have a triangle per edge, which are per node on the face
-    for (int tt = 0; tt < nnodes_by_face; ++tt) {
-      const int next_node = (tt == nnodes_by_face - 1) ? 0 : tt + 1;
-      const int prev_node = (tt == 0) ? nnodes_by_face - 1 : tt - 1;
-      const int n0 = faces_to_nodes[(face_to_nodes_off + tt)];
-      const int n1n = faces_to_nodes[(face_to_nodes_off + next_node)];
-      const int n1p = faces_to_nodes[(face_to_nodes_off + prev_node)];
-      const int faces_to_nodes_tri[3] = {0, 1, 2};
-
-      // Construct the face triangle associated with the node
-      tn_x[0] = nodes_x[(n0)];
-      tn_y[0] = nodes_y[(n0)];
-      tn_z[0] = nodes_z[(n0)];
-      tn_x[1] = (face_clockwise ? nodes_x[(n1p)] : nodes_x[(n1n)]);
-      tn_y[1] = (face_clockwise ? nodes_y[(n1p)] : nodes_y[(n1n)]);
-      tn_z[1] = (face_clockwise ? nodes_z[(n1p)] : nodes_z[(n1n)]);
-      tn_x[2] = face_c.x;
-      tn_y[2] = face_c.y;
-      tn_z[2] = face_c.z;
-
-      vec_t tnormal = {0.0, 0.0, 0.0};
-      fc = calc_surface_normal(0, 1, 2, tn_x, tn_y, tn_z, cell_centroid,
-                               &tnormal);
-
-      // The projection of the normal vector onto a point on the face
-      double omega = -(tnormal.x * tn_x[(2)] + tnormal.y * tn_y[(2)] +
-                       tnormal.z * tn_z[(2)]);
-
-      // Select the orientation based on the face area
-      int basis;
-      if (fabs(tnormal.x) > fabs(tnormal.y)) {
-        basis = (fabs(tnormal.x) > fabs(tnormal.z)) ? YZX : XYZ;
-      } else {
-        basis = (fabs(tnormal.z) > fabs(tnormal.y)) ? XYZ : ZXY;
-      }
-
-      // The basis ensures that gamma is always maximised
-      if (basis == XYZ) {
-        calc_face_integrals(3, 0, omega, faces_to_nodes_tri, tn_x, tn_y,
-                            tnormal, vol);
-      } else if (basis == YZX) {
-        dswap(tnormal.x, tnormal.y);
-        dswap(tnormal.y, tnormal.z);
-        calc_face_integrals(3, 0, omega, faces_to_nodes_tri, tn_y, tn_z,
-                            tnormal, vol);
-      } else if (basis == ZXY) {
-        dswap(tnormal.x, tnormal.y);
-        dswap(tnormal.x, tnormal.z);
-        calc_face_integrals(3, 0, omega, faces_to_nodes_tri, tn_z, tn_x,
-                            tnormal, vol);
-      }
-    }
+    contribute_face_volume(nnodes_by_face, faces_to_nodes, nodes_x, nodes_y,
+                           nodes_z, cell_centroid, vol);
   }
 
   if (isnan(*vol)) {
@@ -1168,126 +1175,6 @@ double apply_node_limiter(const int ncells_by_node, const int node_to_cells_off,
   grad->z *= limiter;
 
   return limiter;
-}
-
-// Calculates the cell volume, subcell volume and the subcell centroids
-void calc_volumes_centroids(
-    const int ncells, const int* cells_to_faces_offsets,
-    const int* cells_offsets, const int* nodes_to_faces_offsets,
-    const double* cell_centroids_x, const double* cell_centroids_y,
-    const double* cell_centroids_z, const int* cells_to_faces,
-    const int* faces_to_nodes, const int* faces_to_nodes_offsets,
-    const int* subcell_face_offsets, const double* nodes_x0,
-    const double* nodes_y0, const double* nodes_z0, double* cell_volume,
-    double* subcell_centroids_x, double* subcell_centroids_y,
-    double* subcell_centroids_z, double* subcell_volume) {
-
-  double total_volume = 0.0;
-  double total_subcell_volume = 0.0;
-#if 0
-#pragma omp parallel for reduction(+ : total_subcell_volume, total_volume)
-#endif // if 0
-  for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
-
-    vec_t cell_centroid = {cell_centroids_x[(cc)], cell_centroids_y[(cc)],
-                           cell_centroids_z[(cc)]};
-
-    for (int nn = 0; nn < nnodes_by_cell; ++nn) {
-      const int node_to_faces_off = nodes_to_faces_offsets[(nn)];
-      const int nfaces_by_node =
-          nodes_to_faces_offsets[(nn + 1)] - node_to_faces_off;
-
-      const int subcell_index = cell_to_nodes_off + nn;
-
-      for (int ff = 0; ff < nfaces_by_node; ++ff) {
-      }
-    }
-  }
-
-#if 0
-    // Precompute the volume of the cell
-    calc_volume(cell_to_faces_off, nfaces_by_cell, cells_to_faces,
-                faces_to_nodes, faces_to_nodes_offsets, nodes_x0, nodes_y0,
-                nodes_z0, &cell_centroid, &cell_volume[(cc)]);
-
-    total_volume += cell_volume[(cc)];
-
-    // Describe the connectivity for a simple tetrahedron, the sub-cell shape
-    const int subcell_faces_to_nodes_offsets[] = {0, 3, 6, 9, 12};
-    const int subcell_faces_to_nodes[] = {0, 1, 2, 0, 3, 1, 0, 2, 3, 1, 3, 2};
-    const int subcell_to_faces[] = {0, 1, 2, 3};
-    double subcell_nodes_x[] = {0.0, 0.0, 0.0, 0.0};
-    double subcell_nodes_y[] = {0.0, 0.0, 0.0, 0.0};
-    double subcell_nodes_z[] = {0.0, 0.0, 0.0, 0.0};
-
-    // The centroid remains a component of all sub-cells
-    subcell_nodes_x[3] = cell_centroid.x;
-    subcell_nodes_y[3] = cell_centroid.y;
-    subcell_nodes_z[3] = cell_centroid.z;
-
-    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
-      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
-      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-      const int nnodes_by_face =
-          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-
-      const int subcell_off = subcell_face_offsets[(cell_to_faces_off + ff)];
-
-      // The face centroid is the same for all nodes on the face
-      vec_t face_c = {0.0, 0.0, 0.0};
-      calc_centroid(nnodes_by_face, nodes_x0, nodes_y0, nodes_z0,
-                    faces_to_nodes, face_to_nodes_off, &face_c);
-
-      subcell_nodes_x[2] = face_c.x;
-      subcell_nodes_y[2] = face_c.y;
-      subcell_nodes_z[2] = face_c.z;
-
-      // Each face/node pair has two sub-cells
-      for (int nn = 0; nn < nnodes_by_face; ++nn) {
-        // The left and right nodes on the face for this anchor node
-        const int next_off = ((nn == nnodes_by_face - 1) ? 0 : nn + 1);
-        const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
-        const int rnode_index = faces_to_nodes[(face_to_nodes_off + next_off)];
-        const int subcell_index = subcell_off + nn;
-
-        // Store the right and left nodes
-        subcell_nodes_x[1] = nodes_x0[(rnode_index)];
-        subcell_nodes_y[1] = nodes_y0[(rnode_index)];
-        subcell_nodes_z[1] = nodes_z0[(rnode_index)];
-        subcell_nodes_x[0] = nodes_x0[(node_index)];
-        subcell_nodes_y[0] = nodes_y0[(node_index)];
-        subcell_nodes_z[0] = nodes_z0[(node_index)];
-
-        // Determine the sub-cell centroid
-        vec_t subcell_centroid = {0.0, 0.0, 0.0};
-        for (int ii = 0; ii < NTET_NODES; ++ii) {
-          subcell_centroid.x += subcell_nodes_x[(ii)] / NTET_NODES;
-          subcell_centroid.y += subcell_nodes_y[(ii)] / NTET_NODES;
-          subcell_centroid.z += subcell_nodes_z[(ii)] / NTET_NODES;
-        }
-        subcell_centroids_x[(subcell_index)] = subcell_centroid.x;
-        subcell_centroids_y[(subcell_index)] = subcell_centroid.y;
-        subcell_centroids_z[(subcell_index)] = subcell_centroid.z;
-
-        // Precompute the volume of the subcell
-        calc_volume(0, NTET_FACES, subcell_to_faces, subcell_faces_to_nodes,
-                    subcell_faces_to_nodes_offsets, subcell_nodes_x,
-                    subcell_nodes_y, subcell_nodes_z, &subcell_centroid,
-                    &subcell_volume[(subcell_index)]);
-
-        if (subcell_volume[(subcell_index)] <= 0.0) {
-          TERMINATE("Calculated a negative or empty subcell volume.\n");
-        }
-
-        total_subcell_volume += subcell_volume[(subcell_index)];
-      }
-    }
-#endif // if 0
-
-  printf("Total Cell Volume %.12f\n", total_volume);
-  printf("Total Subcell Volume %.12f\n", total_subcell_volume);
 }
 
 // Applies the mesh rezoning strategy. This is a pure Eulerian strategy.
