@@ -19,9 +19,7 @@ void gather_subcell_quantities(
     double* cell_volume, int* subcells_to_faces_offsets, int* faces_to_nodes,
     int* nodes_to_faces, int* faces_to_nodes_offsets, int* faces_to_cells0,
     int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces,
-    int* cells_to_nodes, int* nodes_to_faces_offsets,
-    int* subcells_to_subcells_offsets, int* subcells_to_subcells,
-    int* subcells_to_faces) {
+    int* cells_to_nodes, int* nodes_to_faces_offsets, int* subcells_to_faces) {
 
   /*
   *      GATHERING STAGE OF THE REMAP
@@ -662,33 +660,27 @@ void gather_subcell_momentum(
         const int node_to_cells_off = nodes_offsets[(node_index)];
         const int ncells_by_node =
             nodes_offsets[(node_index + 1)] - node_to_cells_off;
-#if 0
         apply_node_limiter(ncells_by_node, node_to_cells_off, nodes_to_cells,
                            &grad_vx, &cell_c, nodes_x, nodes_y, nodes_z,
                            node_v.x, gmax.x, gmin.x);
-#endif // if 0
 
         // Solve for the y velocity gradient
         grad_vy.x = inv[0].x * rhsy.x + inv[0].y * rhsy.y + inv[0].z * rhsy.z;
         grad_vy.y = inv[1].x * rhsy.x + inv[1].y * rhsy.y + inv[1].z * rhsy.z;
         grad_vy.z = inv[2].x * rhsy.x + inv[2].y * rhsy.y + inv[2].z * rhsy.z;
 
-#if 0
         apply_node_limiter(ncells_by_node, cell_to_nodes_off, nodes_to_cells,
                            &grad_vy, &cell_c, nodes_x, nodes_y, nodes_z,
                            node_v.y, gmax.y, gmin.y);
-#endif // if 0
 
         // Solve for the z velocity gradient
         grad_vz.x = inv[0].x * rhsz.x + inv[0].y * rhsz.y + inv[0].z * rhsz.z;
         grad_vz.y = inv[1].x * rhsz.x + inv[1].y * rhsz.y + inv[1].z * rhsz.z;
         grad_vz.z = inv[2].x * rhsz.x + inv[2].y * rhsz.y + inv[2].z * rhsz.z;
 
-#if 0
         apply_node_limiter(ncells_by_node, cell_to_nodes_off, nodes_to_cells,
                            &grad_vz, &cell_c, nodes_x, nodes_y, nodes_z,
                            node_v.z, gmax.z, gmin.z);
-#endif // if 0
       }
     }
 

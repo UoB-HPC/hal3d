@@ -56,9 +56,7 @@ void gather_subcell_quantities(
     double* cell_volume, int* subcells_to_faces_offsets, int* faces_to_nodes,
     int* nodes_to_faces, int* faces_to_nodes_offsets, int* faces_to_cells0,
     int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces,
-    int* cells_to_nodes, int* nodes_to_faces_offsets,
-    int* subcells_to_subcells_offsets, int* subcells_to_subcells,
-    int* subcells_to_faces);
+    int* cells_to_nodes, int* nodes_to_faces_offsets, int* subcells_to_faces);
 
 // Gathers the momentum into the subcells
 void gather_subcell_momentum(
