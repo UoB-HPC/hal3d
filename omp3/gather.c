@@ -6,13 +6,14 @@
 
 // Gathers all of the subcell quantities on the mesh
 void gather_subcell_quantities(
-    const int ncells, const int nnodes, const double* nodal_volumes,
-    const double* nodal_mass, double* cell_centroids_x,
-    double* cell_centroids_y, double* cell_centroids_z, int* cells_offsets,
-    int* nodes_to_cells, int* nodes_offsets, double* nodes_x,
-    const double* nodes_y, const double* nodes_z, double* energy,
-    double* density, double* velocity_x, double* velocity_y, double* velocity_z,
-    double* cell_mass, double* subcell_volume, double* subcell_ie_mass,
+    const int ncells, const int nnodes, const int nnodes_by_subcell,
+    const double* nodal_volumes, const double* nodal_mass,
+    double* cell_centroids_x, double* cell_centroids_y,
+    double* cell_centroids_z, int* cells_offsets, int* nodes_to_cells,
+    int* nodes_offsets, double* nodes_x, const double* nodes_y,
+    const double* nodes_z, double* energy, double* density, double* velocity_x,
+    double* velocity_y, double* velocity_z, double* cell_mass,
+    double* subcell_volume, double* subcell_ie_mass,
     double* subcell_momentum_flux_x, double* subcell_momentum_flux_y,
     double* subcell_momentum_flux_z, double* subcell_centroids_x,
     double* subcell_centroids_y, double* subcell_centroids_z,
@@ -27,20 +28,21 @@ void gather_subcell_quantities(
   */
 
   // Calculates the cell volume, subcell volume and the subcell centroids
-  calc_volumes_centroids(ncells, cells_offsets, cells_to_nodes,
-                         cells_to_faces_offsets, cells_to_faces,
-                         subcells_to_faces_offsets, subcells_to_faces,
-                         faces_to_nodes, faces_to_nodes_offsets, nodes_x,
-                         nodes_y, nodes_z, subcell_volume, cell_volume);
+  calc_volumes_centroids(
+      ncells, nnodes_by_subcell, cells_offsets, cells_to_nodes,
+      cells_to_faces_offsets, cells_to_faces, subcells_to_faces_offsets,
+      subcells_to_faces, faces_to_nodes, faces_to_nodes_offsets, nodes_x,
+      nodes_y, nodes_z, subcell_centroids_x, subcell_centroids_y,
+      subcell_centroids_z, subcell_volume, cell_volume);
 
   // Gathers all of the subcell quantities on the mesh
   gather_subcell_energy(
       ncells, cell_centroids_x, cell_centroids_y, cell_centroids_z,
       cells_offsets, nodes_x, nodes_y, nodes_z, energy, density, cell_mass,
       subcell_volume, subcell_ie_mass, subcell_centroids_x, subcell_centroids_y,
-      subcell_centroids_z, subcells_to_faces_offsets, faces_to_nodes,
-      faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
-      cells_to_faces_offsets, cells_to_faces, cells_to_nodes);
+      subcell_centroids_z, faces_to_nodes, faces_to_nodes_offsets,
+      faces_to_cells0, faces_to_cells1, cells_to_faces_offsets, cells_to_faces,
+      cells_to_nodes);
 
 #if 0
   gather_subcell_momentum(
@@ -56,16 +58,18 @@ void gather_subcell_quantities(
 
 // Calculates the cell volume, subcell volume and the subcell centroids
 void calc_volumes_centroids(
-    const int ncells, const int* cells_offsets, const int* cells_to_nodes,
-    const int* cells_to_faces_offsets, const int* cells_to_faces,
-    const int* subcells_to_faces_offsets, const int* subcells_to_faces,
-    const int* faces_to_nodes, const int* faces_to_nodes_offsets,
-    const double* nodes_x, const double* nodes_y, const double* nodes_z,
+    const int ncells, const int nnodes_by_subcell, const int* cells_offsets,
+    const int* cells_to_nodes, const int* cells_to_faces_offsets,
+    const int* cells_to_faces, const int* subcells_to_faces_offsets,
+    const int* subcells_to_faces, const int* faces_to_nodes,
+    const int* faces_to_nodes_offsets, const double* nodes_x,
+    const double* nodes_y, const double* nodes_z, double* subcell_centroids_x,
+    double* subcell_centroids_y, double* subcell_centroids_z,
     double* subcell_volume, double* cell_volume) {
 
   double total_cell_volume = 0.0;
   double total_subcell_volume = 0.0;
-#pragma omp parallel for
+#pragma omp parallel for reduction(+ : total_cell_volume, total_subcell_volume)
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
@@ -92,9 +96,67 @@ void calc_volumes_centroids(
       const int nfaces_by_subcell =
           subcells_to_faces_offsets[(subcell_index + 1)] - subcell_to_faces_off;
 
-      vec_t subcell_c = {0.5 * (cell_c.x + nodes_x[(node_index)]),
-                         0.5 * (cell_c.y + nodes_y[(node_index)]),
-                         0.5 * (cell_c.z + nodes_z[(node_index)])};
+      subcell_centroids_x[(subcell_index)] = 0.0;
+      subcell_centroids_y[(subcell_index)] = 0.0;
+      subcell_centroids_z[(subcell_index)] = 0.0;
+
+      // Consider all faces attached to node
+      for (int ff = 0; ff < nfaces_by_subcell; ++ff) {
+        const int face_index = subcells_to_faces[(subcell_to_faces_off + ff)];
+        const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+        const int nnodes_by_face =
+            faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+
+        // The face centroid is the same for all nodes on the face
+        vec_t face_c = {0.0, 0.0, 0.0};
+        calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes,
+                      face_to_nodes_off, &face_c);
+
+        // Determine the orientation of the face
+        const int n0 = faces_to_nodes[(face_to_nodes_off + 0)];
+        const int n1 = faces_to_nodes[(face_to_nodes_off + 1)];
+        const int n2 = faces_to_nodes[(face_to_nodes_off + 2)];
+        vec_t face_normal;
+        const int face_clockwise = calc_surface_normal(
+            n0, n1, n2, nodes_x, nodes_y, nodes_z, &cell_c, &face_normal);
+
+        // Determine the position of the node in the face list of nodes
+        int nn2;
+        for (nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
+          if (faces_to_nodes[(face_to_nodes_off + nn2)] == node_index) {
+            break;
+          }
+        }
+
+        const int next_node = (nn2 == nnodes_by_face - 1) ? 0 : nn2 + 1;
+        const int prev_node = (nn2 == 0) ? nnodes_by_face - 1 : nn2 - 1;
+        const int rnode_off = (face_clockwise ? prev_node : next_node);
+        const int rnode_index = faces_to_nodes[(face_to_nodes_off + rnode_off)];
+
+        subcell_centroids_x[(subcell_index)] +=
+            0.5 * (nodes_x[(node_index)] + nodes_x[(rnode_index)]) + face_c.x;
+        subcell_centroids_y[(subcell_index)] +=
+            0.5 * (nodes_y[(node_index)] + nodes_y[(rnode_index)]) + face_c.y;
+        subcell_centroids_z[(subcell_index)] +=
+            0.5 * (nodes_z[(node_index)] + nodes_z[(rnode_index)]) + face_c.z;
+      }
+
+      subcell_centroids_x[(subcell_index)] =
+          (subcell_centroids_x[(subcell_index)] + cell_c.x +
+           nodes_x[(node_index)]) /
+          nnodes_by_subcell;
+      subcell_centroids_y[(subcell_index)] =
+          (subcell_centroids_y[(subcell_index)] + cell_c.y +
+           nodes_y[(node_index)]) /
+          nnodes_by_subcell;
+      subcell_centroids_z[(subcell_index)] =
+          (subcell_centroids_z[(subcell_index)] + cell_c.z +
+           nodes_z[(node_index)]) /
+          nnodes_by_subcell;
+
+      vec_t subcell_c = {subcell_centroids_x[(subcell_index)],
+                         subcell_centroids_y[(subcell_index)],
+                         subcell_centroids_z[(subcell_index)]};
 
       subcell_volume[(subcell_index)] = 0.0;
 
@@ -228,16 +290,18 @@ void calc_volumes_centroids(
 }
 
 // Gathers all of the subcell quantities on the mesh
-void gather_subcell_energy(
-    const int ncells, double* cell_centroids_x, double* cell_centroids_y,
-    double* cell_centroids_z, int* cells_offsets, const double* nodes_x,
-    const double* nodes_y, const double* nodes_z, double* energy,
-    double* density, double* cell_mass, double* subcell_volume,
-    double* subcell_ie_mass, double* subcell_centroids_x,
-    double* subcell_centroids_y, double* subcell_centroids_z,
-    int* subcells_to_faces_offsets, int* faces_to_nodes,
-    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
-    int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes) {
+void gather_subcell_energy(const int ncells, double* cell_centroids_x,
+                           double* cell_centroids_y, double* cell_centroids_z,
+                           int* cells_offsets, const double* nodes_x,
+                           const double* nodes_y, const double* nodes_z,
+                           double* energy, double* density, double* cell_mass,
+                           double* subcell_volume, double* subcell_ie_mass,
+                           double* subcell_centroids_x,
+                           double* subcell_centroids_y,
+                           double* subcell_centroids_z, int* faces_to_nodes,
+                           int* faces_to_nodes_offsets, int* faces_to_cells0,
+                           int* faces_to_cells1, int* cells_to_faces_offsets,
+                           int* cells_to_faces, int* cells_to_nodes) {
 
 // Calculate the sub-cell internal energies
 #pragma omp parallel for
@@ -318,8 +382,6 @@ void gather_subcell_energy(
       const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
       const int nnodes_by_face =
           faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-      const int subcell_off =
-          subcells_to_faces_offsets[(cell_to_faces_off + ff)];
 
       // The face centroid is the same for all nodes on the face
       vec_t face_c = {0.0, 0.0, 0.0};
@@ -327,8 +389,8 @@ void gather_subcell_energy(
                     face_to_nodes_off, &face_c);
 
       // Subcells are ordered with the nodes on a face
-      for (int nn = 0; nn < nnodes_by_face; ++nn) {
-        const int subcell_index = subcell_off + nn;
+      for (int nn = 0; nn < nnodes_by_cell; ++nn) {
+        const int subcell_index = cell_to_nodes_off + nn;
 
         // Calculate the center of mass distance
         vec_t dist = {subcell_centroids_x[(subcell_index)] - cell_c.x,
@@ -357,9 +419,9 @@ void gather_subcell_energy(
     double ie = cell_mass[(cc)] * energy[(cc)];
     total_ie += ie;
     double total_ie_in_cell = 0.0;
-    for (int ss = 0; ss < 24; ++ss) {
-      total_ie_in_subcells += subcell_ie_mass[(cc * 24 + ss)];
-      total_ie_in_cell += subcell_ie_mass[(cc * 24 + ss)];
+    for (int ss = 0; ss < 8; ++ss) {
+      total_ie_in_subcells += subcell_ie_mass[(cc * 8 + ss)];
+      total_ie_in_cell += subcell_ie_mass[(cc * 8 + ss)];
     }
   }
 

@@ -122,7 +122,7 @@ int main(int argc, char** argv) {
     // Solve a single timestep on the given mesh
     solve_unstructured_hydro_3d(
         &mesh, &hale_data, umesh.ncells, umesh.nnodes, tt,
-        hale_data.nsubcell_nodes, hale_data.nsubcells_per_cell,
+        hale_data.nsubcell_nodes, hale_data.nsubcells_by_cell,
         hale_data.visc_coeff1, hale_data.visc_coeff2, umesh.cell_centroids_x,
         umesh.cell_centroids_y, umesh.cell_centroids_z, umesh.cells_to_nodes,
         umesh.cells_offsets, umesh.nodes_to_cells, umesh.nodes_offsets,

@@ -498,7 +498,7 @@ size_t init_subcell_data_structures(Mesh* mesh, HaleData* hale_data,
   allocated += allocate_data(&hale_data->subcell_nodes_y, nsubcell_nodes);
   allocated += allocate_data(&hale_data->subcell_nodes_z, nsubcell_nodes);
   allocated += allocate_int_data(&hale_data->subcells_to_nodes,
-                                 umesh->ncells * hale_data->nsubcells_per_cell *
+                                 umesh->ncells * hale_data->nsubcells_by_cell *
                                      hale_data->nnodes_per_subcell);
   printf("Allocated %.4lf GB for subcell debugging output\n", allocated / GB);
 
@@ -673,7 +673,7 @@ size_t init_subcell_data_structures(Mesh* mesh, HaleData* hale_data,
       for (int kk = 0; kk < nx; ++kk) {
         const int cell_index = (ii * nx * ny + jj * nx + kk);
         const int c_off = cell_index * (hale_data->nnodes_per_subcell *
-                                        hale_data->nsubcells_per_cell);
+                                        hale_data->nsubcells_by_cell);
 
         // Bottom left subcell
         hale_data->subcells_to_nodes[(c_off + 0)] = NODE_IND(ii, jj, kk);

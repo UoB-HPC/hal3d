@@ -12,9 +12,9 @@
 size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
   const int nfaces_by_node = 3;
   hale_data->nnodes_per_subcell = 8;
-  hale_data->nsubcells_per_cell = 8;
+  hale_data->nsubcells_by_cell = 8;
   hale_data->nnodes_per_subcell = 8;
-  hale_data->nsubcells = umesh->ncells * hale_data->nsubcells_per_cell;
+  hale_data->nsubcells = umesh->ncells * hale_data->nsubcells_by_cell;
 
   size_t allocated = allocate_data(&hale_data->pressure0, umesh->ncells);
   allocated += allocate_data(&hale_data->velocity_x0, umesh->nnodes);

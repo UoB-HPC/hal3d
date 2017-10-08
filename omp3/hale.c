@@ -10,7 +10,7 @@
 // Solve a single timestep on the given mesh
 void solve_unstructured_hydro_3d(
     Mesh* mesh, HaleData* hale_data, const int ncells, const int nnodes,
-    const int timestep, const int nsubcell_nodes, const int nsubcells_per_cell,
+    const int timestep, const int nsubcell_nodes, const int nsubcells_by_cell,
     const double visc_coeff1, const double visc_coeff2,
     double* cell_centroids_x, double* cell_centroids_y,
     double* cell_centroids_z, int* cells_to_nodes, int* cells_offsets,
@@ -69,19 +69,19 @@ void solve_unstructured_hydro_3d(
 
     // Gathers all of the subcell quantities on the mesh
     gather_subcell_quantities(
-        ncells, nnodes, nodal_volumes, nodal_mass, cell_centroids_x,
-        cell_centroids_y, cell_centroids_z, cells_offsets, nodes_to_cells,
-        nodes_offsets, nodes_x0, nodes_y0, nodes_z0, energy0, density0,
-        velocity_x0, velocity_y0, velocity_z0, cell_mass, subcell_volume,
-        subcell_ie_mass, subcell_momentum_flux_x, subcell_momentum_flux_y,
-        subcell_momentum_flux_z, subcell_centroids_x, subcell_centroids_y,
-        subcell_centroids_z, cell_volume, subcells_to_faces_offsets,
-        faces_to_nodes, faces_to_nodes_offsets, faces_to_cells0,
-        faces_to_cells1, cells_to_faces_offsets, cells_to_faces, cells_to_nodes,
-        nodes_to_faces_offsets, subcells_to_subcells_offsets,
-        subcells_to_subcells, subcells_to_faces);
+        ncells, nnodes, hale_data->nnodes_per_subcell, nodal_volumes,
+        nodal_mass, cell_centroids_x, cell_centroids_y, cell_centroids_z,
+        cells_offsets, nodes_to_cells, nodes_offsets, nodes_x0, nodes_y0,
+        nodes_z0, energy0, density0, velocity_x0, velocity_y0, velocity_z0,
+        cell_mass, subcell_volume, subcell_ie_mass, subcell_momentum_flux_x,
+        subcell_momentum_flux_y, subcell_momentum_flux_z, subcell_centroids_x,
+        subcell_centroids_y, subcell_centroids_z, cell_volume,
+        subcells_to_faces_offsets, faces_to_nodes, faces_to_nodes_offsets,
+        faces_to_cells0, faces_to_cells1, cells_to_faces_offsets,
+        cells_to_faces, cells_to_nodes, nodes_to_faces_offsets,
+        subcells_to_subcells_offsets, subcells_to_subcells, subcells_to_faces);
 
-    write_unstructured_to_visit_3d(nsubcell_nodes, ncells * nsubcells_per_cell,
+    write_unstructured_to_visit_3d(nsubcell_nodes, ncells * nsubcells_by_cell,
                                    timestep * 2 + 1, subcell_nodes_x,
                                    subcell_nodes_y, subcell_nodes_z,
                                    subcells_to_nodes, subcell_volume, 0, 1);
@@ -131,7 +131,7 @@ void solve_unstructured_hydro_3d(
                   faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
                   cells_to_faces_offsets, cells_to_faces, subcells_to_faces_offsets);
 
-    subcells_to_visit(nsubcell_nodes, ncells * nsubcells_per_cell,
+    subcells_to_visit(nsubcell_nodes, ncells * nsubcells_by_cell,
                       1000 + timestep, subcell_nodes_x, subcell_nodes_y,
                       subcell_nodes_z, subcells_to_nodes, subcell_mass_flux, 0,
                       1);

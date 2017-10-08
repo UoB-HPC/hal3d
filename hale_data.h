@@ -91,7 +91,7 @@ typedef struct {
 
   int nsubcells;
   int nsubcell_nodes;
-  int nsubcells_per_cell;
+  int nsubcells_by_cell;
   int nnodes_per_subcell;
 
   double visc_coeff1;
