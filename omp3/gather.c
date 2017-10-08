@@ -7,33 +7,36 @@
 // Gathers all of the subcell quantities on the mesh
 void gather_subcell_quantities(
     const int ncells, const int nnodes, const int nnodes_by_subcell,
-    const double* nodal_volumes, const double* nodal_mass,
-    double* cell_centroids_x, double* cell_centroids_y,
-    double* cell_centroids_z, int* cells_offsets, int* nodes_to_cells,
-    int* nodes_offsets, double* nodes_x, const double* nodes_y,
-    const double* nodes_z, double* energy, double* density, double* velocity_x,
-    double* velocity_y, double* velocity_z, double* cell_mass,
-    double* subcell_volume, double* subcell_ie_mass, double* subcell_momentum_x,
-    double* subcell_momentum_y, double* subcell_momentum_z,
-    double* subcell_centroids_x, double* subcell_centroids_y,
-    double* subcell_centroids_z, double* cell_volume,
-    int* subcells_to_faces_offsets, int* faces_to_nodes,
-    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
-    int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes,
-    int* nodes_to_faces_offsets, int* subcells_to_subcells_offsets,
-    int* subcells_to_subcells, int* subcells_to_faces) {
+    double* nodal_volumes, const double* nodal_mass, double* cell_centroids_x,
+    double* cell_centroids_y, double* cell_centroids_z, int* cells_offsets,
+    int* nodes_to_cells, int* nodes_offsets, double* nodes_x,
+    const double* nodes_y, const double* nodes_z, double* energy,
+    double* density, double* velocity_x, double* velocity_y, double* velocity_z,
+    double* cell_mass, double* subcell_volume, double* subcell_ie_mass,
+    double* subcell_momentum_x, double* subcell_momentum_y,
+    double* subcell_momentum_z, double* subcell_centroids_x,
+    double* subcell_centroids_y, double* subcell_centroids_z,
+    double* cell_volume, int* subcells_to_faces_offsets, int* faces_to_nodes,
+    int* nodes_to_faces, int* faces_to_nodes_offsets, int* faces_to_cells0,
+    int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces,
+    int* cells_to_nodes, int* nodes_to_faces_offsets,
+    int* subcells_to_subcells_offsets, int* subcells_to_subcells,
+    int* subcells_to_faces) {
 
   /*
   *      GATHERING STAGE OF THE REMAP
   */
 
   // Calculates the cell volume, subcell volume and the subcell centroids
+
   calc_volumes_centroids(
-      ncells, nnodes_by_subcell, cells_offsets, cells_to_nodes,
+      ncells, nnodes, nnodes_by_subcell, cells_offsets, cells_to_nodes,
       cells_to_faces_offsets, cells_to_faces, subcells_to_faces_offsets,
-      subcells_to_faces, faces_to_nodes, faces_to_nodes_offsets, nodes_x,
-      nodes_y, nodes_z, subcell_centroids_x, subcell_centroids_y,
-      subcell_centroids_z, subcell_volume, cell_volume);
+      subcells_to_faces, faces_to_nodes, faces_to_nodes_offsets,
+      nodes_to_faces_offsets, nodes_to_faces, faces_to_cells0, faces_to_cells1,
+      cell_centroids_x, cell_centroids_y, cell_centroids_z, nodes_x, nodes_y,
+      nodes_z, subcell_centroids_x, subcell_centroids_y, subcell_centroids_z,
+      subcell_volume, cell_volume, nodal_volumes);
 
   // Gathers all of the subcell quantities on the mesh
   gather_subcell_energy(
@@ -57,14 +60,18 @@ void gather_subcell_quantities(
 
 // Calculates the cell volume, subcell volume and the subcell centroids
 void calc_volumes_centroids(
-    const int ncells, const int nnodes_by_subcell, const int* cells_offsets,
-    const int* cells_to_nodes, const int* cells_to_faces_offsets,
-    const int* cells_to_faces, const int* subcells_to_faces_offsets,
-    const int* subcells_to_faces, const int* faces_to_nodes,
-    const int* faces_to_nodes_offsets, const double* nodes_x,
+    const int ncells, const int nnodes, const int nnodes_by_subcell,
+    const int* cells_offsets, const int* cells_to_nodes,
+    const int* cells_to_faces_offsets, const int* cells_to_faces,
+    const int* subcells_to_faces_offsets, const int* subcells_to_faces,
+    const int* faces_to_nodes, const int* faces_to_nodes_offsets,
+    const int* nodes_to_faces_offsets, const int* nodes_to_faces,
+    const int* faces_to_cells0, const int* faces_to_cells1,
+    const double* cell_centroids_x, const double* cell_centroids_y,
+    const double* cell_centroids_z, const double* nodes_x,
     const double* nodes_y, const double* nodes_z, double* subcell_centroids_x,
     double* subcell_centroids_y, double* subcell_centroids_z,
-    double* subcell_volume, double* cell_volume) {
+    double* subcell_volume, double* cell_volume, double* nodal_volumes) {
 
   double total_cell_volume = 0.0;
   double total_subcell_volume = 0.0;
@@ -281,6 +288,100 @@ void calc_volumes_centroids(
 
       subcell_volume[(subcell_index)] = fabs(subcell_volume[(subcell_index)]);
       total_subcell_volume += subcell_volume[(subcell_index)];
+    }
+  }
+
+#pragma omp parallel for
+  for (int nn = 0; nn < nnodes; ++nn) {
+    const int node_to_faces_off = nodes_to_faces_offsets[(nn)];
+    const int nfaces_by_node =
+        nodes_to_faces_offsets[(nn + 1)] - node_to_faces_off;
+
+    vec_t node_c;
+    node_c.x = nodes_x[(nn)];
+    node_c.y = nodes_y[(nn)];
+    node_c.z = nodes_z[(nn)];
+
+    nodal_volumes[(nn)] = 0.0;
+
+    // Consider all faces attached to node
+    for (int ff = 0; ff < nfaces_by_node; ++ff) {
+      const int face_index = nodes_to_faces[(node_to_faces_off + ff)];
+      if (face_index == -1) {
+        continue;
+      }
+
+      // Determine the offset into the list of nodes
+      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+      const int nnodes_by_face =
+          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+
+      // Find node center and location of current node on face
+      vec_t face_c = {0.0, 0.0, 0.0};
+      int node_in_face_c;
+      for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
+        const int node_index = faces_to_nodes[(face_to_nodes_off + nn2)];
+        face_c.x += nodes_x[(node_index)] / nnodes_by_face;
+        face_c.y += nodes_y[(node_index)] / nnodes_by_face;
+        face_c.z += nodes_z[(node_index)] / nnodes_by_face;
+
+        // Choose the node in the list of nodes attached to the face
+        if (nn == node_index) {
+          node_in_face_c = nn2;
+        }
+      }
+
+      // Fetch the nodes attached to our current node on the current face
+      int nodes[2];
+      nodes[0] = (node_in_face_c - 1 >= 0)
+                     ? faces_to_nodes[(face_to_nodes_off + node_in_face_c - 1)]
+                     : faces_to_nodes[(face_to_nodes_off + nnodes_by_face - 1)];
+      nodes[1] = (node_in_face_c + 1 < nnodes_by_face)
+                     ? faces_to_nodes[(face_to_nodes_off + node_in_face_c + 1)]
+                     : faces_to_nodes[(face_to_nodes_off)];
+
+      // Fetch the cells attached to our current face
+      int cells[2];
+      cells[0] = faces_to_cells0[(face_index)];
+      cells[1] = faces_to_cells1[(face_index)];
+
+      // Add contributions from all of the cells attached to the face
+      for (int cc = 0; cc < 2; ++cc) {
+        if (cells[(cc)] == -1) {
+          continue;
+        }
+
+        // Add contributions for both edges attached to our current node
+        for (int nn2 = 0; nn2 < 2; ++nn2) {
+          // Get the halfway point on the right edge
+          vec_t half_edge;
+          half_edge.x = 0.5 * (nodes_x[(nodes[(nn2)])] + nodes_x[(nn)]);
+          half_edge.y = 0.5 * (nodes_y[(nodes[(nn2)])] + nodes_y[(nn)]);
+          half_edge.z = 0.5 * (nodes_z[(nodes[(nn2)])] + nodes_z[(nn)]);
+
+          // Setup basis on plane of tetrahedron
+          vec_t a = {(face_c.x - node_c.x), (face_c.y - node_c.y),
+                     (face_c.z - node_c.z)};
+          vec_t b;
+          b.x = (face_c.x - half_edge.x);
+          b.y = (face_c.y - half_edge.y);
+          b.z = (face_c.z - half_edge.z);
+          vec_t ab;
+          ab.x = (cell_centroids_x[(cells[cc])] - face_c.x);
+          ab.y = (cell_centroids_y[(cells[cc])] - face_c.y);
+          ab.z = (cell_centroids_z[(cells[cc])] - face_c.z);
+
+          // Calculate the area vector S using cross product
+          vec_t A;
+          A.x = 0.5 * (a.y * b.z - a.z * b.y);
+          A.y = -0.5 * (a.x * b.z - a.z * b.x);
+          A.z = 0.5 * (a.x * b.y - a.y * b.x);
+
+          const double subcell_volume =
+              fabs((ab.x * A.x + ab.y * A.y + ab.z * A.z) / 3.0);
+          nodal_volumes[(nn)] += subcell_volume;
+        }
+      }
     }
   }
 

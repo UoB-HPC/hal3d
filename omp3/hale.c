@@ -74,15 +74,16 @@ void solve_unstructured_hydro_3d(
         cell_mass, subcell_volume, subcell_ie_mass, subcell_momentum_x,
         subcell_momentum_y, subcell_momentum_z, subcell_centroids_x,
         subcell_centroids_y, subcell_centroids_z, cell_volume,
-        subcells_to_faces_offsets, faces_to_nodes, faces_to_nodes_offsets,
-        faces_to_cells0, faces_to_cells1, cells_to_faces_offsets,
-        cells_to_faces, cells_to_nodes, nodes_to_faces_offsets,
-        subcells_to_subcells_offsets, subcells_to_subcells, subcells_to_faces);
+        subcells_to_faces_offsets, faces_to_nodes, nodes_to_faces,
+        faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
+        cells_to_faces_offsets, cells_to_faces, cells_to_nodes,
+        nodes_to_faces_offsets, subcells_to_subcells_offsets,
+        subcells_to_subcells, subcells_to_faces);
 
     write_unstructured_to_visit_3d(nsubcell_nodes, ncells * nsubcells_by_cell,
                                    timestep * 2 + 1, subcell_nodes_x,
                                    subcell_nodes_y, subcell_nodes_z,
-                                   subcells_to_nodes, subcell_volume, 0, 1);
+                                   subcells_to_nodes, subcell_momentum_x, 0, 1);
 
 #if 0
     // Store the total mass and internal energy
