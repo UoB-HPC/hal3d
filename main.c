@@ -81,7 +81,6 @@ int main(int argc, char** argv) {
   hale_data.perform_remap = get_int_parameter("perform_remap", hale_params);
   hale_data.visit_dump = get_int_parameter("visit_dump", hale_params);
   allocated += init_hale_data(&hale_data, &umesh);
-
   allocated += init_subcell_data_structures(&mesh, &hale_data, &umesh);
 
   printf("Initialisation time %.4lfs\n", omp_get_wtime() - i0);
@@ -120,6 +119,7 @@ int main(int argc, char** argv) {
 
     double w0 = omp_get_wtime();
 
+    // Solve a single timestep on the given mesh
     solve_unstructured_hydro_3d(
         &mesh, &hale_data, umesh.ncells, umesh.nnodes, tt,
         hale_data.nsubcell_nodes, hale_data.nsubcells_per_cell,
@@ -133,12 +133,12 @@ int main(int argc, char** argv) {
         hale_data.energy1, hale_data.density0, hale_data.density1,
         hale_data.pressure0, hale_data.pressure1, hale_data.velocity_x0,
         hale_data.velocity_y0, hale_data.velocity_z0, hale_data.velocity_x1,
-        hale_data.velocity_y1, hale_data.velocity_z1, hale_data.corner_force_x,
-        hale_data.corner_force_y, hale_data.corner_force_z, hale_data.cell_mass,
-        hale_data.nodal_mass, hale_data.nodal_volumes,
+        hale_data.velocity_y1, hale_data.velocity_z1, hale_data.subcell_force_x,
+        hale_data.subcell_force_y, hale_data.subcell_force_z,
+        hale_data.cell_mass, hale_data.nodal_mass, hale_data.nodal_volumes,
         hale_data.nodal_soundspeed, hale_data.limiter, hale_data.subcell_volume,
-        hale_data.subcell_ie_density0, hale_data.subcell_mass0,
-        hale_data.subcell_ie_mass_flux, hale_data.subcell_mass_flux,
+        hale_data.subcell_mass, hale_data.subcell_mass_flux,
+        hale_data.subcell_ie_mass, hale_data.subcell_ie_mass_flux,
         hale_data.subcell_momentum_flux_x, hale_data.subcell_momentum_flux_y,
         hale_data.subcell_momentum_flux_z, hale_data.subcell_centroids_x,
         hale_data.subcell_centroids_y, hale_data.subcell_centroids_z,
@@ -152,26 +152,6 @@ int main(int argc, char** argv) {
         umesh.cells_to_faces_offsets, umesh.cells_to_faces,
         hale_data.subcells_to_subcells, hale_data.subcells_to_subcells_offsets,
         hale_data.subcells_to_faces, hale_data.subcells_to_faces_offsets);
-
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-
-    init_subcell_data_structures(&mesh, &hale_data, &umesh);
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    //
 
     wallclock += omp_get_wtime() - w0;
     elapsed_sim_time += mesh.dt;

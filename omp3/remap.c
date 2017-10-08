@@ -32,9 +32,9 @@ void remap_phase(
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
 
     // TODO: I think it will be faster to calculate these on the fly, like so
-    vec_t cell_centroid = {0.0, 0.0, 0.0};
+    vec_t cell_c = {0.0, 0.0, 0.0};
     calc_centroid(nnodes_by_cell, nodes_x0, nodes_y0, nodes_z0, cells_to_nodes,
-                  cell_to_nodes_off, &cell_centroid);
+                  cell_to_nodes_off, &cell_c);
 
     vec_t rz_cell_centroid = {0.0, 0.0, 0.0};
     calc_centroid(nnodes_by_cell, rezoned_nodes_x, rezoned_nodes_y,
@@ -78,7 +78,7 @@ void remap_phase(
         vec_t face_normal;
         const int face_clockwise =
             calc_surface_normal(n0, n1, n2, nodes_x0, nodes_y0, nodes_z0,
-                                &cell_centroid, &face_normal);
+                                &cell_c, &face_normal);
 
         // We may need to reorder the two corner nodes for the tet given that
         // the face may be ordered clockwise, rather than counter-clockwise.
@@ -94,7 +94,7 @@ void remap_phase(
             {nodes_x0[(ccw_rnode_index)], nodes_y0[(ccw_rnode_index)],
              nodes_z0[(ccw_rnode_index)]},
             {face_c.x, face_c.y, face_c.z},
-            {cell_centroid.x, cell_centroid.y, cell_centroid.z}};
+            {cell_c.x, cell_c.y, cell_c.z}};
         const vec_t rz_subcell[] = {
             {rezoned_nodes_x[(ccw_node_index)],
              rezoned_nodes_y[(ccw_node_index)],
@@ -280,7 +280,7 @@ void remap_phase(
               inv[2].x * m_rhs.x + inv[2].y * m_rhs.y + inv[2].z * m_rhs.z};
 
           apply_cell_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
-                             &grad_m, &cell_centroid, nodes_x0, nodes_y0,
+                             &grad_m, &cell_c, nodes_x0, nodes_y0,
                              nodes_z0, subcell_m, gmax_m, gmin_m);
 
           // Calculate the flux for internal energy density in the subcell
@@ -334,7 +334,7 @@ void remap_phase(
               inv[2].x * ie_rhs.x + inv[2].y * ie_rhs.y + inv[2].z * ie_rhs.z};
 
           apply_cell_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
-                             &grad_ie, &cell_centroid, nodes_x0, nodes_y0,
+                             &grad_ie, &cell_c, nodes_x0, nodes_y0,
                              nodes_z0, subcell_ie, gmax_ie, gmin_ie);
 
           // Calculate the flux for internal energy density in the subcell
@@ -379,7 +379,7 @@ void remap_phase(
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
 
     // Determine aprpopiate cell centroids
-    vec_t cell_centroid = {cell_centroids_x[(cc)], cell_centroids_y[(cc)],
+    vec_t cell_c = {cell_centroids_x[(cc)], cell_centroids_y[(cc)],
                            cell_centroids_z[(cc)]};
     vec_t rz_cell_centroid = {0.0, 0.0, 0.0};
     calc_centroid(nnodes_by_cell, rezoned_nodes_x, rezoned_nodes_y,
@@ -423,7 +423,7 @@ void remap_phase(
         vec_t face_normal;
         const int face_clockwise =
             calc_surface_normal(n0, n1, n2, nodes_x0, nodes_y0, nodes_z0,
-                                &cell_centroid, &face_normal);
+                                &cell_c, &face_normal);
 
         // We may need to reorder the two corner nodes for the tet given that
         // the face may be ordered clockwise, rather than counter-clockwise.
@@ -451,7 +451,7 @@ void remap_phase(
                0.5 *
                    (nodes_z0[(ccw_node_index)] + nodes_z0[(ccw_rnode_index)])},
               {face_c.x, face_c.y, face_c.z},
-              {cell_centroid.x, cell_centroid.y, cell_centroid.z}};
+              {cell_c.x, cell_c.y, cell_c.z}};
           const vec_t rz_subcell[] = {
               {rezoned_nodes_x[(ccw_node_index)],
                rezoned_nodes_y[(ccw_node_index)],
@@ -801,15 +801,15 @@ int check_normal_orientation(const int n0, const double* nodes_x,
 // Calculates the surface normal of a vector pointing outwards
 int calc_surface_normal(const int n0, const int n1, const int n2,
                         const double* nodes_x, const double* nodes_y,
-                        const double* nodes_z, const vec_t* cell_centroid,
+                        const double* nodes_z, const vec_t* cell_c,
                         vec_t* normal) {
 
   // Calculate the unit normal vector
   calc_unit_normal(n0, n1, n2, nodes_x, nodes_y, nodes_z, normal);
 
   // Determine the orientation of the normal
-  const int face_clockwise = check_normal_orientation(
-      n0, nodes_x, nodes_y, nodes_z, cell_centroid, normal);
+  const int face_clockwise =
+      check_normal_orientation(n0, nodes_x, nodes_y, nodes_z, cell_c, normal);
 
   // Flip the vector if necessary
   normal->x *= (face_clockwise ? -1.0 : 1.0);
@@ -866,14 +866,14 @@ void calc_normal(const int n0, const int n1, const int n2,
 // Contributes a face to the volume of some cell
 void contribute_face_volume(const int nnodes_by_face, const int* faces_to_nodes,
                             const double* nodes_x, const double* nodes_y,
-                            const double* nodes_z, const vec_t* cell_centroid,
+                            const double* nodes_z, const vec_t* cell_c,
                             double* vol) {
 
   // Determine the outward facing unit normal vector
   vec_t normal = {0.0, 0.0, 0.0};
   const int face_clockwise = calc_surface_normal(
       faces_to_nodes[(0)], faces_to_nodes[(1)], faces_to_nodes[(2)], nodes_x,
-      nodes_y, nodes_z, cell_centroid, &normal);
+      nodes_y, nodes_z, cell_c, &normal);
 
   vec_t face_c = {0.0, 0.0, 0.0};
   calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes, 0,
@@ -904,7 +904,7 @@ void contribute_face_volume(const int nnodes_by_face, const int* faces_to_nodes,
     tn_z[2] = face_c.z;
 
     vec_t tnormal = {0.0, 0.0, 0.0};
-    calc_surface_normal(0, 1, 2, tn_x, tn_y, tn_z, cell_centroid, &tnormal);
+    calc_surface_normal(0, 1, 2, tn_x, tn_y, tn_z, cell_c, &tnormal);
 
     // The projection of the normal vector onto a point on the face
     double omega = -(tnormal.x * tn_x[(2)] + tnormal.y * tn_y[(2)] +
@@ -941,29 +941,24 @@ void calc_volume(const int cell_to_faces_off, const int nfaces_by_cell,
                  const int* cells_to_faces, const int* faces_to_nodes,
                  const int* faces_to_nodes_offsets, const double* nodes_x,
                  const double* nodes_y, const double* nodes_z,
-                 const vec_t* cell_centroid, double* vol) {
+                 const vec_t* cell_c, double* vol) {
 
   // Prepare to accumulate the volume
   *vol = 0.0;
 
-  int fc = 0;
   for (int ff = 0; ff < nfaces_by_cell; ++ff) {
     const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
     const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
     const int nnodes_by_face =
         faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
 
-    contribute_face_volume(nnodes_by_face, faces_to_nodes, nodes_x, nodes_y,
-                           nodes_z, cell_centroid, vol);
+    contribute_face_volume(nnodes_by_face, &faces_to_nodes[(face_to_nodes_off)],
+                           nodes_x, nodes_y, nodes_z, cell_c, vol);
   }
 
   if (isnan(*vol)) {
     *vol = 0.0;
     return;
-  }
-
-  if (fc) {
-    printf("FAIL: Face clockwise triangle encountered.\n");
   }
 
   *vol = fabs(*vol);
@@ -1110,7 +1105,7 @@ void calc_gradient(const int subcell_index, const int nsubcells_by_subcell,
 // Calculates the limiter for the provided gradient
 double apply_cell_limiter(const int nnodes_by_cell, const int cell_to_nodes_off,
                           const int* cells_to_nodes, vec_t* grad,
-                          const vec_t* cell_centroid, const double* nodes_x0,
+                          const vec_t* cell_c, const double* nodes_x0,
                           const double* nodes_y0, const double* nodes_z0,
                           const double phi, const double gmax,
                           const double gmin) {
@@ -1119,10 +1114,9 @@ double apply_cell_limiter(const int nnodes_by_cell, const int cell_to_nodes_off,
   double limiter = 1.0;
   for (int nn = 0; nn < nnodes_by_cell; ++nn) {
     const int node_index = cells_to_nodes[(cell_to_nodes_off + nn)];
-    double g_unlimited = phi +
-                         grad->x * (nodes_x0[(node_index)] - cell_centroid->x) +
-                         grad->y * (nodes_y0[(node_index)] - cell_centroid->y) +
-                         grad->z * (nodes_z0[(node_index)] - cell_centroid->z);
+    double g_unlimited = phi + grad->x * (nodes_x0[(node_index)] - cell_c->x) +
+                         grad->y * (nodes_y0[(node_index)] - cell_c->y) +
+                         grad->z * (nodes_z0[(node_index)] - cell_c->z);
 
     double node_limiter = 1.0;
     if (g_unlimited - phi > 0.0) {

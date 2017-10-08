@@ -71,9 +71,9 @@ typedef struct {
   double* nodal_soundspeed;
   double* limiter;
 
-  double* subcell_ie_density0;
+  double* subcell_ie_mass;
   double* subcell_ie_mass_flux;
-  double* subcell_mass0;
+  double* subcell_mass;
   double* subcell_mass_flux;
   double* subcell_momentum_flux_x;
   double* subcell_momentum_flux_y;
@@ -81,9 +81,9 @@ typedef struct {
   double* subcell_centroids_x;
   double* subcell_centroids_y;
   double* subcell_centroids_z;
-  double* corner_force_x;
-  double* corner_force_y;
-  double* corner_force_z;
+  double* subcell_force_x;
+  double* subcell_force_y;
+  double* subcell_force_z;
   double* subcell_kinetic_energy;
   double* rezoned_nodes_x;
   double* rezoned_nodes_y;

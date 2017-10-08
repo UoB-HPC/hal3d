@@ -205,6 +205,7 @@ double apply_node_limiter(const int ncells_by_node, const int node_to_cells_off,
 // Calculates the cell volume, subcell volume and the subcell centroids
 void calc_volumes_centroids(
     const int ncells, const int* cells_offsets, const int* cells_to_nodes,
+    const int* cells_to_faces_offsets, const int* cells_to_faces,
     const int* subcells_to_faces_offsets, const int* subcells_to_faces,
     const int* faces_to_nodes, const int* faces_to_nodes_offsets,
     const double* nodes_x, const double* nodes_y, const double* nodes_z,
