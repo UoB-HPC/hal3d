@@ -17,7 +17,7 @@ void lagrangian_phase(
     double* density0, double* density1, double* pressure0, double* pressure1,
     double* velocity_x0, double* velocity_y0, double* velocity_z0,
     double* velocity_x1, double* velocity_y1, double* velocity_z1,
-    double* corner_force_x, double* corner_force_y, double* corner_force_z,
+    double* subcell_force_x, double* subcell_force_y, double* subcell_force_z,
     double* cell_mass, double* nodal_mass, double* nodal_volumes,
     double* nodal_soundspeed, double* limiter, int* nodes_to_faces_offsets,
     int* nodes_to_faces, int* faces_to_nodes, int* faces_to_nodes_offsets,
@@ -140,9 +140,9 @@ void lagrangian_phase(
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
-      corner_force_x[(cell_to_nodes_off + nn)] = 0.0;
-      corner_force_y[(cell_to_nodes_off + nn)] = 0.0;
-      corner_force_z[(cell_to_nodes_off + nn)] = 0.0;
+      subcell_force_x[(cell_to_nodes_off + nn)] = 0.0;
+      subcell_force_y[(cell_to_nodes_off + nn)] = 0.0;
+      subcell_force_z[(cell_to_nodes_off + nn)] = 0.0;
     }
   }
 
@@ -221,17 +221,17 @@ void lagrangian_phase(
         // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
         // CALCULATION
         const int flip = (ab.x * A.x + ab.y * A.y + ab.z * A.z > 0.0);
-        corner_force_x[(cell_to_nodes_off + node_off)] +=
+        subcell_force_x[(cell_to_nodes_off + node_off)] +=
             pressure0[(cc)] * ((flip) ? -A.x : A.x);
-        corner_force_y[(cell_to_nodes_off + node_off)] +=
+        subcell_force_y[(cell_to_nodes_off + node_off)] +=
             pressure0[(cc)] * ((flip) ? -A.y : A.y);
-        corner_force_z[(cell_to_nodes_off + node_off)] +=
+        subcell_force_z[(cell_to_nodes_off + node_off)] +=
             pressure0[(cc)] * ((flip) ? -A.z : A.z);
-        corner_force_x[(cell_to_nodes_off + next_node_off)] +=
+        subcell_force_x[(cell_to_nodes_off + next_node_off)] +=
             pressure0[(cc)] * ((flip) ? -A.x : A.x);
-        corner_force_y[(cell_to_nodes_off + next_node_off)] +=
+        subcell_force_y[(cell_to_nodes_off + next_node_off)] +=
             pressure0[(cc)] * ((flip) ? -A.y : A.y);
-        corner_force_z[(cell_to_nodes_off + next_node_off)] +=
+        subcell_force_z[(cell_to_nodes_off + next_node_off)] +=
             pressure0[(cc)] * ((flip) ? -A.z : A.z);
       }
     }
@@ -249,7 +249,7 @@ void lagrangian_phase(
       ncells, visc_coeff1, visc_coeff2, cells_offsets, cells_to_nodes, nodes_x0,
       nodes_y0, nodes_z0, cell_centroids_x, cell_centroids_y, cell_centroids_z,
       velocity_x0, velocity_y0, velocity_z0, nodal_soundspeed, nodal_mass,
-      nodal_volumes, limiter, corner_force_x, corner_force_y, corner_force_z,
+      nodal_volumes, limiter, subcell_force_x, subcell_force_y, subcell_force_z,
       faces_to_nodes_offsets, faces_to_nodes, cells_to_faces_offsets,
       cells_to_faces);
 
@@ -278,9 +278,9 @@ void lagrangian_phase(
         }
       }
 
-      node_force.x += corner_force_x[(cell_to_nodes_off + node_off)];
-      node_force.y += corner_force_y[(cell_to_nodes_off + node_off)];
-      node_force.z += corner_force_z[(cell_to_nodes_off + node_off)];
+      node_force.x += subcell_force_x[(cell_to_nodes_off + node_off)];
+      node_force.y += subcell_force_y[(cell_to_nodes_off + node_off)];
+      node_force.z += subcell_force_z[(cell_to_nodes_off + node_off)];
     }
 
     // Determine the predicted velocity
@@ -334,11 +334,11 @@ void lagrangian_phase(
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int node_index = cells_to_nodes[(cell_to_nodes_off + nn)];
       cell_force += (velocity_x1[(node_index)] *
-                         corner_force_x[(cell_to_nodes_off + nn)] +
+                         subcell_force_x[(cell_to_nodes_off + nn)] +
                      velocity_y1[(node_index)] *
-                         corner_force_y[(cell_to_nodes_off + nn)] +
+                         subcell_force_y[(cell_to_nodes_off + nn)] +
                      velocity_z1[(node_index)] *
-                         corner_force_z[(cell_to_nodes_off + nn)]);
+                         subcell_force_z[(cell_to_nodes_off + nn)]);
     }
     energy1[(cc)] = energy0[(cc)] - mesh->dt * cell_force / cell_mass[(cc)];
   }
@@ -451,9 +451,9 @@ void lagrangian_phase(
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
-      corner_force_x[(cell_to_nodes_off + nn)] = 0.0;
-      corner_force_y[(cell_to_nodes_off + nn)] = 0.0;
-      corner_force_z[(cell_to_nodes_off + nn)] = 0.0;
+      subcell_force_x[(cell_to_nodes_off + nn)] = 0.0;
+      subcell_force_y[(cell_to_nodes_off + nn)] = 0.0;
+      subcell_force_z[(cell_to_nodes_off + nn)] = 0.0;
     }
   }
 
@@ -639,17 +639,17 @@ void lagrangian_phase(
         // THAT THIS COMES OUT CORRECTLY, SO NEED TO FIXUP AFTER THE
         // CALCULATION
         const int flip = (ab.x * A.x + ab.y * A.y + ab.z * A.z > 0.0);
-        corner_force_x[(cell_to_nodes_off + node_off)] +=
+        subcell_force_x[(cell_to_nodes_off + node_off)] +=
             pressure1[(cc)] * ((flip) ? -A.x : A.x);
-        corner_force_y[(cell_to_nodes_off + node_off)] +=
+        subcell_force_y[(cell_to_nodes_off + node_off)] +=
             pressure1[(cc)] * ((flip) ? -A.y : A.y);
-        corner_force_z[(cell_to_nodes_off + node_off)] +=
+        subcell_force_z[(cell_to_nodes_off + node_off)] +=
             pressure1[(cc)] * ((flip) ? -A.z : A.z);
-        corner_force_x[(cell_to_nodes_off + next_node_off)] +=
+        subcell_force_x[(cell_to_nodes_off + next_node_off)] +=
             pressure1[(cc)] * ((flip) ? -A.x : A.x);
-        corner_force_y[(cell_to_nodes_off + next_node_off)] +=
+        subcell_force_y[(cell_to_nodes_off + next_node_off)] +=
             pressure1[(cc)] * ((flip) ? -A.y : A.y);
-        corner_force_z[(cell_to_nodes_off + next_node_off)] +=
+        subcell_force_z[(cell_to_nodes_off + next_node_off)] +=
             pressure1[(cc)] * ((flip) ? -A.z : A.z);
       }
     }
@@ -660,7 +660,7 @@ void lagrangian_phase(
       ncells, visc_coeff1, visc_coeff2, cells_offsets, cells_to_nodes, nodes_x1,
       nodes_y1, nodes_z1, cell_centroids_x, cell_centroids_y, cell_centroids_z,
       velocity_x1, velocity_y1, velocity_z1, nodal_soundspeed, nodal_mass,
-      nodal_volumes, limiter, corner_force_x, corner_force_y, corner_force_z,
+      nodal_volumes, limiter, subcell_force_x, subcell_force_y, subcell_force_z,
       faces_to_nodes_offsets, faces_to_nodes, cells_to_faces_offsets,
       cells_to_faces);
 
@@ -685,9 +685,9 @@ void lagrangian_phase(
         }
       }
 
-      node_force.x += corner_force_x[(cell_to_nodes_off + nn2)];
-      node_force.y += corner_force_y[(cell_to_nodes_off + nn2)];
-      node_force.z += corner_force_z[(cell_to_nodes_off + nn2)];
+      node_force.x += subcell_force_x[(cell_to_nodes_off + nn2)];
+      node_force.y += subcell_force_y[(cell_to_nodes_off + nn2)];
+      node_force.z += subcell_force_z[(cell_to_nodes_off + nn2)];
     }
 
     // Calculate the new velocities
@@ -733,11 +733,11 @@ void lagrangian_phase(
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int node_index = cells_to_nodes[(cell_to_nodes_off + nn)];
       cell_force += (velocity_x0[(node_index)] *
-                         corner_force_x[(cell_to_nodes_off + nn)] +
+                         subcell_force_x[(cell_to_nodes_off + nn)] +
                      velocity_y0[(node_index)] *
-                         corner_force_y[(cell_to_nodes_off + nn)] +
+                         subcell_force_y[(cell_to_nodes_off + nn)] +
                      velocity_z0[(node_index)] *
-                         corner_force_z[(cell_to_nodes_off + nn)]);
+                         subcell_force_z[(cell_to_nodes_off + nn)]);
     }
 
     energy0[(cc)] -= mesh->dt * cell_force / cell_mass[(cc)];
@@ -888,9 +888,10 @@ void calc_artificial_viscosity(
     const double* cell_centroids_z, const double* velocity_x,
     const double* velocity_y, const double* velocity_z,
     const double* nodal_soundspeed, const double* nodal_mass,
-    const double* nodal_volumes, const double* limiter, double* corner_force_x,
-    double* corner_force_y, double* corner_force_z, int* faces_to_nodes_offsets,
-    int* faces_to_nodes, int* cells_to_faces_offsets, int* cells_to_faces) {
+    const double* nodal_volumes, const double* limiter, double* subcell_force_x,
+    double* subcell_force_y, double* subcell_force_z,
+    int* faces_to_nodes_offsets, int* faces_to_nodes,
+    int* cells_to_faces_offsets, int* cells_to_faces) {
 
   // Calculate the predicted energy
   START_PROFILING(&compute_profile);
@@ -1025,14 +1026,14 @@ void calc_artificial_viscosity(
 
           // Add the contributions of the edge based artifical viscous terms
           // to the main force terms
-          corner_force_x[(cell_to_nodes_off + node_off)] -= edge_visc_force_x;
-          corner_force_y[(cell_to_nodes_off + node_off)] -= edge_visc_force_y;
-          corner_force_z[(cell_to_nodes_off + node_off)] -= edge_visc_force_z;
-          corner_force_x[(cell_to_nodes_off + next_node_off)] +=
+          subcell_force_x[(cell_to_nodes_off + node_off)] -= edge_visc_force_x;
+          subcell_force_y[(cell_to_nodes_off + node_off)] -= edge_visc_force_y;
+          subcell_force_z[(cell_to_nodes_off + node_off)] -= edge_visc_force_z;
+          subcell_force_x[(cell_to_nodes_off + next_node_off)] +=
               edge_visc_force_x;
-          corner_force_y[(cell_to_nodes_off + next_node_off)] +=
+          subcell_force_y[(cell_to_nodes_off + next_node_off)] +=
               edge_visc_force_y;
-          corner_force_z[(cell_to_nodes_off + next_node_off)] +=
+          subcell_force_z[(cell_to_nodes_off + next_node_off)] +=
               edge_visc_force_z;
         }
       }

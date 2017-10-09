@@ -11,9 +11,8 @@
 // Initialises the shared_data variables for two dimensional applications
 size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
   const int nfaces_by_node = 3;
-  hale_data->nnodes_per_subcell = 8;
+  hale_data->nnodes_by_subcell = 8;
   hale_data->nsubcells_by_cell = 8;
-  hale_data->nnodes_per_subcell = 8;
   hale_data->nsubcells = umesh->ncells * hale_data->nsubcells_by_cell;
 
   size_t allocated = allocate_data(&hale_data->pressure0, umesh->ncells);
@@ -45,11 +44,11 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
   allocated += allocate_int_data(&hale_data->subcells_to_faces_offsets,
                                  hale_data->nsubcells + 1);
   allocated +=
-      allocate_data(&hale_data->subcell_momentum_flux_x, hale_data->nsubcells);
+      allocate_data(&hale_data->subcell_momentum_x, hale_data->nsubcells);
   allocated +=
-      allocate_data(&hale_data->subcell_momentum_flux_y, hale_data->nsubcells);
+      allocate_data(&hale_data->subcell_momentum_y, hale_data->nsubcells);
   allocated +=
-      allocate_data(&hale_data->subcell_momentum_flux_z, hale_data->nsubcells);
+      allocate_data(&hale_data->subcell_momentum_z, hale_data->nsubcells);
   allocated += allocate_data(&hale_data->subcell_ie_mass, hale_data->nsubcells);
   allocated += allocate_data(&hale_data->subcell_mass, hale_data->nsubcells);
   allocated +=
@@ -96,15 +95,18 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
       hale_data->subcells_to_faces_offsets);
 
   // Initialises the cell mass, sub-cell mass and sub-cell volume
-  init_mesh_mass(umesh->ncells, umesh->nnodes, umesh->cell_centroids_x,
-                 umesh->cell_centroids_y, umesh->cell_centroids_z,
+  init_mesh_mass(umesh->ncells, umesh->nnodes, hale_data->nnodes_by_subcell,
                  hale_data->density0, umesh->nodes_x0, umesh->nodes_y0,
-                 umesh->nodes_z0, hale_data->cell_mass, hale_data->subcell_mass,
+                 umesh->nodes_z0, hale_data->subcell_mass,
                  hale_data->nodal_mass, umesh->cells_to_faces_offsets,
                  umesh->cells_to_faces, umesh->faces_to_nodes_offsets,
-                 umesh->faces_to_nodes, umesh->cells_to_faces,
-                 umesh->nodes_to_faces_offsets, umesh->nodes_to_faces,
-                 umesh->faces_to_cells0, umesh->faces_to_cells1);
+                 umesh->faces_to_nodes, umesh->cells_offsets,
+                 umesh->cells_to_nodes, hale_data->subcells_to_faces_offsets,
+                 hale_data->subcells_to_faces, umesh->nodes_offsets,
+                 umesh->nodes_to_cells, hale_data->subcell_centroids_x,
+                 hale_data->subcell_centroids_y, hale_data->subcell_centroids_z,
+                 hale_data->subcell_volume, hale_data->cell_volume,
+                 hale_data->nodal_volumes, hale_data->cell_mass);
 
   store_rezoned_mesh(umesh->nnodes, umesh->nodes_x0, umesh->nodes_y0,
                      umesh->nodes_z0, hale_data->rezoned_nodes_x,

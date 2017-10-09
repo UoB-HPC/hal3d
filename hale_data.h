@@ -75,9 +75,9 @@ typedef struct {
   double* subcell_ie_mass_flux;
   double* subcell_mass;
   double* subcell_mass_flux;
-  double* subcell_momentum_flux_x;
-  double* subcell_momentum_flux_y;
-  double* subcell_momentum_flux_z;
+  double* subcell_momentum_x;
+  double* subcell_momentum_y;
+  double* subcell_momentum_z;
   double* subcell_centroids_x;
   double* subcell_centroids_y;
   double* subcell_centroids_z;
@@ -92,7 +92,7 @@ typedef struct {
   int nsubcells;
   int nsubcell_nodes;
   int nsubcells_by_cell;
-  int nnodes_per_subcell;
+  int nnodes_by_subcell;
 
   double visc_coeff1;
   double visc_coeff2;
@@ -118,19 +118,23 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh);
 
 // NOTE: This is not intended to be a production device, rather used for
 // debugging the code against a well tested description of the subcell mesh.
-size_t init_subcell_data_structures(Mesh* mesh, HaleData* hale_data,
-                                    UnstructuredMesh* umesh);
+void init_subcell_data_structures(Mesh* mesh, HaleData* hale_data,
+                                  UnstructuredMesh* umesh);
 
 // Initialises the cell mass, sub-cell mass and sub-cell volume
-void init_mesh_mass(
-    const int ncells, const int nnodes, const double* cell_centroids_x,
-    const double* cell_centroids_y, const double* cell_centroids_z,
-    const double* density, const double* nodes_x, const double* nodes_y,
-    const double* nodes_z, double* cell_mass, double* subcell_mass,
-    double* nodal_mass, int* cells_to_faces_offsets, int* cells_to_faces,
-    int* faces_to_nodes_offsets, int* faces_to_nodes,
-    int* faces_to_subcells_offsets, int* nodes_to_faces_offsets,
-    int* nodes_to_faces, int* faces_to_cells0, int* faces_to_cells1);
+void init_mesh_mass(const int ncells, const int nnodes,
+                    const int nnodes_by_subcell, const double* density,
+                    const double* nodes_x, const double* nodes_y,
+                    const double* nodes_z, double* subcell_mass,
+                    double* nodal_mass, int* cells_to_faces_offsets,
+                    int* cells_to_faces, int* faces_to_nodes_offsets,
+                    int* faces_to_nodes, int* cells_offsets,
+                    int* cells_to_nodes, int* subcells_to_faces_offsets,
+                    int* subcells_to_faces, int* nodes_offsets,
+                    int* nodes_to_cells, double* subcell_centroids_x,
+                    double* subcell_centroids_y, double* subcell_centroids_z,
+                    double* subcell_volume, double* cell_volume,
+                    double* nodal_volumes, double* cell_mass);
 
 // Initialises the centroids for each cell
 void init_cell_centroids(const int ncells, const int* cells_offsets,

@@ -4,184 +4,329 @@
 #include <math.h>
 
 // Initialises the cell mass, sub-cell mass and sub-cell volume
-void init_mesh_mass(
-    const int ncells, const int nnodes, const double* cell_centroids_x,
-    const double* cell_centroids_y, const double* cell_centroids_z,
-    const double* density, const double* nodes_x, const double* nodes_y,
-    const double* nodes_z, double* cell_mass, double* subcell_mass,
-    double* nodal_mass, int* cells_to_faces_offsets, int* cells_to_faces,
-    int* faces_to_nodes_offsets, int* faces_to_nodes,
-    int* faces_to_subcells_offsets, int* nodes_to_faces_offsets,
-    int* nodes_to_faces, int* faces_to_cells0, int* faces_to_cells1) {
+void init_mesh_mass(const int ncells, const int nnodes,
+                    const int nnodes_by_subcell, const double* density,
+                    const double* nodes_x, const double* nodes_y,
+                    const double* nodes_z, double* subcell_mass,
+                    double* nodal_mass, int* cells_to_faces_offsets,
+                    int* cells_to_faces, int* faces_to_nodes_offsets,
+                    int* faces_to_nodes, int* cells_offsets,
+                    int* cells_to_nodes, int* subcells_to_faces_offsets,
+                    int* subcells_to_faces, int* nodes_offsets,
+                    int* nodes_to_cells, double* subcell_centroids_x,
+                    double* subcell_centroids_y, double* subcell_centroids_z,
+                    double* subcell_volume, double* cell_volume,
+                    double* nodal_volumes, double* cell_mass) {
+
+  // Calculates the cell volume, subcell volume and the subcell centroids
+  calc_volumes_centroids(
+      ncells, nnodes, nnodes_by_subcell, cells_offsets, cells_to_nodes,
+      cells_to_faces_offsets, cells_to_faces, subcells_to_faces_offsets,
+      subcells_to_faces, faces_to_nodes, faces_to_nodes_offsets, nodes_x,
+      nodes_y, nodes_z, subcell_centroids_x, subcell_centroids_y,
+      subcell_centroids_z, subcell_volume, cell_volume, nodal_volumes,
+      nodes_offsets, nodes_to_cells);
 
   // Calculate the predicted energy
   START_PROFILING(&compute_profile);
-  double total_mass = 0.0;
-  double total_subcell_mass = 0.0;
-#pragma omp parallel for reduction(+ : total_mass, total_subcell_mass)
+#pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
+    const int cell_to_nodes_off = cells_offsets[(cc)];
+    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+
+    cell_mass[(cc)] = 0.0;
+
+    // looping over corner subcells here
+    for (int nn = 0; nn < nnodes_by_cell; ++nn) {
+      const int subcell_index = cell_to_nodes_off + nn;
+      subcell_mass[(subcell_index)] =
+          density[(cc)] * subcell_volume[(subcell_index)];
+      cell_mass[(cc)] += subcell_mass[(subcell_index)];
+    }
+  }
+  STOP_PROFILING(&compute_profile, __func__);
+
+#pragma omp parallel for
+  for (int nn = 0; nn < nnodes; ++nn) {
+    const int node_to_cells_off = nodes_offsets[(nn)];
+    const int ncells_by_node = nodes_offsets[(nn + 1)] - node_to_cells_off;
+
+    nodal_mass[(nn)] = 0.0;
+
+    for (int cc = 0; cc < ncells_by_node; ++cc) {
+      const int cell_index = nodes_to_cells[(node_to_cells_off + cc)];
+      const int cell_to_nodes_off = cells_offsets[(cell_index)];
+      const int nnodes_by_cell =
+          cells_offsets[(cell_index + 1)] - cell_to_nodes_off;
+
+      for (int nn2 = 0; nn2 < nnodes_by_cell; ++nn2) {
+        if (cells_to_nodes[(cell_to_nodes_off + nn2)] == nn) {
+          const int subcell_index = cell_to_nodes_off + nn2;
+          nodal_mass[(nn)] += subcell_mass[(subcell_index)];
+          break;
+        }
+      }
+    }
+  }
+
+  STOP_PROFILING(&compute_profile, "calc_nodal_mass_vol");
+}
+
+// Calculates the cell volume, subcell volume and the subcell centroids
+void calc_volumes_centroids(
+    const int ncells, const int nnodes, const int nnodes_by_subcell,
+    const int* cells_offsets, const int* cells_to_nodes,
+    const int* cells_to_faces_offsets, const int* cells_to_faces,
+    const int* subcells_to_faces_offsets, const int* subcells_to_faces,
+    const int* faces_to_nodes, const int* faces_to_nodes_offsets,
+    const double* nodes_x, const double* nodes_y, const double* nodes_z,
+    double* subcell_centroids_x, double* subcell_centroids_y,
+    double* subcell_centroids_z, double* subcell_volume, double* cell_volume,
+    double* nodal_volumes, int* nodes_offsets, int* nodes_to_cells) {
+
+  double total_cell_volume = 0.0;
+  double total_subcell_volume = 0.0;
+#pragma omp parallel for reduction(+ : total_cell_volume, total_subcell_volume)
+  for (int cc = 0; cc < ncells; ++cc) {
+    const int cell_to_nodes_off = cells_offsets[(cc)];
+    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
         cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
 
-    double cm = 0.0;
+    vec_t cell_c = {0.0, 0.0, 0.0};
+    calc_centroid(nnodes_by_cell, nodes_x, nodes_y, nodes_z, cells_to_nodes,
+                  cell_to_nodes_off, &cell_c);
 
-    // Look at all of the faces attached to the cell
-    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
-      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
-      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-      const int nnodes_by_face =
-          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-      const int subcell_off =
-          faces_to_subcells_offsets[(cell_to_faces_off + ff)];
+    // Calculates the weighted volume dist for a provided cell along x-y-z
+    calc_volume(cell_to_faces_off, nfaces_by_cell, cells_to_faces,
+                faces_to_nodes, faces_to_nodes_offsets, nodes_x, nodes_y,
+                nodes_z, &cell_c, &cell_volume[(cc)]);
+    total_cell_volume += cell_volume[(cc)];
 
-      // Calculate the face center... SHOULD WE PRECOMPUTE?
-      vec_t face_c = {0.0, 0.0, 0.0};
-      calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes,
-                    face_to_nodes_off, &face_c);
+    // Looping over corner subcells here
+    for (int nn = 0; nn < nnodes_by_cell; ++nn) {
+      const int node_index = cells_to_nodes[(cell_to_nodes_off + nn)];
+      const int subcell_index = cell_to_nodes_off + nn;
+      const int subcell_to_faces_off =
+          subcells_to_faces_offsets[(subcell_index)];
+      const int nfaces_by_subcell =
+          subcells_to_faces_offsets[(subcell_index + 1)] - subcell_to_faces_off;
 
-      for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
-        // Fetch the nodes attached to our current node on
-        // the current face
-        const int current_node = faces_to_nodes[(face_to_nodes_off + nn2)];
-        const int next_node =
-            (nn2 + 1 < nnodes_by_face)
-                ? faces_to_nodes[(face_to_nodes_off + nn2 + 1)]
-                : faces_to_nodes[(face_to_nodes_off)];
+      subcell_centroids_x[(subcell_index)] = 0.0;
+      subcell_centroids_y[(subcell_index)] = 0.0;
+      subcell_centroids_z[(subcell_index)] = 0.0;
 
-        // Get the halfway point on the right edge
-        const double half_edge_x =
-            0.5 * (nodes_x[(current_node)] + nodes_x[(next_node)]);
-        const double half_edge_y =
-            0.5 * (nodes_y[(current_node)] + nodes_y[(next_node)]);
-        const double half_edge_z =
-            0.5 * (nodes_z[(current_node)] + nodes_z[(next_node)]);
+      // Consider all faces attached to node
+      for (int ff = 0; ff < nfaces_by_subcell; ++ff) {
+        const int face_index = subcells_to_faces[(subcell_to_faces_off + ff)];
+        const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+        const int nnodes_by_face =
+            faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
 
-        // Setup basis on plane of tetrahedron
-        const double a_x = (half_edge_x - face_c.x);
-        const double a_y = (half_edge_y - face_c.y);
-        const double a_z = (half_edge_z - face_c.z);
-        const double b_x = (cell_centroids_x[(cc)] - face_c.x);
-        const double b_y = (cell_centroids_y[(cc)] - face_c.y);
-        const double b_z = (cell_centroids_z[(cc)] - face_c.z);
+        // The face centroid is the same for all nodes on the face
+        vec_t face_c = {0.0, 0.0, 0.0};
+        calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes,
+                      face_to_nodes_off, &face_c);
 
-        // Calculate the area vector S using cross product
-        const double S_x = 0.5 * (a_y * b_z - a_z * b_y);
-        const double S_y = -0.5 * (a_x * b_z - a_z * b_x);
-        const double S_z = 0.5 * (a_x * b_y - a_y * b_x);
+        // Determine the orientation of the face
+        const int n0 = faces_to_nodes[(face_to_nodes_off + 0)];
+        const int n1 = faces_to_nodes[(face_to_nodes_off + 1)];
+        const int n2 = faces_to_nodes[(face_to_nodes_off + 2)];
+        vec_t face_normal;
+        const int face_clockwise = calc_surface_normal(
+            n0, n1, n2, nodes_x, nodes_y, nodes_z, &cell_c, &face_normal);
 
-        double subcell_volume =
-            2.0 * fabs(((half_edge_x - nodes_x[(current_node)]) * S_x +
-                        (half_edge_y - nodes_y[(current_node)]) * S_y +
-                        (half_edge_z - nodes_z[(current_node)]) * S_z) /
-                       3.0);
+        // Determine the position of the node in the face list of nodes
+        int nn2;
+        for (nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
+          if (faces_to_nodes[(face_to_nodes_off + nn2)] == node_index) {
+            break;
+          }
+        }
 
-        subcell_mass[(subcell_off + nn2)] = density[(cc)] * subcell_volume;
-        total_subcell_mass += subcell_mass[(subcell_off + nn2)];
-        cm += density[(cc)] * subcell_volume;
+        const int next_node = (nn2 == nnodes_by_face - 1) ? 0 : nn2 + 1;
+        const int prev_node = (nn2 == 0) ? nnodes_by_face - 1 : nn2 - 1;
+        const int rnode_off = (face_clockwise ? prev_node : next_node);
+        const int rnode_index = faces_to_nodes[(face_to_nodes_off + rnode_off)];
+
+        subcell_centroids_x[(subcell_index)] +=
+            0.5 * (nodes_x[(node_index)] + nodes_x[(rnode_index)]) + face_c.x;
+        subcell_centroids_y[(subcell_index)] +=
+            0.5 * (nodes_y[(node_index)] + nodes_y[(rnode_index)]) + face_c.y;
+        subcell_centroids_z[(subcell_index)] +=
+            0.5 * (nodes_z[(node_index)] + nodes_z[(rnode_index)]) + face_c.z;
       }
+
+      subcell_centroids_x[(subcell_index)] =
+          (subcell_centroids_x[(subcell_index)] + cell_c.x +
+           nodes_x[(node_index)]) /
+          nnodes_by_subcell;
+      subcell_centroids_y[(subcell_index)] =
+          (subcell_centroids_y[(subcell_index)] + cell_c.y +
+           nodes_y[(node_index)]) /
+          nnodes_by_subcell;
+      subcell_centroids_z[(subcell_index)] =
+          (subcell_centroids_z[(subcell_index)] + cell_c.z +
+           nodes_z[(node_index)]) /
+          nnodes_by_subcell;
+
+      vec_t subcell_c = {subcell_centroids_x[(subcell_index)],
+                         subcell_centroids_y[(subcell_index)],
+                         subcell_centroids_z[(subcell_index)]};
+
+      subcell_volume[(subcell_index)] = 0.0;
+
+      // Consider all faces attached to node
+      for (int ff = 0; ff < nfaces_by_subcell; ++ff) {
+        const int face_index = subcells_to_faces[(subcell_to_faces_off + ff)];
+        const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+        const int nnodes_by_face =
+            faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+
+        // The face centroid is the same for all nodes on the face
+        vec_t face_c = {0.0, 0.0, 0.0};
+        calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes,
+                      face_to_nodes_off, &face_c);
+
+        // Determine the orientation of the face
+        const int n0 = faces_to_nodes[(face_to_nodes_off + 0)];
+        const int n1 = faces_to_nodes[(face_to_nodes_off + 1)];
+        const int n2 = faces_to_nodes[(face_to_nodes_off + 2)];
+        vec_t face_normal;
+        const int face_clockwise = calc_surface_normal(
+            n0, n1, n2, nodes_x, nodes_y, nodes_z, &cell_c, &face_normal);
+
+        // Determine the position of the node in the face list of nodes
+        int nn2;
+        for (nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
+          if (faces_to_nodes[(face_to_nodes_off + nn2)] == node_index) {
+            break;
+          }
+        }
+
+        const int next_node = (nn2 == nnodes_by_face - 1) ? 0 : nn2 + 1;
+        const int prev_node = (nn2 == 0) ? nnodes_by_face - 1 : nn2 - 1;
+        const int rnode_off = (face_clockwise ? prev_node : next_node);
+        const int lnode_off = (face_clockwise ? next_node : prev_node);
+        const int rnode_index = faces_to_nodes[(face_to_nodes_off + rnode_off)];
+        const int lnode_index = faces_to_nodes[(face_to_nodes_off + lnode_off)];
+
+        /* EXTERNAL FACE */
+
+        const int subcell_faces_to_nodes[NNODES_BY_SUBCELL_FACE] = {0, 1, 2, 3};
+
+        double enodes_x[NNODES_BY_SUBCELL_FACE] = {
+            nodes_x[(node_index)],
+            0.5 * (nodes_x[(node_index)] + nodes_x[(rnode_index)]), face_c.x,
+            0.5 * (nodes_x[(node_index)] + nodes_x[(lnode_index)])};
+        double enodes_y[NNODES_BY_SUBCELL_FACE] = {
+            nodes_y[(node_index)],
+            0.5 * (nodes_y[(node_index)] + nodes_y[(rnode_index)]), face_c.y,
+            0.5 * (nodes_y[(node_index)] + nodes_y[(lnode_index)])};
+        double enodes_z[NNODES_BY_SUBCELL_FACE] = {
+            nodes_z[(node_index)],
+            0.5 * (nodes_z[(node_index)] + nodes_z[(rnode_index)]), face_c.z,
+            0.5 * (nodes_z[(node_index)] + nodes_z[(lnode_index)])};
+
+        contribute_face_volume(NNODES_BY_SUBCELL_FACE, subcell_faces_to_nodes,
+                               enodes_x, enodes_y, enodes_z, &subcell_c,
+                               &subcell_volume[(subcell_index)]);
+
+        /* INTERNAL FACE */
+
+        const int rface_off = (ff == nfaces_by_subcell - 1) ? 0 : ff + 1;
+        const int lface_off = (ff == 0) ? nfaces_by_subcell - 1 : ff - 1;
+        const int rface_index =
+            subcells_to_faces[(subcell_to_faces_off + rface_off)];
+        const int lface_index =
+            subcells_to_faces[(subcell_to_faces_off + lface_off)];
+        const int rface_to_nodes_off = faces_to_nodes_offsets[(rface_index)];
+        const int lface_to_nodes_off = faces_to_nodes_offsets[(lface_index)];
+        const int nnodes_by_rface =
+            faces_to_nodes_offsets[(rface_index + 1)] - rface_to_nodes_off;
+        const int nnodes_by_lface =
+            faces_to_nodes_offsets[(lface_index + 1)] - lface_to_nodes_off;
+
+        // Determine the orientation of the face
+        const int rn0 = faces_to_nodes[(rface_to_nodes_off + 0)];
+        const int rn1 = faces_to_nodes[(rface_to_nodes_off + 1)];
+        const int rn2 = faces_to_nodes[(rface_to_nodes_off + 2)];
+        vec_t rface_normal;
+        const int rface_clockwise = calc_surface_normal(
+            rn0, rn1, rn2, nodes_x, nodes_y, nodes_z, &cell_c, &rface_normal);
+
+        // Determine the position of the node in the face list of nodes
+        for (nn2 = 0; nn2 < nnodes_by_rface; ++nn2) {
+          if (faces_to_nodes[(rface_to_nodes_off + nn2)] == node_index) {
+            break;
+          }
+        }
+
+        const int rface_next_node = (nn2 == nnodes_by_rface - 1) ? 0 : nn2 + 1;
+        const int rface_prev_node = (nn2 == 0) ? nnodes_by_rface - 1 : nn2 - 1;
+        const int rface_rnode_off =
+            (rface_clockwise ? rface_prev_node : rface_next_node);
+        const int rface_rnode_index =
+            faces_to_nodes[(rface_to_nodes_off + rface_rnode_off)];
+
+        vec_t rface_c = {0.0, 0.0, 0.0};
+        calc_centroid(nnodes_by_rface, nodes_x, nodes_y, nodes_z,
+                      faces_to_nodes, rface_to_nodes_off, &rface_c);
+        vec_t lface_c = {0.0, 0.0, 0.0};
+        calc_centroid(nnodes_by_lface, nodes_x, nodes_y, nodes_z,
+                      faces_to_nodes, lface_to_nodes_off, &lface_c);
+
+        double inodes_x[NNODES_BY_SUBCELL_FACE] = {
+            0.5 * (nodes_x[(node_index)] + nodes_x[(rface_rnode_index)]),
+            rface_c.x, cell_c.x, lface_c.x};
+        double inodes_y[NNODES_BY_SUBCELL_FACE] = {
+            0.5 * (nodes_y[(node_index)] + nodes_y[(rface_rnode_index)]),
+            rface_c.y, cell_c.y, lface_c.y};
+        double inodes_z[NNODES_BY_SUBCELL_FACE] = {
+            0.5 * (nodes_z[(node_index)] + nodes_z[(rface_rnode_index)]),
+            rface_c.z, cell_c.z, lface_c.z};
+
+        contribute_face_volume(NNODES_BY_SUBCELL_FACE, subcell_faces_to_nodes,
+                               inodes_x, inodes_y, inodes_z, &subcell_c,
+                               &subcell_volume[(subcell_index)]);
+
+        if (isnan(subcell_volume[(subcell_index)])) {
+          subcell_volume[(subcell_index)] = 0.0;
+          break;
+        }
+      }
+
+      subcell_volume[(subcell_index)] = fabs(subcell_volume[(subcell_index)]);
+      total_subcell_volume += subcell_volume[(subcell_index)];
     }
-
-    cell_mass[(cc)] = cm;
-    total_mass += cm;
   }
-  STOP_PROFILING(&compute_profile, __func__);
 
-  printf("Initial Total Mesh Mass: %.12f\n", total_mass);
-  printf("Initial Total Subcell Mass: %.12f\n", total_subcell_mass);
-
-  // Calculate the nodal mass
-  START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for (int nn = 0; nn < nnodes; ++nn) {
-    const int node_to_faces_off = nodes_to_faces_offsets[(nn)];
-    const int nfaces_by_node =
-        nodes_to_faces_offsets[(nn + 1)] - node_to_faces_off;
+    const int node_to_cells_off = nodes_offsets[(nn)];
+    const int ncells_by_node = nodes_offsets[(nn + 1)] - node_to_cells_off;
 
-    vec_t node_c = {nodes_x[(nn)], nodes_y[(nn)], nodes_z[(nn)]};
+    nodal_volumes[(nn)] = 0.0;
 
-    // Consider all faces attached to node
-    for (int ff = 0; ff < nfaces_by_node; ++ff) {
-      const int face_index = nodes_to_faces[(node_to_faces_off + ff)];
-      if (face_index == -1) {
-        continue;
-      }
+    for (int cc = 0; cc < ncells_by_node; ++cc) {
+      const int cell_index = nodes_to_cells[(node_to_cells_off + cc)];
+      const int cell_to_nodes_off = cells_offsets[(cell_index)];
+      const int nnodes_by_cell =
+          cells_offsets[(cell_index + 1)] - cell_to_nodes_off;
 
-      // Determine the offset into the list of nodes
-      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-      const int nnodes_by_face =
-          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-
-      // Find node center and location of current node on
-      // face
-      vec_t face_c = {0.0, 0.0, 0.0};
-      int node_in_face_c;
-      for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
-        const int node_index = faces_to_nodes[(face_to_nodes_off + nn2)];
-        face_c.x += nodes_x[(node_index)] / nnodes_by_face;
-        face_c.y += nodes_y[(node_index)] / nnodes_by_face;
-        face_c.z += nodes_z[(node_index)] / nnodes_by_face;
-
-        // Choose the node in the list of nodes attached to
-        // the face
-        if (nn == node_index) {
-          node_in_face_c = nn2;
-        }
-      }
-
-      // Fetch the nodes attached to our current node on the
-      // current face
-      int nodes[2];
-      nodes[0] = (node_in_face_c - 1 >= 0)
-                     ? faces_to_nodes[(face_to_nodes_off + node_in_face_c - 1)]
-                     : faces_to_nodes[(face_to_nodes_off + nnodes_by_face - 1)];
-      nodes[1] = (node_in_face_c + 1 < nnodes_by_face)
-                     ? faces_to_nodes[(face_to_nodes_off + node_in_face_c + 1)]
-                     : faces_to_nodes[(face_to_nodes_off)];
-
-      // Fetch the cells attached to our current face
-      int cells[2];
-      cells[0] = faces_to_cells0[(face_index)];
-      cells[1] = faces_to_cells1[(face_index)];
-
-      // Add contributions from all of the cells attached to
-      // the face
-      for (int cc = 0; cc < 2; ++cc) {
-        if (cells[(cc)] == -1) {
-          continue;
-        }
-
-        // Add contributions for both edges attached to our
-        // current node
-        for (int nn2 = 0; nn2 < 2; ++nn2) {
-          // Get the halfway point on the right edge
-          vec_t half_edge = {0.5 * (nodes_x[(nodes[(nn2)])] + nodes_x[(nn)]),
-                             0.5 * (nodes_y[(nodes[(nn2)])] + nodes_y[(nn)]),
-                             0.5 * (nodes_z[(nodes[(nn2)])] + nodes_z[(nn)])};
-
-          // Setup basis on plane of tetrahedron
-          vec_t a = {(face_c.x - node_c.x), (face_c.y - node_c.y),
-                     (face_c.z - node_c.z)};
-          vec_t b = {(face_c.x - half_edge.x), (face_c.y - half_edge.y),
-                     (face_c.z - half_edge.z)};
-          vec_t ab = {(cell_centroids_x[(cells[cc])] - face_c.x),
-                      (cell_centroids_y[(cells[cc])] - face_c.y),
-                      (cell_centroids_z[(cells[cc])] - face_c.z)};
-
-          // Calculate the area vector S using cross product
-          vec_t A = {0.5 * (a.y * b.z - a.z * b.y),
-                     -0.5 * (a.x * b.z - a.z * b.x),
-                     0.5 * (a.x * b.y - a.y * b.x)};
-
-          const double subcell_volume =
-              fabs((ab.x * A.x + ab.y * A.y + ab.z * A.z) / 3.0);
-
-          nodal_mass[(nn)] += density[(cells[(cc)])] * subcell_volume;
+      for (int nn2 = 0; nn2 < nnodes_by_cell; ++nn2) {
+        if (cells_to_nodes[(cell_to_nodes_off + nn2)] == nn) {
+          const int subcell_index = cell_to_nodes_off + nn2;
+          nodal_volumes[(nn)] += subcell_volume[(subcell_index)];
+          break;
         }
       }
     }
   }
-  STOP_PROFILING(&compute_profile, "calc_nodal_mass_vol");
+
+  printf("Total Cell Volume %.12f\n", total_cell_volume);
+  printf("Total Subcell Volume %.12f\n", total_subcell_volume);
 }
 
 // Initialises the centroids for each cell
@@ -473,8 +618,8 @@ void init_subcells_to_subcells(
 
 // NOTE: This is not intended to be a production device, rather used for
 // debugging the code against a well tested description of the subcell mesh.
-size_t init_subcell_data_structures(Mesh* mesh, HaleData* hale_data,
-                                    UnstructuredMesh* umesh) {
+void init_subcell_data_structures(Mesh* mesh, HaleData* hale_data,
+                                  UnstructuredMesh* umesh) {
 
   const int nx = mesh->local_nx;
   const int ny = mesh->local_ny;
@@ -494,13 +639,17 @@ size_t init_subcell_data_structures(Mesh* mesh, HaleData* hale_data,
   const int nsubcell_nodes = subcell_cell_c_off + nx * ny * nz;
   hale_data->nsubcell_nodes = nsubcell_nodes;
 
-  size_t allocated = allocate_data(&hale_data->subcell_nodes_x, nsubcell_nodes);
-  allocated += allocate_data(&hale_data->subcell_nodes_y, nsubcell_nodes);
-  allocated += allocate_data(&hale_data->subcell_nodes_z, nsubcell_nodes);
-  allocated += allocate_int_data(&hale_data->subcells_to_nodes,
-                                 umesh->ncells * hale_data->nsubcells_by_cell *
-                                     hale_data->nnodes_per_subcell);
-  printf("Allocated %.4lf GB for subcell debugging output\n", allocated / GB);
+  if (!hale_data->subcell_nodes_x) {
+    size_t allocated =
+        allocate_data(&hale_data->subcell_nodes_x, nsubcell_nodes);
+    allocated += allocate_data(&hale_data->subcell_nodes_y, nsubcell_nodes);
+    allocated += allocate_data(&hale_data->subcell_nodes_z, nsubcell_nodes);
+    allocated +=
+        allocate_int_data(&hale_data->subcells_to_nodes,
+                          umesh->ncells * hale_data->nsubcells_by_cell *
+                              hale_data->nnodes_by_subcell);
+    printf("Allocated %.4lf GB for subcell debugging output\n", allocated / GB);
+  }
 
 // Determine subcell connectivity in a planar fashion
 #define NODE_IND(i, j, k) ((i) * (nx + 1) * (ny + 1) + (j) * (nx + 1) + (k))
@@ -672,7 +821,7 @@ size_t init_subcell_data_structures(Mesh* mesh, HaleData* hale_data,
     for (int jj = 0; jj < ny; ++jj) {
       for (int kk = 0; kk < nx; ++kk) {
         const int cell_index = (ii * nx * ny + jj * nx + kk);
-        const int c_off = cell_index * (hale_data->nnodes_per_subcell *
+        const int c_off = cell_index * (hale_data->nnodes_by_subcell *
                                         hale_data->nsubcells_by_cell);
 
         // Bottom left subcell
@@ -793,6 +942,4 @@ size_t init_subcell_data_structures(Mesh* mesh, HaleData* hale_data,
       }
     }
   }
-
-  return allocated;
 }

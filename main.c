@@ -81,7 +81,6 @@ int main(int argc, char** argv) {
   hale_data.perform_remap = get_int_parameter("perform_remap", hale_params);
   hale_data.visit_dump = get_int_parameter("visit_dump", hale_params);
   allocated += init_hale_data(&hale_data, &umesh);
-  allocated += init_subcell_data_structures(&mesh, &hale_data, &umesh);
 
   printf("Initialisation time %.4lfs\n", omp_get_wtime() - i0);
   printf("Allocated %.3fGB bytes of data\n", allocated / (double)GB);
@@ -120,38 +119,7 @@ int main(int argc, char** argv) {
     double w0 = omp_get_wtime();
 
     // Solve a single timestep on the given mesh
-    solve_unstructured_hydro_3d(
-        &mesh, &hale_data, umesh.ncells, umesh.nnodes, tt,
-        hale_data.nsubcell_nodes, hale_data.nsubcells_by_cell,
-        hale_data.visc_coeff1, hale_data.visc_coeff2, umesh.cell_centroids_x,
-        umesh.cell_centroids_y, umesh.cell_centroids_z, umesh.cells_to_nodes,
-        umesh.cells_offsets, umesh.nodes_to_cells, umesh.nodes_offsets,
-        umesh.nodes_x0, umesh.nodes_y0, umesh.nodes_z0, umesh.nodes_x1,
-        umesh.nodes_y1, umesh.nodes_z1, umesh.boundary_index,
-        umesh.boundary_type, umesh.boundary_normal_x, umesh.boundary_normal_y,
-        umesh.boundary_normal_z, hale_data.cell_volume, hale_data.energy0,
-        hale_data.energy1, hale_data.density0, hale_data.density1,
-        hale_data.pressure0, hale_data.pressure1, hale_data.velocity_x0,
-        hale_data.velocity_y0, hale_data.velocity_z0, hale_data.velocity_x1,
-        hale_data.velocity_y1, hale_data.velocity_z1, hale_data.subcell_force_x,
-        hale_data.subcell_force_y, hale_data.subcell_force_z,
-        hale_data.cell_mass, hale_data.nodal_mass, hale_data.nodal_volumes,
-        hale_data.nodal_soundspeed, hale_data.limiter, hale_data.subcell_volume,
-        hale_data.subcell_mass, hale_data.subcell_mass_flux,
-        hale_data.subcell_ie_mass, hale_data.subcell_ie_mass_flux,
-        hale_data.subcell_momentum_flux_x, hale_data.subcell_momentum_flux_y,
-        hale_data.subcell_momentum_flux_z, hale_data.subcell_centroids_x,
-        hale_data.subcell_centroids_y, hale_data.subcell_centroids_z,
-        hale_data.subcell_kinetic_energy, hale_data.subcells_to_nodes,
-        hale_data.subcell_nodes_x, hale_data.subcell_nodes_y,
-        hale_data.subcell_nodes_z, hale_data.rezoned_nodes_x,
-        hale_data.rezoned_nodes_y, hale_data.rezoned_nodes_z,
-        umesh.nodes_to_faces_offsets, umesh.nodes_to_faces,
-        umesh.faces_to_nodes, umesh.faces_to_nodes_offsets,
-        umesh.faces_to_cells0, umesh.faces_to_cells1,
-        umesh.cells_to_faces_offsets, umesh.cells_to_faces,
-        hale_data.subcells_to_subcells, hale_data.subcells_to_subcells_offsets,
-        hale_data.subcells_to_faces, hale_data.subcells_to_faces_offsets);
+    solve_unstructured_hydro_3d(&mesh, &hale_data, &umesh, tt);
 
     wallclock += omp_get_wtime() - w0;
     elapsed_sim_time += mesh.dt;

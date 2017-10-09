@@ -54,9 +54,9 @@ void gather_subcell_quantities(
     double* subcell_momentum_z, double* subcell_centroids_x,
     double* subcell_centroids_y, double* subcell_centroids_z,
     double* cell_volume, int* subcells_to_faces_offsets, int* faces_to_nodes,
-    int* nodes_to_faces, int* faces_to_nodes_offsets, int* faces_to_cells0,
-    int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces,
-    int* cells_to_nodes, int* nodes_to_faces_offsets, int* subcells_to_faces);
+    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
+    int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes,
+    int* subcells_to_faces);
 
 // Gathers the momentum into the subcells
 void gather_subcell_momentum(
@@ -73,18 +73,15 @@ void gather_subcell_momentum(
     int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes);
 
 // Gathers all of the subcell quantities on the mesh
-void gather_subcell_energy(const int ncells, double* cell_centroids_x,
-                           double* cell_centroids_y, double* cell_centroids_z,
-                           int* cells_offsets, const double* nodes_x,
-                           const double* nodes_y, const double* nodes_z,
-                           double* energy, double* density, double* cell_mass,
-                           double* subcell_volume, double* subcell_ie_mass,
-                           double* subcell_centroids_x,
-                           double* subcell_centroids_y,
-                           double* subcell_centroids_z, int* faces_to_nodes,
-                           int* faces_to_nodes_offsets, int* faces_to_cells0,
-                           int* faces_to_cells1, int* cells_to_faces_offsets,
-                           int* cells_to_faces, int* cells_to_nodes);
+void gather_subcell_energy(
+    const int ncells, double* cell_centroids_x, double* cell_centroids_y,
+    double* cell_centroids_z, int* cells_offsets, const double* nodes_x,
+    const double* nodes_y, const double* nodes_z, const double* cell_volume,
+    double* energy, double* density, double* cell_mass, double* subcell_volume,
+    double* subcell_ie_mass, double* subcell_centroids_x,
+    double* subcell_centroids_y, double* subcell_centroids_z,
+    int* faces_to_cells0, int* faces_to_cells1, int* cells_to_faces_offsets,
+    int* cells_to_faces, int* cells_to_nodes);
 
 // Performs a remap and some scattering of the subcell values
 void remap_phase(const int ncells, double* cell_centroids_x,
@@ -214,13 +211,10 @@ void calc_volumes_centroids(
     const int* cells_to_faces_offsets, const int* cells_to_faces,
     const int* subcells_to_faces_offsets, const int* subcells_to_faces,
     const int* faces_to_nodes, const int* faces_to_nodes_offsets,
-    const int* nodes_to_faces_offsets, const int* nodes_to_faces,
-    const int* faces_to_cells0, const int* faces_to_cells1,
-    const double* cell_centroids_x, const double* cell_centroids_y,
-    const double* cell_centroids_z, const double* nodes_x,
-    const double* nodes_y, const double* nodes_z, double* subcell_centroids_x,
-    double* subcell_centroids_y, double* subcell_centroids_z,
-    double* subcell_volume, double* cell_volume, double* nodal_volumes);
+    const double* nodes_x, const double* nodes_y, const double* nodes_z,
+    double* subcell_centroids_x, double* subcell_centroids_y,
+    double* subcell_centroids_z, double* subcell_volume, double* cell_volume,
+    double* nodal_volumes, int* nodes_offsets, int* nodes_to_cells);
 
 void apply_mesh_rezoning(const int nnodes, const double* rezoned_nodes_x,
                          const double* rezoned_nodes_y,

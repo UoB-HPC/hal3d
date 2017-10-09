@@ -8,35 +8,8 @@
 #include <stdlib.h>
 
 // Solve a single timestep on the given mesh
-void solve_unstructured_hydro_3d(
-    Mesh* mesh, HaleData* hale_data, const int ncells, const int nnodes,
-    const int timestep, const int nsubcell_nodes, const int nsubcells_by_cell,
-    const double visc_coeff1, const double visc_coeff2,
-    double* cell_centroids_x, double* cell_centroids_y,
-    double* cell_centroids_z, int* cells_to_nodes, int* cells_offsets,
-    int* nodes_to_cells, int* nodes_offsets, double* nodes_x0, double* nodes_y0,
-    double* nodes_z0, double* nodes_x1, double* nodes_y1, double* nodes_z1,
-    int* boundary_index, int* boundary_type, double* boundary_normal_x,
-    double* boundary_normal_y, double* boundary_normal_z, double* cell_volume,
-    double* energy0, double* energy1, double* density0, double* density1,
-    double* pressure0, double* pressure1, double* velocity_x0,
-    double* velocity_y0, double* velocity_z0, double* velocity_x1,
-    double* velocity_y1, double* velocity_z1, double* subcell_force_x,
-    double* subcell_force_y, double* subcell_force_z, double* cell_mass,
-    double* nodal_mass, double* nodal_volumes, double* nodal_soundspeed,
-    double* limiter, double* subcell_volume, double* subcell_mass,
-    double* subcell_mass_flux, double* subcell_ie_mass,
-    double* subcell_ie_mass_flux, double* subcell_momentum_x,
-    double* subcell_momentum_y, double* subcell_momentum_z,
-    double* subcell_centroids_x, double* subcell_centroids_y,
-    double* subcell_centroids_z, double* subcell_kinetic_energy,
-    int* subcells_to_nodes, double* subcell_nodes_x, double* subcell_nodes_y,
-    double* subcell_nodes_z, double* rezoned_nodes_x, double* rezoned_nodes_y,
-    double* rezoned_nodes_z, int* nodes_to_faces_offsets, int* nodes_to_faces,
-    int* faces_to_nodes, int* faces_to_nodes_offsets, int* faces_to_cells0,
-    int* faces_to_cells1, int* cells_to_faces_offsets, int* cells_to_faces,
-    int* subcells_to_subcells, int* subcells_to_subcells_offsets,
-    int* subcells_to_faces, int* subcells_to_faces_offsets) {
+void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
+                                 UnstructuredMesh* umesh, const int timestep) {
 
   // Describe the subcell node layout
   printf("\nPerforming the Lagrangian Phase\n");
@@ -44,22 +17,31 @@ void solve_unstructured_hydro_3d(
   // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
   // due to the pressure (ideal gas) and artificial viscous forces
   lagrangian_phase(
-      mesh, ncells, nnodes, visc_coeff1, visc_coeff2, cell_centroids_x,
-      cell_centroids_y, cell_centroids_z, cells_to_nodes, cells_offsets,
-      nodes_to_cells, nodes_offsets, nodes_x0, nodes_y0, nodes_z0, nodes_x1,
-      nodes_y1, nodes_z1, boundary_index, boundary_type, boundary_normal_x,
-      boundary_normal_y, boundary_normal_z, energy0, energy1, density0,
-      density1, pressure0, pressure1, velocity_x0, velocity_y0, velocity_z0,
-      velocity_x1, velocity_y1, velocity_z1, subcell_force_x, subcell_force_y,
-      subcell_force_z, cell_mass, nodal_mass, nodal_volumes, nodal_soundspeed,
-      limiter, nodes_to_faces_offsets, nodes_to_faces, faces_to_nodes,
-      faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
-      cells_to_faces_offsets, cells_to_faces);
+      mesh, umesh->ncells, umesh->nnodes, hale_data->visc_coeff1,
+      hale_data->visc_coeff2, umesh->cell_centroids_x, umesh->cell_centroids_y,
+      umesh->cell_centroids_z, umesh->cells_to_nodes, umesh->cells_offsets,
+      umesh->nodes_to_cells, umesh->nodes_offsets, umesh->nodes_x0,
+      umesh->nodes_y0, umesh->nodes_z0, umesh->nodes_x1, umesh->nodes_y1,
+      umesh->nodes_z1, umesh->boundary_index, umesh->boundary_type,
+      umesh->boundary_normal_x, umesh->boundary_normal_y,
+      umesh->boundary_normal_z, hale_data->energy0, hale_data->energy1,
+      hale_data->density0, hale_data->density1, hale_data->pressure0,
+      hale_data->pressure1, hale_data->velocity_x0, hale_data->velocity_y0,
+      hale_data->velocity_z0, hale_data->velocity_x1, hale_data->velocity_y1,
+      hale_data->velocity_z1, hale_data->subcell_force_x,
+      hale_data->subcell_force_y, hale_data->subcell_force_z,
+      hale_data->cell_mass, hale_data->nodal_mass, hale_data->nodal_volumes,
+      hale_data->nodal_soundspeed, hale_data->limiter,
+      umesh->nodes_to_faces_offsets, umesh->nodes_to_faces,
+      umesh->faces_to_nodes, umesh->faces_to_nodes_offsets,
+      umesh->faces_to_cells0, umesh->faces_to_cells1,
+      umesh->cells_to_faces_offsets, umesh->cells_to_faces);
 
   if (hale_data->visit_dump) {
-    write_unstructured_to_visit_3d(nnodes, ncells, 2 + timestep * 2, nodes_x0,
-                                   nodes_y0, nodes_z0, cells_to_nodes, density0,
-                                   0, 1);
+    write_unstructured_to_visit_3d(umesh->nnodes, umesh->ncells, timestep * 2,
+                                   umesh->nodes_x0, umesh->nodes_y0,
+                                   umesh->nodes_z0, umesh->cells_to_nodes,
+                                   hale_data->velocity_x0, 1, 1);
   }
 
   if (hale_data->perform_remap) {
@@ -67,22 +49,29 @@ void solve_unstructured_hydro_3d(
 
     // Gathers all of the subcell quantities on the mesh
     gather_subcell_quantities(
-        ncells, nnodes, hale_data->nnodes_per_subcell, nodal_volumes,
-        nodal_mass, cell_centroids_x, cell_centroids_y, cell_centroids_z,
-        cells_offsets, nodes_to_cells, nodes_offsets, nodes_x0, nodes_y0,
-        nodes_z0, energy0, density0, velocity_x0, velocity_y0, velocity_z0,
-        cell_mass, subcell_volume, subcell_ie_mass, subcell_momentum_x,
-        subcell_momentum_y, subcell_momentum_z, subcell_centroids_x,
-        subcell_centroids_y, subcell_centroids_z, cell_volume,
-        subcells_to_faces_offsets, faces_to_nodes, nodes_to_faces,
-        faces_to_nodes_offsets, faces_to_cells0, faces_to_cells1,
-        cells_to_faces_offsets, cells_to_faces, cells_to_nodes,
-        nodes_to_faces_offsets, subcells_to_subcells_offsets);
+        umesh->ncells, umesh->nnodes, hale_data->nnodes_by_subcell,
+        hale_data->nodal_volumes, hale_data->nodal_mass,
+        umesh->cell_centroids_x, umesh->cell_centroids_y,
+        umesh->cell_centroids_z, umesh->cells_offsets, umesh->nodes_to_cells,
+        umesh->nodes_offsets, umesh->nodes_x0, umesh->nodes_y0, umesh->nodes_z0,
+        hale_data->energy0, hale_data->density0, hale_data->velocity_x0,
+        hale_data->velocity_y0, hale_data->velocity_z0, hale_data->cell_mass,
+        hale_data->subcell_volume, hale_data->subcell_ie_mass,
+        hale_data->subcell_momentum_x, hale_data->subcell_momentum_y,
+        hale_data->subcell_momentum_z, hale_data->subcell_centroids_x,
+        hale_data->subcell_centroids_y, hale_data->subcell_centroids_z,
+        hale_data->cell_volume, hale_data->subcells_to_faces_offsets,
+        umesh->faces_to_nodes, umesh->faces_to_nodes_offsets,
+        umesh->faces_to_cells0, umesh->faces_to_cells1,
+        umesh->cells_to_faces_offsets, umesh->cells_to_faces,
+        umesh->cells_to_nodes, hale_data->subcells_to_faces);
 
-    write_unstructured_to_visit_3d(nsubcell_nodes, ncells * nsubcells_by_cell,
-                                   timestep * 2 + 1, subcell_nodes_x,
-                                   subcell_nodes_y, subcell_nodes_z,
-                                   subcells_to_nodes, subcell_momentum_x, 0, 1);
+    init_subcell_data_structures(mesh, hale_data, umesh);
+    write_unstructured_to_visit_3d(
+        hale_data->nsubcell_nodes, umesh->ncells * hale_data->nsubcells_by_cell,
+        timestep * 2 + 1, hale_data->subcell_nodes_x,
+        hale_data->subcell_nodes_y, hale_data->subcell_nodes_z,
+        hale_data->subcells_to_nodes, hale_data->subcell_momentum_x, 0, 1);
 
 #if 0
     // Store the total mass and internal energy

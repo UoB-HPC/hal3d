@@ -1151,17 +1151,17 @@ double apply_node_limiter(const int ncells_by_node, const int node_to_cells_off,
                          grad->y * (cell_centroids_y[(cell_index)] - node->y) +
                          grad->z * (cell_centroids_z[(cell_index)] - node->z);
 
-    double node_limiter = 1.0;
+    double cell_limiter = 1.0;
     if (g_unlimited - phi > 0.0) {
       if (fabs(g_unlimited - phi) > EPS) {
-        node_limiter = min(1.0, (gmax / (g_unlimited - phi)));
+        cell_limiter = min(1.0, ((gmax - phi) / (g_unlimited - phi)));
       }
     } else if (g_unlimited - phi < 0.0) {
       if (fabs(g_unlimited - phi) > EPS) {
-        node_limiter = min(1.0, (gmin / (g_unlimited - phi)));
+        cell_limiter = min(1.0, ((gmin - phi) / (g_unlimited - phi)));
       }
     }
-    limiter = min(limiter, node_limiter);
+    limiter = min(limiter, cell_limiter);
   }
 
   grad->x *= limiter;
