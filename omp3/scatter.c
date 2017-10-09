@@ -14,40 +14,28 @@ void scatter_phase(const int ncells, const int nnodes, const double total_mass,
                    int* nodes_to_faces, int* faces_to_nodes,
                    int* faces_to_nodes_offsets, int* faces_to_cells0,
                    int* faces_to_cells1, int* cells_to_faces_offsets,
-                   int* cells_to_faces, int* subcell_face_offsets) {
+                   int* cells_to_faces, int* subcell_face_offsets,
+                   int* cells_offsets, int* cells_to_nodes) {
 
   // Scatter energy and density, and print the conservation of mass
   double rz_total_mass = 0.0;
   double rz_total_ie = 0.0;
 #pragma omp parallel for reduction(+ : rz_total_mass, rz_total_ie)
   for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
-    const int nfaces_by_cell =
-        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
+    const int cell_to_nodes_off = cells_offsets[(cc)];
+    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
 
     cell_mass[(cc)] = 0.0;
     energy1[(cc)] = 0.0;
 
-    /* LOOP OVER CELL FACES */
-    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
-      const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
-      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
-      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-      const int nnodes_by_face =
-          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+    for (int nn = 0; nn < nnodes_by_cell; ++nn) {
+      const int subcell_index = cell_to_nodes_off + nn;
 
-      /* LOOP OVER FACE NODES */
-      for (int nn = 0; nn < nnodes_by_face; ++nn) {
-        const int subcell_index =
-            subcell_face_offsets[(cell_to_faces_off + ff)] + nn;
-
-        // Scatter the subcell mass data back to the cell
-        subcell_mass[(subcell_index)] -= subcell_mass_flux[(subcell_index)];
-        subcell_ie_mass[(subcell_index)] -=
-            subcell_ie_mass_flux[(subcell_index)];
-        cell_mass[(cc)] += subcell_mass[(subcell_index)];
-        energy1[(cc)] += subcell_ie_mass[(subcell_index)];
-      }
+      // Scatter the subcell mass data back to the cell
+      subcell_mass[(subcell_index)] -= subcell_mass_flux[(subcell_index)];
+      subcell_ie_mass[(subcell_index)] -= subcell_ie_mass_flux[(subcell_index)];
+      cell_mass[(cc)] += subcell_mass[(subcell_index)];
+      energy1[(cc)] += subcell_ie_mass[(subcell_index)];
     }
 
     // Scatter the energy and density
