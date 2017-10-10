@@ -86,15 +86,19 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
                 umesh->cells_to_nodes, umesh->cells_to_faces_offsets,
                 umesh->cells_to_faces, umesh->faces_to_nodes_offsets,
                 umesh->faces_to_nodes, hale_data->subcells_to_faces_offsets,
-                hale_data->subcells_to_faces, hale_data->subcell_centroids_x,
+                hale_data->subcells_to_faces,
+                hale_data->subcells_to_subcells_offsets,
+                hale_data->subcells_to_subcells, hale_data->subcell_centroids_x,
                 hale_data->subcell_centroids_y, hale_data->subcell_centroids_z,
-                hale_data->subcell_volume, hale_data->cell_volume);
+                hale_data->subcell_volume, hale_data->cell_volume,
+                hale_data->subcell_mass, hale_data->subcell_mass_flux,
+                hale_data->subcell_ie_mass, hale_data->subcell_ie_mass_flux);
 
     write_unstructured_to_visit_3d(
         hale_data->nsubcell_nodes, umesh->ncells * hale_data->nsubcells_by_cell,
         timestep * 2 + 1, hale_data->subcell_nodes_x,
         hale_data->subcell_nodes_y, hale_data->subcell_nodes_z,
-        hale_data->subcells_to_nodes, hale_data->subcell_volume, 0, 1);
+        hale_data->subcells_to_nodes, hale_data->subcell_mass_flux, 0, 1);
 
     printf("\nEulerian Mesh Rezone\n");
 

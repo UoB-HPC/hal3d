@@ -91,9 +91,12 @@ void remap_phase(
     const int* cells_to_nodes, const int* cells_to_faces_offsets,
     const int* cells_to_faces, const int* faces_to_nodes_offsets,
     const int* faces_to_nodes, const int* subcells_to_faces_offsets,
-    const int* subcells_to_faces, const double* subcell_centroids_x,
+    const int* subcells_to_faces, const int* subcells_to_subcells_offsets,
+    const int* subcells_to_subcells, const double* subcell_centroids_x,
     const double* subcell_centroids_y, const double* subcell_centroids_z,
-    double* subcell_volume, double* cell_volume);
+    double* subcell_volume, double* cell_volume, double* subcell_mass,
+    double* subcell_mass_flux, double* subcell_ie_mass,
+    double* subcell_ie_mass_flux);
 
 // Perform the scatter step of the ALE remapping algorithm
 void scatter_phase(const int ncells, const int nnodes, const double total_mass,

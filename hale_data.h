@@ -18,23 +18,7 @@
 #define ARCH_ROOT_PARAMS "../arch.params"
 #define HALE_PARAMS "hale.params"
 #define HALE_TESTS "hale.tests"
-#define NNEIGHBOUR_NODES 2
-
-#define NSUBCELL_NEIGHBOURS 4
-#define NSUBSUBCELLS 2
-
 #define NNODES_BY_SUBCELL_FACE 4
-
-#if 0
-// The number of faces of swept edge prism
-#define NPRISM_FACES 5
-#define NPRISM_NODES 6
-
-// Describes the miniature tetrahedral subcells
-#define NTET_FACES 4
-#define NTET_NODES 4
-#define NTET_NODES_PER_FACE 3
-#endif // if 0
 
 enum { XYZ, YZX, ZXY };
 
