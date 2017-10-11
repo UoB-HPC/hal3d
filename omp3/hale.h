@@ -88,31 +88,30 @@ void remap_phase(
     const int ncells, const int* cells_offsets, const double* nodes_x,
     const double* nodes_y, const double* nodes_z, const double* rezoned_nodes_x,
     const double* rezoned_nodes_y, const double* rezoned_nodes_z,
-    const int* cells_to_nodes, const int* cells_to_faces_offsets,
-    const int* cells_to_faces, const int* faces_to_nodes_offsets,
+    const int* cells_to_nodes, const int* faces_to_nodes_offsets,
     const int* faces_to_nodes, const int* subcells_to_faces_offsets,
     const int* subcells_to_faces, const int* subcells_to_subcells_offsets,
     const int* subcells_to_subcells, const double* subcell_centroids_x,
     const double* subcell_centroids_y, const double* subcell_centroids_z,
-    double* subcell_volume, double* cell_volume, double* subcell_mass,
-    double* subcell_mass_flux, double* subcell_ie_mass,
-    double* subcell_ie_mass_flux);
+    double* subcell_volume, double* subcell_mass, double* subcell_mass_flux,
+    double* subcell_ie_mass, double* subcell_ie_mass_flux);
 
 // Perform the scatter step of the ALE remapping algorithm
 void scatter_phase(const int ncells, const int nnodes, const double total_mass,
-                   const double total_ie, double* cell_volume, double* energy0,
-                   double* energy1, double* density0, double* velocity_x0,
-                   double* velocity_y0, double* velocity_z0, double* cell_mass,
-                   double* nodal_mass, double* subcell_ie_mass,
-                   double* subcell_mass, double* subcell_ie_mass_flux,
-                   double* subcell_mass_flux, double* subcell_momentum_flux_x,
-                   double* subcell_momentum_flux_y,
-                   double* subcell_momentum_flux_z, int* nodes_to_faces_offsets,
+                   const double total_ie, const double* rezoned_nodes_x,
+                   const double* rezoned_nodes_y, const double* rezoned_nodes_z,
+                   double* cell_volume, double* energy0, double* energy1,
+                   double* density0, double* velocity_x0, double* velocity_y0,
+                   double* velocity_z0, double* cell_mass, double* nodal_mass,
+                   double* subcell_ie_mass, double* subcell_mass,
+                   double* subcell_ie_mass_flux, double* subcell_mass_flux,
+                   double* subcell_momentum_x, double* subcell_momentum_y,
+                   double* subcell_momentum_z, int* nodes_to_faces_offsets,
                    int* nodes_to_faces, int* faces_to_nodes,
                    int* faces_to_nodes_offsets, int* faces_to_cells0,
                    int* faces_to_cells1, int* cells_to_faces_offsets,
-                   int* cells_to_faces, int* subcell_face_offsets,
-                   int* cells_offsets, int* cells_to_nodes);
+                   int* cells_to_faces, int* cells_offsets,
+                   int* cells_to_nodes);
 
 // Checks if the normal vector is pointing inward or outward
 // n0 is just a point on the plane
@@ -224,3 +223,29 @@ void contribute_face_volume(const int nnodes_by_face, const int* faces_to_nodes,
                             const double* nodes_x, const double* nodes_y,
                             const double* nodes_z, const vec_t* cell_centroid,
                             double* vol);
+
+// Contributes the local mass and energy flux for a given subcell face
+void contribute_mass_and_energy_flux(
+    const int cc, const int ff, const int subcell_index, vec_t* subcell_c,
+    const double* se_nodes_x, const double* se_nodes_y,
+    const double* se_nodes_z, const double* subcell_mass,
+    double* subcell_mass_flux, const double* subcell_ie_mass,
+    double* subcell_ie_mass_flux, const double* subcell_volume,
+    const int* swept_edge_faces_to_nodes, const double* subcell_centroids_x,
+    const double* subcell_centroids_y, const double* subcell_centroids_z,
+    const int* swept_edge_to_faces,
+    const int* swept_edge_faces_to_nodes_offsets,
+    const int* subcells_to_subcells_offsets, const int* subcells_to_subcells,
+    const int internal);
+
+void advect_mass_and_energy(
+    const int ncells, const int* cells_offsets, const double* nodes_x,
+    const double* nodes_y, const double* nodes_z, const double* rezoned_nodes_x,
+    const double* rezoned_nodes_y, const double* rezoned_nodes_z,
+    const int* cells_to_nodes, const int* faces_to_nodes_offsets,
+    const int* faces_to_nodes, const int* subcells_to_faces_offsets,
+    const int* subcells_to_faces, const int* subcells_to_subcells_offsets,
+    const int* subcells_to_subcells, const double* subcell_centroids_x,
+    const double* subcell_centroids_y, const double* subcell_centroids_z,
+    double* subcell_volume, double* subcell_mass, double* subcell_mass_flux,
+    double* subcell_ie_mass, double* subcell_ie_mass_flux);

@@ -9,28 +9,49 @@ void remap_phase(
     const int ncells, const int* cells_offsets, const double* nodes_x,
     const double* nodes_y, const double* nodes_z, const double* rezoned_nodes_x,
     const double* rezoned_nodes_y, const double* rezoned_nodes_z,
-    const int* cells_to_nodes, const int* cells_to_faces_offsets,
-    const int* cells_to_faces, const int* faces_to_nodes_offsets,
+    const int* cells_to_nodes, const int* faces_to_nodes_offsets,
     const int* faces_to_nodes, const int* subcells_to_faces_offsets,
     const int* subcells_to_faces, const int* subcells_to_subcells_offsets,
     const int* subcells_to_subcells, const double* subcell_centroids_x,
     const double* subcell_centroids_y, const double* subcell_centroids_z,
-    double* subcell_volume, double* cell_volume, double* subcell_mass,
-    double* subcell_mass_flux, double* subcell_ie_mass,
-    double* subcell_ie_mass_flux) {
+    double* subcell_volume, double* subcell_mass, double* subcell_mass_flux,
+    double* subcell_ie_mass, double* subcell_ie_mass_flux) {
 
   /* REMAP THE MASS AND ENERGY */
+  advect_mass_and_energy(
+      ncells, cells_offsets, nodes_x, nodes_y, nodes_z, rezoned_nodes_x,
+      rezoned_nodes_y, rezoned_nodes_z, cells_to_nodes, faces_to_nodes_offsets,
+      faces_to_nodes, subcells_to_faces_offsets, subcells_to_faces,
+      subcells_to_subcells_offsets, subcells_to_subcells, subcell_centroids_x,
+      subcell_centroids_y, subcell_centroids_z, subcell_volume, subcell_mass,
+      subcell_mass_flux, subcell_ie_mass, subcell_ie_mass_flux);
+}
 
+// Advects mass and energy through the subcell faces using swept edge approx
+void advect_mass_and_energy(
+    const int ncells, const int* cells_offsets, const double* nodes_x,
+    const double* nodes_y, const double* nodes_z, const double* rezoned_nodes_x,
+    const double* rezoned_nodes_y, const double* rezoned_nodes_z,
+    const int* cells_to_nodes, const int* faces_to_nodes_offsets,
+    const int* faces_to_nodes, const int* subcells_to_faces_offsets,
+    const int* subcells_to_faces, const int* subcells_to_subcells_offsets,
+    const int* subcells_to_subcells, const double* subcell_centroids_x,
+    const double* subcell_centroids_y, const double* subcell_centroids_z,
+    double* subcell_volume, double* subcell_mass, double* subcell_mass_flux,
+    double* subcell_ie_mass, double* subcell_ie_mass_flux) {
+
+#pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
-    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
-    const int nfaces_by_cell =
-        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
 
     vec_t cell_c = {0.0, 0.0, 0.0};
     calc_centroid(nnodes_by_cell, nodes_x, nodes_y, nodes_z, cells_to_nodes,
                   cell_to_nodes_off, &cell_c);
+    vec_t rz_cell_c = {0.0, 0.0, 0.0};
+    calc_centroid(nnodes_by_cell, rezoned_nodes_x, rezoned_nodes_y,
+                  rezoned_nodes_z, cells_to_nodes, cell_to_nodes_off,
+                  &rz_cell_c);
 
     // Looping over corner subcells here
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
@@ -121,167 +142,311 @@ void remap_phase(
             rz_face_c.z, 0.5 * (rezoned_nodes_z[(node_index)] +
                                 rezoned_nodes_z[(lnode_index)])};
 
-#if 0
+        // Contributes the local mass and energy flux for a given subcell face
+        contribute_mass_and_energy_flux(
+            cc, ff, subcell_index, &subcell_c, enodes_x, enodes_y, enodes_z,
+            subcell_mass, subcell_mass_flux, subcell_ie_mass,
+            subcell_ie_mass_flux, subcell_volume, swept_edge_faces_to_nodes,
+            subcell_centroids_x, subcell_centroids_y, subcell_centroids_z,
+            swept_edge_to_faces, swept_edge_faces_to_nodes_offsets,
+            subcells_to_subcells_offsets, subcells_to_subcells, 0);
+
         /* INTERNAL FACE */
 
-        const int rface_off = (ff == nfaces_by_subcell - 1) ? 0 : ff + 1;
+        const int r_face_off = (ff == nfaces_by_subcell - 1) ? 0 : ff + 1;
         const int lface_off = (ff == 0) ? nfaces_by_subcell - 1 : ff - 1;
-        const int rface_index =
-            subcells_to_faces[(subcell_to_faces_off + rface_off)];
+        const int r_face_index =
+            subcells_to_faces[(subcell_to_faces_off + r_face_off)];
         const int lface_index =
             subcells_to_faces[(subcell_to_faces_off + lface_off)];
-        const int rface_to_nodes_off = faces_to_nodes_offsets[(rface_index)];
+        const int r_face_to_nodes_off = faces_to_nodes_offsets[(r_face_index)];
         const int lface_to_nodes_off = faces_to_nodes_offsets[(lface_index)];
-        const int nnodes_by_rface =
-            faces_to_nodes_offsets[(rface_index + 1)] - rface_to_nodes_off;
+        const int nnodes_by_r_face =
+            faces_to_nodes_offsets[(r_face_index + 1)] - r_face_to_nodes_off;
         const int nnodes_by_lface =
             faces_to_nodes_offsets[(lface_index + 1)] - lface_to_nodes_off;
 
         // Determine the orientation of the face
-        const int rn0 = faces_to_nodes[(rface_to_nodes_off + 0)];
-        const int rn1 = faces_to_nodes[(rface_to_nodes_off + 1)];
-        const int rn2 = faces_to_nodes[(rface_to_nodes_off + 2)];
-        vec_t rface_normal;
-        const int rface_clockwise = calc_surface_normal(
-            rn0, rn1, rn2, nodes_x, nodes_y, nodes_z, &cell_c, &rface_normal);
+        const int rn0 = faces_to_nodes[(r_face_to_nodes_off + 0)];
+        const int rn1 = faces_to_nodes[(r_face_to_nodes_off + 1)];
+        const int rn2 = faces_to_nodes[(r_face_to_nodes_off + 2)];
+        vec_t r_face_normal;
+        const int r_face_clockwise = calc_surface_normal(
+            rn0, rn1, rn2, nodes_x, nodes_y, nodes_z, &cell_c, &r_face_normal);
 
         // Determine the position of the node in the face list of nodes
-        for (nn2 = 0; nn2 < nnodes_by_rface; ++nn2) {
-          if (faces_to_nodes[(rface_to_nodes_off + nn2)] == node_index) {
+        for (nn2 = 0; nn2 < nnodes_by_r_face; ++nn2) {
+          if (faces_to_nodes[(r_face_to_nodes_off + nn2)] == node_index) {
             break;
           }
         }
 
-        const int rface_next_node = (nn2 == nnodes_by_rface - 1) ? 0 : nn2 + 1;
-        const int rface_prev_node = (nn2 == 0) ? nnodes_by_rface - 1 : nn2 - 1;
-        const int rface_rnode_off =
-            (rface_clockwise ? rface_prev_node : rface_next_node);
-        const int rface_rnode_index =
-            faces_to_nodes[(rface_to_nodes_off + rface_rnode_off)];
+        const int r_face_next_node =
+            (nn2 == nnodes_by_r_face - 1) ? 0 : nn2 + 1;
+        const int r_face_prev_node =
+            (nn2 == 0) ? nnodes_by_r_face - 1 : nn2 - 1;
+        const int r_face_rnode_off =
+            (r_face_clockwise ? r_face_prev_node : r_face_next_node);
+        const int r_face_rnode_index =
+            faces_to_nodes[(r_face_to_nodes_off + r_face_rnode_off)];
 
-        vec_t rface_c = {0.0, 0.0, 0.0};
-        calc_centroid(nnodes_by_rface, nodes_x, nodes_y, nodes_z,
-                      faces_to_nodes, rface_to_nodes_off, &rface_c);
-        vec_t lface_c = {0.0, 0.0, 0.0};
+        vec_t r_iface_c = {0.0, 0.0, 0.0};
+        calc_centroid(nnodes_by_r_face, nodes_x, nodes_y, nodes_z,
+                      faces_to_nodes, r_face_to_nodes_off, &r_iface_c);
+        vec_t l_iface_c = {0.0, 0.0, 0.0};
         calc_centroid(nnodes_by_lface, nodes_x, nodes_y, nodes_z,
-                      faces_to_nodes, lface_to_nodes_off, &lface_c);
+                      faces_to_nodes, lface_to_nodes_off, &l_iface_c);
+        vec_t rz_r_iface_c = {0.0, 0.0, 0.0};
+        calc_centroid(nnodes_by_r_face, rezoned_nodes_x, rezoned_nodes_y,
+                      rezoned_nodes_z, faces_to_nodes, r_face_to_nodes_off,
+                      &rz_r_iface_c);
+        vec_t rz_l_iface_c = {0.0, 0.0, 0.0};
+        calc_centroid(nnodes_by_lface, rezoned_nodes_x, rezoned_nodes_y,
+                      rezoned_nodes_z, faces_to_nodes, lface_to_nodes_off,
+                      &rz_l_iface_c);
 
-        double inodes_x[NNODES_BY_SUBCELL_FACE] = {
-            0.5 * (nodes_x[(node_index)] + nodes_x[(rface_rnode_index)]),
-            rface_c.x, cell_c.x, lface_c.x};
-        double inodes_y[NNODES_BY_SUBCELL_FACE] = {
-            0.5 * (nodes_y[(node_index)] + nodes_y[(rface_rnode_index)]),
-            rface_c.y, cell_c.y, lface_c.y};
-        double inodes_z[NNODES_BY_SUBCELL_FACE] = {
-            0.5 * (nodes_z[(node_index)] + nodes_z[(rface_rnode_index)]),
-            rface_c.z, cell_c.z, lface_c.z};
+        double inodes_x[2 * NNODES_BY_SUBCELL_FACE] = {
+            0.5 * (nodes_x[(node_index)] + nodes_x[(r_face_rnode_index)]),
+            r_iface_c.x, cell_c.x, l_iface_c.x,
+            0.5 * (rezoned_nodes_x[(node_index)] +
+                   rezoned_nodes_x[(r_face_rnode_index)]),
+            rz_r_iface_c.x, rz_cell_c.x, rz_l_iface_c.x};
+        double inodes_y[2 * NNODES_BY_SUBCELL_FACE] = {
+            0.5 * (nodes_y[(node_index)] + nodes_y[(r_face_rnode_index)]),
+            r_iface_c.y, cell_c.y, l_iface_c.y,
+            0.5 * (rezoned_nodes_y[(node_index)] +
+                   rezoned_nodes_y[(r_face_rnode_index)]),
+            rz_r_iface_c.y, rz_cell_c.y, rz_l_iface_c.y};
+        double inodes_z[2 * NNODES_BY_SUBCELL_FACE] = {
+            0.5 * (nodes_z[(node_index)] + nodes_z[(r_face_rnode_index)]),
+            r_iface_c.z, cell_c.z, l_iface_c.z,
+            0.5 * (rezoned_nodes_z[(node_index)] +
+                   rezoned_nodes_z[(r_face_rnode_index)]),
+            rz_r_iface_c.z, rz_cell_c.z, rz_l_iface_c.z};
 
-        // TODO: Need to perform the remap again here
-#endif // if 0
+        // Contributes the local mass and energy flux for a given subcell face
+        contribute_mass_and_energy_flux(
+            cc, ff, subcell_index, &subcell_c, inodes_x, inodes_y, inodes_z,
+            subcell_mass, subcell_mass_flux, subcell_ie_mass,
+            subcell_ie_mass_flux, subcell_volume, swept_edge_faces_to_nodes,
+            subcell_centroids_x, subcell_centroids_y, subcell_centroids_z,
+            swept_edge_to_faces, swept_edge_faces_to_nodes_offsets,
+            subcells_to_subcells_offsets, subcells_to_subcells, 1);
       }
     }
   }
+}
 
-#if 0
-#if 0
-#pragma omp parallel for
-#endif // if 0
-  for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
-    const int nfaces_by_cell =
-        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+// Contributes the local mass and energy flux for a given subcell face
+void contribute_mass_and_energy_flux(
+    const int cc, const int ff, const int subcell_index, vec_t* subcell_c,
+    const double* se_nodes_x, const double* se_nodes_y,
+    const double* se_nodes_z, const double* subcell_mass,
+    double* subcell_mass_flux, const double* subcell_ie_mass,
+    double* subcell_ie_mass_flux, const double* subcell_volume,
+    const int* swept_edge_faces_to_nodes, const double* subcell_centroids_x,
+    const double* subcell_centroids_y, const double* subcell_centroids_z,
+    const int* swept_edge_to_faces,
+    const int* swept_edge_faces_to_nodes_offsets,
+    const int* subcells_to_subcells_offsets, const int* subcells_to_subcells,
+    const int internal) {
 
-    // TODO: I think it will be faster to calculate these on the fly, like so
-    vec_t cell_c = {0.0, 0.0, 0.0};
-    calc_centroid(nnodes_by_cell, nodes_x0, nodes_y0, nodes_z0, cells_to_nodes,
-                  cell_to_nodes_off, &cell_c);
+  // Get the centroids for the swept edge prism and faces
+  vec_t face_c = {0.0, 0.0, 0.0};
+  vec_t rz_face_c = {0.0, 0.0, 0.0};
+  vec_t swept_edge_c = {0.0, 0.0, 0.0};
+  calc_centroid(NNODES_BY_SUBCELL_FACE, se_nodes_x, se_nodes_y, se_nodes_z,
+                swept_edge_faces_to_nodes, 0, &face_c);
+  calc_centroid(NNODES_BY_SUBCELL_FACE, se_nodes_x, se_nodes_y, se_nodes_z,
+                swept_edge_faces_to_nodes,
+                swept_edge_faces_to_nodes_offsets[(1)], &rz_face_c);
+  calc_centroid(2 * NNODES_BY_SUBCELL_FACE, se_nodes_x, se_nodes_y, se_nodes_z,
+                swept_edge_faces_to_nodes, 0, &swept_edge_c);
 
-    vec_t rz_cell_centroid = {0.0, 0.0, 0.0};
-    calc_centroid(nnodes_by_cell, rezoned_nodes_x, rezoned_nodes_y,
-                  rezoned_nodes_z, cells_to_nodes, cell_to_nodes_off,
-                  &rz_cell_centroid);
+  // Calculate the volume of the swept edge prism
+  double swept_edge_vol = 0.0;
+  calc_volume(0, 2 + NNODES_BY_SUBCELL_FACE, swept_edge_to_faces,
+              swept_edge_faces_to_nodes, swept_edge_faces_to_nodes_offsets,
+              se_nodes_x, se_nodes_y, se_nodes_z, &swept_edge_c,
+              &swept_edge_vol);
 
-    /* LOOP OVER CELL FACES */
-    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
-      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
-      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-      const int nnodes_by_face =
-          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-      const int subcell_off = subcell_face_offsets[(cell_to_faces_off + ff)];
+  // Ignore the special case of an empty swept edge region
+  if (swept_edge_vol < EPS) {
+    if (swept_edge_vol < -EPS) {
+      printf("Negative swept edge volume %d %.12f\n", cc, swept_edge_vol);
+    }
+    return;
+  }
 
-      // The face centroid is the same for all nodes on the face
-      vec_t face_c = {0.0, 0.0, 0.0};
-      vec_t rz_face_c = {0.0, 0.0, 0.0};
-      calc_centroid(nnodes_by_face, nodes_x0, nodes_y0, nodes_z0,
-                    faces_to_nodes, face_to_nodes_off, &face_c);
-      calc_centroid(nnodes_by_face, rezoned_nodes_x, rezoned_nodes_y,
-                    rezoned_nodes_z, faces_to_nodes, face_to_nodes_off,
-                    &rz_face_c);
+  // Determine whether the swept edge region is flowing into or out of the
+  // current sub cell
+  vec_t ab = {rz_face_c.x - face_c.x, rz_face_c.y - face_c.y,
+              rz_face_c.z - face_c.z};
+  vec_t ac = {subcell_c->x - face_c.x, subcell_c->y - face_c.y,
+              subcell_c->z - face_c.z};
+  const int is_outflux = (ab.x * ac.x + ab.y * ac.y + ab.z * ac.z > 0.0);
 
-      /* LOOP OVER FACE NODES */
-      for (int nn = 0; nn < nnodes_by_face; ++nn) {
-        const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
-        const int subcell_index = subcell_off + nn;
+  // Depending upon which subcell we are sweeping into, choose the
+  // subcell index with which to reconstruct the density
+  const int subcell_to_subcells_off =
+      subcells_to_subcells_offsets[(subcell_index)];
+  const int internal_offset = (internal ? 0 : 1);
+  const int subcell_neighbour_index = subcells_to_subcells[(
+      subcell_to_subcells_off + 2 * ff + internal_offset)];
 
-        subcell_mass_flux[(subcell_index)] = 0.0;
-        subcell_ie_mass_flux[(subcell_index)] = 0.0;
+  // Only perform the sweep on the external face if it isn't a
+  // boundary
+  if (subcell_neighbour_index == -1) {
+    TERMINATE(
+        "We should not be attempting to flux from boundary. Volume: %.12f.",
+        swept_edge_vol);
+  }
 
-        // We always determine the subcell with the value that is prescribed in
-        // the subcell index to relate to the current node and its subsequent
-        // node in the face list.
-        const int next_off = ((nn == nnodes_by_face - 1) ? 0 : nn + 1);
-        const int rnode_index = faces_to_nodes[(face_to_nodes_off + next_off)];
+  // The sweep subcell index is where we will reconstruct the value of the
+  // swept edge region from
+  const int sweep_subcell_index =
+      (is_outflux ? subcell_index : subcell_neighbour_index);
 
-        const int n0 = faces_to_nodes[(face_to_nodes_off + 0)];
-        const int n1 = faces_to_nodes[(face_to_nodes_off + 1)];
-        const int n2 = faces_to_nodes[(face_to_nodes_off + 2)];
-        vec_t face_normal;
-        const int face_clockwise = calc_surface_normal(
-            n0, n1, n2, nodes_x0, nodes_y0, nodes_z0, &cell_c, &face_normal);
+  /* CALCULATE THE SWEEP SUBCELL GRADIENTS FOR MASS AND ENERGY */
 
-        // We may need to reorder the two corner nodes for the tet given that
-        // the face may be ordered clockwise, rather than counter-clockwise.
-        const int ccw_node_index = (face_clockwise) ? rnode_index : node_index;
-        const int ccw_rnode_index = (face_clockwise) ? node_index : rnode_index;
+  // The 3x3 gradient coefficient matrix, and inverse
+  vec_t inv[3] = {{0.0, 0.0, 0.0}};
+  vec_t coeff[3] = {{0.0, 0.0, 0.0}};
+  vec_t m_rhs = {0.0, 0.0, 0.0};
+  vec_t ie_rhs = {0.0, 0.0, 0.0};
 
-        // Describe the subcell tetrahedron connectivity
-        const int subcell_faces_to_nodes[] = {0, 1, 2, 0, 3, 1,
-                                              1, 3, 2, 0, 2, 3};
-        const vec_t subcell[] = {
-            {nodes_x0[(ccw_node_index)], nodes_y0[(ccw_node_index)],
-             nodes_z0[(ccw_node_index)]},
-            {nodes_x0[(ccw_rnode_index)], nodes_y0[(ccw_rnode_index)],
-             nodes_z0[(ccw_rnode_index)]},
-            {face_c.x, face_c.y, face_c.z},
-            {cell_c.x, cell_c.y, cell_c.z}};
-        const vec_t rz_subcell[] = {
-            {rezoned_nodes_x[(ccw_node_index)],
-             rezoned_nodes_y[(ccw_node_index)],
-             rezoned_nodes_z[(ccw_node_index)]},
-            {rezoned_nodes_x[(ccw_rnode_index)],
-             rezoned_nodes_y[(ccw_rnode_index)],
-             rezoned_nodes_z[(ccw_rnode_index)]},
-            {rz_face_c.x, rz_face_c.y, rz_face_c.z},
-            {rz_cell_centroid.x, rz_cell_centroid.y, rz_cell_centroid.z}};
+  const int sweep_subcell_to_subcells_off =
+      subcells_to_subcells_offsets[(sweep_subcell_index)];
+  const int nsubcell_neighbours =
+      subcells_to_subcells_offsets[(sweep_subcell_index + 1)] -
+      sweep_subcell_to_subcells_off;
 
-        // TODO: CHECK THE SUBCELL VOLUME IS POSITIVE
+  double gmax_m = -DBL_MAX;
+  double gmin_m = DBL_MAX;
+  double gmax_ie = -DBL_MAX;
+  double gmin_ie = DBL_MAX;
 
-        /* LOOP OVER SUBCELL FACES */
-        for (int pp = 0; pp < NTET_FACES; ++pp) {
-        }
-      }
+  const double subcell_m = subcell_mass[(sweep_subcell_index)] /
+                           subcell_volume[(sweep_subcell_index)];
+  const double subcell_ie = subcell_ie_mass[(sweep_subcell_index)] /
+                            subcell_volume[(sweep_subcell_index)];
+
+  for (int ss = 0; ss < nsubcell_neighbours; ++ss) {
+    const int sweep_neighbour_index =
+        subcells_to_subcells[(sweep_subcell_to_subcells_off + ss)];
+
+    // Ignore boundary neighbours
+    if (sweep_neighbour_index == -1) {
+      continue;
     }
 
-    // Update the volume of the cell to the new rezoned mesh
-    calc_volume(cell_to_faces_off, nfaces_by_cell, cells_to_faces,
-                faces_to_nodes, faces_to_nodes_offsets, rezoned_nodes_x,
-                rezoned_nodes_y, rezoned_nodes_z, &rz_cell_centroid,
-                &cell_volume[(cc)]);
-  }
-#endif // if 0
+    double vol = subcell_volume[(sweep_neighbour_index)];
+    vec_t i = {subcell_centroids_x[(sweep_neighbour_index)] * vol -
+                   subcell_centroids_x[(sweep_subcell_index)] * vol,
+               subcell_centroids_y[(sweep_neighbour_index)] * vol -
+                   subcell_centroids_y[(sweep_subcell_index)] * vol,
+               subcell_centroids_z[(sweep_neighbour_index)] * vol -
+                   subcell_centroids_z[(sweep_subcell_index)] * vol};
 
+    // Store the neighbouring cell's contribution to the coefficients
+    coeff[0].x += 2.0 * (i.x * i.x) / (vol * vol);
+    coeff[0].y += 2.0 * (i.x * i.y) / (vol * vol);
+    coeff[0].z += 2.0 * (i.x * i.z) / (vol * vol);
+    coeff[1].x += 2.0 * (i.y * i.x) / (vol * vol);
+    coeff[1].y += 2.0 * (i.y * i.y) / (vol * vol);
+    coeff[1].z += 2.0 * (i.y * i.z) / (vol * vol);
+    coeff[2].x += 2.0 * (i.z * i.x) / (vol * vol);
+    coeff[2].y += 2.0 * (i.z * i.y) / (vol * vol);
+    coeff[2].z += 2.0 * (i.z * i.z) / (vol * vol);
+
+    // Calculate the RHS for mass
+    const double m_phi = subcell_mass[(sweep_neighbour_index)] / vol;
+    const double dm_phi = m_phi - subcell_m;
+
+    m_rhs.x += 2.0 * dm_phi *
+               (subcell_centroids_x[(sweep_neighbour_index)] * vol -
+                subcell_centroids_x[(sweep_subcell_index)] * vol) /
+               vol;
+    m_rhs.y += 2.0 * dm_phi *
+               (subcell_centroids_y[(sweep_neighbour_index)] * vol -
+                subcell_centroids_y[(sweep_subcell_index)] * vol) /
+               vol;
+    m_rhs.z += 2.0 * dm_phi *
+               (subcell_centroids_z[(sweep_neighbour_index)] * vol -
+                subcell_centroids_z[(sweep_subcell_index)] * vol) /
+               vol;
+
+    // Calculate the RHS for energy
+    const double ie_phi = subcell_ie_mass[(sweep_neighbour_index)] /
+                          subcell_volume[(sweep_neighbour_index)];
+    const double die_phi = ie_phi - subcell_ie;
+
+    ie_rhs.x += die_phi * (subcell_centroids_x[(sweep_neighbour_index)] -
+                           subcell_centroids_x[(sweep_subcell_index)]);
+    ie_rhs.y += die_phi * (subcell_centroids_y[(sweep_neighbour_index)] -
+                           subcell_centroids_y[(sweep_subcell_index)]);
+    ie_rhs.z += die_phi * (subcell_centroids_z[(sweep_neighbour_index)] -
+                           subcell_centroids_z[(sweep_subcell_index)]);
+
+    // Store the maximum / minimum values for phi in the neighbourhood
+    gmax_m = max(gmax_m, m_phi);
+    gmin_m = min(gmin_m, m_phi);
+    gmax_ie = max(gmax_ie, ie_phi);
+    gmin_ie = min(gmin_ie, ie_phi);
+  }
+
+  calc_3x3_inverse(&coeff, &inv);
+
+  vec_t grad_m = {inv[0].x * m_rhs.x + inv[0].y * m_rhs.y + inv[0].z * m_rhs.z,
+                  inv[1].x * m_rhs.x + inv[1].y * m_rhs.y + inv[1].z * m_rhs.z,
+                  inv[2].x * m_rhs.x + inv[2].y * m_rhs.y + inv[2].z * m_rhs.z};
+
+  apply_cell_limiter(2 * NNODES_BY_SUBCELL_FACE, 0, swept_edge_faces_to_nodes,
+                     &grad_m, &swept_edge_c, se_nodes_x, se_nodes_y, se_nodes_z,
+                     subcell_m, gmax_m, gmin_m);
+
+  vec_t grad_ie = {
+      inv[0].x * ie_rhs.x + inv[0].y * ie_rhs.y + inv[0].z * ie_rhs.z,
+      inv[1].x * ie_rhs.x + inv[1].y * ie_rhs.y + inv[1].z * ie_rhs.z,
+      inv[2].x * ie_rhs.x + inv[2].y * ie_rhs.y + inv[2].z * ie_rhs.z};
+
+  apply_cell_limiter(2 * NNODES_BY_SUBCELL_FACE, 0, swept_edge_faces_to_nodes,
+                     &grad_ie, &swept_edge_c, se_nodes_x, se_nodes_y,
+                     se_nodes_z, subcell_ie, gmax_ie, gmin_ie);
+
+  // Calculate the flux for internal energy density in the subcell
+  const double local_mass_flux =
+      swept_edge_vol *
+      (subcell_m +
+       grad_m.x *
+           (swept_edge_c.x - subcell_centroids_x[(sweep_subcell_index)]) +
+       grad_m.y *
+           (swept_edge_c.y - subcell_centroids_y[(sweep_subcell_index)]) +
+       grad_m.z *
+           (swept_edge_c.z - subcell_centroids_z[(sweep_subcell_index)]));
+
+  // Calculate the flux for internal energy density in the subcell
+  const double local_energy_flux =
+      swept_edge_vol *
+      (subcell_ie +
+       grad_ie.x *
+           (swept_edge_c.x - subcell_centroids_x[(sweep_subcell_index)]) +
+       grad_ie.y *
+           (swept_edge_c.y - subcell_centroids_y[(sweep_subcell_index)]) +
+       grad_ie.z *
+           (swept_edge_c.z - subcell_centroids_z[(sweep_subcell_index)]));
+
+  // Either mass and energy is flowing into or out of the subcell
+  if (is_outflux) {
+    subcell_mass_flux[(subcell_index)] += local_mass_flux;
+    subcell_ie_mass_flux[(subcell_index)] += local_energy_flux;
+  } else {
+    subcell_mass_flux[(subcell_index)] -= local_mass_flux;
+    subcell_ie_mass_flux[(subcell_index)] -= local_energy_flux;
+  }
+}
+
+void advect_momentum() {
 #if 0
 /* REMAP MOMENTUM */
 
@@ -700,212 +865,6 @@ void remap_phase(
   printf("Total flux momentum %.12f %.12f %.12f\n", total_x_flux, total_y_flux,
          total_z_flux);
 #endif // if 0
-}
-
-// Contributes the local mass and energy flux for a given subcell face
-void contribute_mass_and_energy_flux(
-    const int cc, const int ff, const int subcell_index, vec_t* subcell_c,
-    vec_t* rz_face_c, const double* se_nodes_x, const double* se_nodes_y,
-    const double* se_nodes_z, const double* rezoned_nodes_x,
-    const double* rezoned_nodes_y, const double* rezoned_nodes_z,
-    const double* subcell_mass, double* subcell_mass_flux,
-    const double* subcell_ie_mass, double* subcell_ie_mass_flux,
-    const double* subcell_volume, const int* swept_edge_faces_to_nodes,
-    const double* subcell_centroids_x, const double* subcell_centroids_y,
-    const double* subcell_centroids_z, const int* swept_edge_to_faces,
-    const int* swept_edge_faces_to_nodes_offsets,
-    const int* subcells_to_subcells_offsets, const int* subcells_to_subcells) {
-
-  double swept_edge_vol = 0.0;
-  // Get the centroids for the swept edge prism and faces
-  vec_t eface_c = {0.0, 0.0, 0.0};
-  vec_t erz_face_c = {0.0, 0.0, 0.0};
-  vec_t eswept_edge_c = {0.0, 0.0, 0.0};
-  calc_centroid(NNODES_BY_SUBCELL_FACE, se_nodes_x, se_nodes_y, se_nodes_z,
-                swept_edge_faces_to_nodes, 0, &eface_c);
-  calc_centroid(NNODES_BY_SUBCELL_FACE, rezoned_nodes_x, rezoned_nodes_y,
-                rezoned_nodes_z, swept_edge_faces_to_nodes,
-                swept_edge_faces_to_nodes_offsets[(1)], rz_face_c);
-  calc_centroid(2 * NNODES_BY_SUBCELL_FACE, se_nodes_x, se_nodes_y, se_nodes_z,
-                swept_edge_faces_to_nodes, 0, rz_face_c);
-
-  // Calculate the volume of the swept edge prism
-  calc_volume(0, 2 + NNODES_BY_SUBCELL_FACE, swept_edge_to_faces,
-              swept_edge_faces_to_nodes, swept_edge_faces_to_nodes_offsets,
-              se_nodes_x, se_nodes_y, se_nodes_z, &eswept_edge_c,
-              &swept_edge_vol);
-
-  // Ignore the special case of an empty swept edge region
-  if (swept_edge_vol < EPS) {
-    if (swept_edge_vol < -EPS) {
-      printf("Negative swept edge volume %d %.12f\n", cc, swept_edge_vol);
-    }
-  }
-
-  // Determine whether the swept edge region is flowing into or out of the
-  // current sub cell
-  vec_t ab = {erz_face_c.x - eface_c.x, erz_face_c.y - eface_c.y,
-              erz_face_c.z - eface_c.z};
-  vec_t ac = {eface_c.x - subcell_c->x, eface_c.y - subcell_c->y,
-              eface_c.z - subcell_c->z};
-
-  const int is_outflux = (ab.x * ac.x + ab.y * ac.y + ab.z * ac.z > 0.0);
-
-  // Depending upon which subcell we are sweeping into, choose the
-  // subcell index with which to reconstruct the density
-  const int subcell_to_subcells_off =
-      subcells_to_subcells_offsets[(subcell_index)];
-  const int subcell_neighbour_index =
-      subcells_to_subcells[(subcell_to_subcells_off + 2 * ff + 0)];
-
-  // Only perform the sweep on the external face if it isn't a
-  // boundary
-  if (subcell_neighbour_index == -1) {
-    TERMINATE("We should not be attempting to flux from boundary.");
-  }
-
-  // The sweep subcell index is where we will reconstruct the value of the
-  // swept edge region from
-  const int sweep_subcell_index =
-      (is_outflux ? subcell_index : subcell_neighbour_index);
-
-  /* CALCULATE THE SWEEP SUBCELL GRADIENTS FOR MASS AND ENERGY */
-
-  // The 3x3 gradient coefficient matrix, and inverse
-  vec_t inv[3] = {{0.0, 0.0, 0.0}};
-  vec_t coeff[3] = {{0.0, 0.0, 0.0}};
-  vec_t m_rhs = {0.0, 0.0, 0.0};
-  vec_t ie_rhs = {0.0, 0.0, 0.0};
-
-  const int sweep_subcell_to_subcells_off =
-      subcells_to_subcells_offsets[(sweep_subcell_index)];
-  const int nsubcell_neighbours =
-      subcells_to_subcells_offsets[(sweep_subcell_index + 1)] -
-      sweep_subcell_to_subcells_off;
-
-  double gmax_m = -DBL_MAX;
-  double gmin_m = DBL_MAX;
-  double gmax_ie = -DBL_MAX;
-  double gmin_ie = DBL_MAX;
-
-  const double subcell_m = subcell_mass[(sweep_subcell_index)] /
-                           subcell_volume[(sweep_subcell_index)];
-  const double subcell_ie = subcell_ie_mass[(sweep_subcell_index)] /
-                            subcell_volume[(sweep_subcell_index)];
-
-  for (int ss = 0; ss < nsubcell_neighbours; ++ss) {
-    const int sweep_neighbour_index =
-        subcells_to_subcells[(sweep_subcell_to_subcells_off + ss)];
-
-    // Ignore boundary neighbours
-    if (sweep_neighbour_index == -1) {
-      continue;
-    }
-
-    double vol = subcell_volume[(sweep_neighbour_index)];
-    vec_t i = {subcell_centroids_x[(sweep_neighbour_index)] * vol -
-                   subcell_centroids_x[(sweep_subcell_index)] * vol,
-               subcell_centroids_y[(sweep_neighbour_index)] * vol -
-                   subcell_centroids_y[(sweep_subcell_index)] * vol,
-               subcell_centroids_z[(sweep_neighbour_index)] * vol -
-                   subcell_centroids_z[(sweep_subcell_index)] * vol};
-
-    // Store the neighbouring cell's contribution to the coefficients
-    coeff[0].x += 2.0 * (i.x * i.x) / (vol * vol);
-    coeff[0].y += 2.0 * (i.x * i.y) / (vol * vol);
-    coeff[0].z += 2.0 * (i.x * i.z) / (vol * vol);
-    coeff[1].x += 2.0 * (i.y * i.x) / (vol * vol);
-    coeff[1].y += 2.0 * (i.y * i.y) / (vol * vol);
-    coeff[1].z += 2.0 * (i.y * i.z) / (vol * vol);
-    coeff[2].x += 2.0 * (i.z * i.x) / (vol * vol);
-    coeff[2].y += 2.0 * (i.z * i.y) / (vol * vol);
-    coeff[2].z += 2.0 * (i.z * i.z) / (vol * vol);
-
-    // Calculate the RHS for mass
-    const double m_phi = subcell_mass[(sweep_neighbour_index)] / vol;
-    const double dm_phi = m_phi - subcell_m;
-
-    m_rhs.x += 2.0 * dm_phi *
-               (subcell_centroids_x[(sweep_neighbour_index)] * vol -
-                subcell_centroids_x[(sweep_subcell_index)] * vol) /
-               vol;
-    m_rhs.y += 2.0 * dm_phi *
-               (subcell_centroids_y[(sweep_neighbour_index)] * vol -
-                subcell_centroids_y[(sweep_subcell_index)] * vol) /
-               vol;
-    m_rhs.z += 2.0 * dm_phi *
-               (subcell_centroids_z[(sweep_neighbour_index)] * vol -
-                subcell_centroids_z[(sweep_subcell_index)] * vol) /
-               vol;
-
-    gmax_m = max(gmax_m, m_phi);
-    gmin_m = min(gmin_m, m_phi);
-
-    // Calculate the RHS for energy
-    const double ie_phi = subcell_ie_mass[(sweep_neighbour_index)] /
-                          subcell_volume[(sweep_neighbour_index)];
-    const double die_phi = ie_phi - subcell_ie;
-
-    ie_rhs.x += die_phi * (subcell_centroids_x[(sweep_neighbour_index)] -
-                           subcell_centroids_x[(sweep_subcell_index)]);
-    ie_rhs.y += die_phi * (subcell_centroids_y[(sweep_neighbour_index)] -
-                           subcell_centroids_y[(sweep_subcell_index)]);
-    ie_rhs.z += die_phi * (subcell_centroids_z[(sweep_neighbour_index)] -
-                           subcell_centroids_z[(sweep_subcell_index)]);
-
-    gmax_ie = max(gmax_ie, ie_phi);
-    gmin_ie = min(gmin_ie, ie_phi);
-  }
-
-  calc_3x3_inverse(&coeff, &inv);
-
-  vec_t grad_m = {inv[0].x * m_rhs.x + inv[0].y * m_rhs.y + inv[0].z * m_rhs.z,
-                  inv[1].x * m_rhs.x + inv[1].y * m_rhs.y + inv[1].z * m_rhs.z,
-                  inv[2].x * m_rhs.x + inv[2].y * m_rhs.y + inv[2].z * m_rhs.z};
-
-  apply_cell_limiter(2 * NNODES_BY_SUBCELL_FACE, 0, swept_edge_faces_to_nodes,
-                     &grad_m, &eswept_edge_c, se_nodes_x, se_nodes_y,
-                     se_nodes_z, subcell_m, gmax_m, gmin_m);
-
-  vec_t grad_ie = {
-      inv[0].x * ie_rhs.x + inv[0].y * ie_rhs.y + inv[0].z * ie_rhs.z,
-      inv[1].x * ie_rhs.x + inv[1].y * ie_rhs.y + inv[1].z * ie_rhs.z,
-      inv[2].x * ie_rhs.x + inv[2].y * ie_rhs.y + inv[2].z * ie_rhs.z};
-
-  apply_cell_limiter(2 * NNODES_BY_SUBCELL_FACE, 0, swept_edge_faces_to_nodes,
-                     &grad_ie, &eswept_edge_c, se_nodes_x, se_nodes_y,
-                     se_nodes_z, subcell_ie, gmax_ie, gmin_ie);
-
-  // Calculate the flux for internal energy density in the subcell
-  const double local_mass_flux =
-      swept_edge_vol *
-      (subcell_m +
-       grad_m.x *
-           (eswept_edge_c.x - subcell_centroids_x[(sweep_subcell_index)]) +
-       grad_m.y *
-           (eswept_edge_c.y - subcell_centroids_y[(sweep_subcell_index)]) +
-       grad_m.z *
-           (eswept_edge_c.z - subcell_centroids_z[(sweep_subcell_index)]));
-
-  // Calculate the flux for internal energy density in the subcell
-  const double local_energy_flux =
-      swept_edge_vol *
-      (subcell_ie +
-       grad_ie.x *
-           (eswept_edge_c.x - subcell_centroids_x[(sweep_subcell_index)]) +
-       grad_ie.y *
-           (eswept_edge_c.y - subcell_centroids_y[(sweep_subcell_index)]) +
-       grad_ie.z *
-           (eswept_edge_c.z - subcell_centroids_z[(sweep_subcell_index)]));
-
-  // Either mass and energy is flowing into or out of the subcell
-  if (is_outflux) {
-    subcell_mass_flux[(subcell_index)] += local_mass_flux;
-    subcell_ie_mass_flux[(subcell_index)] += local_energy_flux;
-  } else {
-    subcell_mass_flux[(subcell_index)] -= local_mass_flux;
-    subcell_ie_mass_flux[(subcell_index)] -= local_energy_flux;
-  }
 }
 
 // Checks if the normal vector is pointing inward or outward
