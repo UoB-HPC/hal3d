@@ -9,14 +9,20 @@ void remap_phase(
     const int ncells, const int* cells_offsets, const double* nodes_x,
     const double* nodes_y, const double* nodes_z, const double* rezoned_nodes_x,
     const double* rezoned_nodes_y, const double* rezoned_nodes_z,
+    const double* cell_centroids_x, const double* cell_centroids_y,
+    const double* cell_centroids_z, const double* subcell_momentum_x,
+    const double* subcell_momentum_y, const double* subcell_momentum_z,
     const int* cells_to_nodes, const int* faces_to_nodes_offsets,
     const int* faces_to_nodes, const int* subcells_to_faces_offsets,
     const int* subcells_to_faces, const int* subcells_to_subcells_offsets,
     const int* subcells_to_subcells, const int* faces_to_cells0,
-    const int* faces_to_cells1, const double* subcell_centroids_x,
-    const double* subcell_centroids_y, const double* subcell_centroids_z,
-    double* subcell_volume, double* subcell_mass, double* subcell_mass_flux,
-    double* subcell_ie_mass, double* subcell_ie_mass_flux) {
+    const int* faces_to_cells1, double* subcell_momentum_flux_x,
+    double* subcell_momentum_flux_y, double* subcell_momentum_flux_z,
+    const int* nodes_offsets, const int* nodes_to_cells,
+    const double* subcell_centroids_x, const double* subcell_centroids_y,
+    const double* subcell_centroids_z, double* subcell_volume,
+    double* subcell_mass, double* subcell_mass_flux, double* subcell_ie_mass,
+    double* subcell_ie_mass_flux) {
 
   // Advects mass and energy through the subcell faces using swept edge approx
   perform_advection(
@@ -24,9 +30,12 @@ void remap_phase(
       rezoned_nodes_y, rezoned_nodes_z, cells_to_nodes, faces_to_nodes_offsets,
       faces_to_nodes, subcells_to_faces_offsets, subcells_to_faces,
       subcells_to_subcells_offsets, subcells_to_subcells, subcell_centroids_x,
-      faces_to_cells0, faces_to_cells1, subcell_centroids_y,
-      subcell_centroids_z, subcell_volume, subcell_mass, subcell_mass_flux,
-      subcell_ie_mass, subcell_ie_mass_flux);
+      subcell_centroids_y, subcell_centroids_z, faces_to_cells0,
+      faces_to_cells1, cell_centroids_x, cell_centroids_y, cell_centroids_z,
+      subcell_volume, subcell_momentum_flux_x, subcell_momentum_flux_y,
+      subcell_momentum_flux_z, subcell_momentum_x, subcell_momentum_y,
+      subcell_momentum_z, nodes_offsets, nodes_to_cells, subcell_mass,
+      subcell_mass_flux, subcell_ie_mass, subcell_ie_mass_flux);
 }
 
 // Contributes the local mass and energy flux for a given subcell face
@@ -34,12 +43,12 @@ void contribute_momentum_flux(
     const int cc, const int neighbour_cc, const int ff, const int node_index,
     const int subcell_index, vec_t* subcell_c, vec_t* cell_c,
     const double* se_nodes_x, const double* se_nodes_y,
-    const double* se_nodes_z, const double* subcell_mass,
-    const double* subcell_volume, const double* cell_centroids_x,
-    const double* cell_centroids_y, const double* cell_centroids_z,
-    double* subcell_momentum_flux_x, double* subcell_momentum_flux_y,
-    double* subcell_momentum_flux_z, double* velocity_x, double* velocity_y,
-    double* velocity_z, const int* swept_edge_faces_to_nodes,
+    const double* se_nodes_z, const double* subcell_volume,
+    const double* cell_centroids_x, const double* cell_centroids_y,
+    const double* cell_centroids_z, double* subcell_momentum_flux_x,
+    double* subcell_momentum_flux_y, double* subcell_momentum_flux_z,
+    const double* subcell_momentum_x, const double* subcell_momentum_y,
+    const double* subcell_momentum_z, const int* swept_edge_faces_to_nodes,
     const double* subcell_centroids_x, const double* subcell_centroids_y,
     const double* subcell_centroids_z, const int* swept_edge_to_faces,
     const int* swept_edge_faces_to_nodes_offsets,
@@ -135,15 +144,12 @@ void contribute_momentum_flux(
                            subcell_centroids_y[(sweep_subcell_index)],
                            subcell_centroids_z[(sweep_subcell_index)]};
 
-  double subcell_vx = velocity_x[(node_index)] *
-                      subcell_mass[(sweep_subcell_index)] /
-                      subcell_volume[(sweep_subcell_index)];
-  double subcell_vy = velocity_y[(node_index)] *
-                      subcell_mass[(sweep_subcell_index)] /
-                      subcell_volume[(sweep_subcell_index)];
-  double subcell_vz = velocity_z[(node_index)] *
-                      subcell_mass[(sweep_subcell_index)] /
-                      subcell_volume[(sweep_subcell_index)];
+  const double subcell_vx = subcell_momentum_x[(sweep_subcell_index)] /
+                            subcell_volume[(sweep_subcell_index)];
+  const double subcell_vy = subcell_momentum_y[(sweep_subcell_index)] /
+                            subcell_volume[(sweep_subcell_index)];
+  const double subcell_vz = subcell_momentum_z[(sweep_subcell_index)] /
+                            subcell_volume[(sweep_subcell_index)];
 
   const int sweep_subcell_to_subcells_off =
       subcells_to_subcells_offsets[(sweep_subcell_index)];
@@ -177,15 +183,12 @@ void contribute_momentum_flux(
     coeff[2].z += (i.z * i.z);
 
     // Prepare differential
-    const double dphi_vx = (velocity_x[(node_index)] *
-                                subcell_mass[(sweep_neighbour_index)] / vol -
-                            subcell_vx);
-    const double dphi_vy = (velocity_y[(node_index)] *
-                                subcell_mass[(sweep_neighbour_index)] / vol -
-                            subcell_vy);
-    const double dphi_vz = (velocity_z[(node_index)] *
-                                subcell_mass[(sweep_neighbour_index)] / vol -
-                            subcell_vz);
+    const double dphi_vx =
+        (subcell_momentum_x[(sweep_neighbour_index)] / vol - subcell_vx);
+    const double dphi_vy =
+        (subcell_momentum_y[(sweep_neighbour_index)] / vol - subcell_vy);
+    const double dphi_vz =
+        (subcell_momentum_z[(sweep_neighbour_index)] / vol - subcell_vz);
 
     vx_rhs.x += dphi_vx * (i.x);
     vx_rhs.y += dphi_vx * (i.y);
@@ -267,23 +270,17 @@ void contribute_momentum_flux(
   // Calculate the flux for internal energy density in the subcell
   const double local_x_momentum_flux =
       swept_edge_vol *
-      (velocity_x[(node_index)] * subcell_mass[(sweep_subcell_index)] /
-           subcell_volume[(sweep_subcell_index)] +
-       grad_vx.x * (swept_edge_c.x - sweep_subcell_c.x) +
+      (subcell_vx + grad_vx.x * (swept_edge_c.x - sweep_subcell_c.x) +
        grad_vx.y * (swept_edge_c.y - sweep_subcell_c.y) +
        grad_vx.z * (swept_edge_c.z - sweep_subcell_c.z));
   const double local_y_momentum_flux =
       swept_edge_vol *
-      (velocity_y[(node_index)] * subcell_mass[(sweep_subcell_index)] /
-           subcell_volume[(sweep_subcell_index)] +
-       grad_vy.x * (swept_edge_c.x - sweep_subcell_c.x) +
+      (subcell_vy + grad_vy.x * (swept_edge_c.x - sweep_subcell_c.x) +
        grad_vy.y * (swept_edge_c.y - sweep_subcell_c.y) +
        grad_vy.z * (swept_edge_c.z - sweep_subcell_c.z));
   const double local_z_momentum_flux =
       swept_edge_vol *
-      (velocity_z[(node_index)] * subcell_mass[(sweep_subcell_index)] /
-           subcell_volume[(sweep_subcell_index)] +
-       grad_vz.x * (swept_edge_c.x - sweep_subcell_c.x) +
+      (subcell_vz + grad_vz.x * (swept_edge_c.x - sweep_subcell_c.x) +
        grad_vz.y * (swept_edge_c.y - sweep_subcell_c.y) +
        grad_vz.z * (swept_edge_c.z - sweep_subcell_c.z));
 
@@ -313,10 +310,16 @@ void perform_advection(
     const int* faces_to_nodes, const int* subcells_to_faces_offsets,
     const int* subcells_to_faces, const int* subcells_to_subcells_offsets,
     const int* subcells_to_subcells, const double* subcell_centroids_x,
-    const int* faces_to_cells0, const int* faces_to_cells1,
     const double* subcell_centroids_y, const double* subcell_centroids_z,
-    double* subcell_volume, double* subcell_mass, double* subcell_mass_flux,
-    double* subcell_ie_mass, double* subcell_ie_mass_flux) {
+    const int* faces_to_cells0, const int* faces_to_cells1,
+    const double* cell_centroids_x, const double* cell_centroids_y,
+    const double* cell_centroids_z, double* subcell_volume,
+    double* subcell_momentum_flux_x, double* subcell_momentum_flux_y,
+    double* subcell_momentum_flux_z, const double* subcell_momentum_x,
+    const double* subcell_momentum_y, const double* subcell_momentum_z,
+    const int* nodes_offsets, const int* nodes_to_cells, double* subcell_mass,
+    double* subcell_mass_flux, double* subcell_ie_mass,
+    double* subcell_ie_mass_flux) {
 
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
@@ -442,6 +445,19 @@ void perform_advection(
             faces_to_nodes_offsets, faces_to_nodes, cells_offsets,
             cells_to_nodes, nodes_x, nodes_y, nodes_z, 0);
 
+        // Contributes the local mass and energy flux for a given subcell face
+        contribute_momentum_flux(
+            cc, neighbour_cc, ff, node_index, subcell_index, &subcell_c,
+            &cell_c, enodes_x, enodes_y, enodes_z, subcell_volume,
+            cell_centroids_x, cell_centroids_y, cell_centroids_z,
+            subcell_momentum_flux_x, subcell_momentum_flux_y,
+            subcell_momentum_flux_z, subcell_momentum_x, subcell_momentum_y,
+            subcell_momentum_z, swept_edge_faces_to_nodes, subcell_centroids_x,
+            subcell_centroids_y, subcell_centroids_z, swept_edge_to_faces,
+            swept_edge_faces_to_nodes_offsets, subcells_to_subcells_offsets,
+            subcells_to_subcells, cells_offsets, cells_to_nodes, nodes_to_cells,
+            nodes_offsets, nodes_x, nodes_y, nodes_z, 0);
+
         /* INTERNAL FACE */
 
         const int r_face_off = (ff == nfaces_by_subcell - 1) ? 0 : ff + 1;
@@ -526,6 +542,19 @@ void perform_advection(
             subcells_to_subcells, subcells_to_faces_offsets, subcells_to_faces,
             faces_to_nodes_offsets, faces_to_nodes, cells_offsets,
             cells_to_nodes, nodes_x, nodes_y, nodes_z, 1);
+
+        // Contributes the local mass and energy flux for a given subcell face
+        contribute_momentum_flux(
+            cc, neighbour_cc, ff, node_index, subcell_index, &subcell_c,
+            &cell_c, inodes_x, inodes_y, inodes_z, subcell_volume,
+            cell_centroids_x, cell_centroids_y, cell_centroids_z,
+            subcell_momentum_flux_x, subcell_momentum_flux_y,
+            subcell_momentum_flux_z, subcell_momentum_x, subcell_momentum_y,
+            subcell_momentum_z, swept_edge_faces_to_nodes, subcell_centroids_x,
+            subcell_centroids_y, subcell_centroids_z, swept_edge_to_faces,
+            swept_edge_faces_to_nodes_offsets, subcells_to_subcells_offsets,
+            subcells_to_subcells, cells_offsets, cells_to_nodes, nodes_to_cells,
+            nodes_offsets, nodes_x, nodes_y, nodes_z, 1);
       }
     }
   }

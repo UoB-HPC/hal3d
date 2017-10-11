@@ -62,6 +62,9 @@ typedef struct {
   double* subcell_momentum_x;
   double* subcell_momentum_y;
   double* subcell_momentum_z;
+  double* subcell_momentum_flux_x;
+  double* subcell_momentum_flux_y;
+  double* subcell_momentum_flux_z;
   double* subcell_centroids_x;
   double* subcell_centroids_y;
   double* subcell_centroids_z;

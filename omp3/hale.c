@@ -88,19 +88,23 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
     printf("\nPerforming Remap Phase\n");
 
     // Performs a remap and some scattering of the subcell values
-    remap_phase(umesh->ncells, umesh->cells_offsets, umesh->nodes_x0,
-                umesh->nodes_y0, umesh->nodes_z0, hale_data->rezoned_nodes_x,
-                hale_data->rezoned_nodes_y, hale_data->rezoned_nodes_z,
-                umesh->cells_to_nodes, umesh->faces_to_nodes_offsets,
-                umesh->faces_to_nodes, hale_data->subcells_to_faces_offsets,
-                hale_data->subcells_to_faces,
-                hale_data->subcells_to_subcells_offsets,
-                hale_data->subcells_to_subcells, umesh->faces_to_cells0,
-                umesh->faces_to_cells1, hale_data->subcell_centroids_x,
-                hale_data->subcell_centroids_y, hale_data->subcell_centroids_z,
-                hale_data->subcell_volume, hale_data->subcell_mass,
-                hale_data->subcell_mass_flux, hale_data->subcell_ie_mass,
-                hale_data->subcell_ie_mass_flux);
+    remap_phase(
+        umesh->ncells, umesh->cells_offsets, umesh->nodes_x0, umesh->nodes_y0,
+        umesh->nodes_z0, hale_data->rezoned_nodes_x, hale_data->rezoned_nodes_y,
+        hale_data->rezoned_nodes_z, umesh->cell_centroids_x,
+        umesh->cell_centroids_y, umesh->cell_centroids_z,
+        hale_data->velocity_x0, hale_data->velocity_y0, hale_data->velocity_z0,
+        umesh->cells_to_nodes, umesh->faces_to_nodes_offsets,
+        umesh->faces_to_nodes, hale_data->subcells_to_faces_offsets,
+        hale_data->subcells_to_faces, hale_data->subcells_to_subcells_offsets,
+        hale_data->subcells_to_subcells, umesh->faces_to_cells0,
+        umesh->faces_to_cells1, hale_data->subcell_momentum_flux_x,
+        hale_data->subcell_momentum_flux_y, hale_data->subcell_momentum_flux_z,
+        umesh->nodes_offsets, umesh->nodes_to_cells,
+        hale_data->subcell_centroids_x, hale_data->subcell_centroids_y,
+        hale_data->subcell_centroids_z, hale_data->subcell_volume,
+        hale_data->subcell_mass, hale_data->subcell_mass_flux,
+        hale_data->subcell_ie_mass, hale_data->subcell_ie_mass_flux);
 
 #if 0
     init_subcell_data_structures(mesh, hale_data, umesh);
