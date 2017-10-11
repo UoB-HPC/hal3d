@@ -244,7 +244,7 @@ void contribute_mass_and_energy_flux(
     const double* nodes_y, const double* nodes_z, const int internal);
 
 // Advects mass and energy through the subcell faces using swept edge approx
-void advect_mass_and_energy(
+void perform_advection(
     const int ncells, const int* cells_offsets, const double* nodes_x,
     const double* nodes_y, const double* nodes_z, const double* rezoned_nodes_x,
     const double* rezoned_nodes_y, const double* rezoned_nodes_z,
@@ -261,3 +261,27 @@ void advect_mass_and_energy(
 double calc_cell_limiter(const double rho, const double gmax, const double gmin,
                          vec_t* grad, const double node_x, const double node_y,
                          const double node_z, const vec_t* cell_c);
+
+// Calculates the local limiter for a node
+double calc_node_limiter(const double rho, const double gmax, const double gmin,
+                         vec_t* grad, const double cell_x, const double cell_y,
+                         const double cell_z, const vec_t* node);
+
+// Contributes the local mass and energy flux for a given subcell face
+void contribute_momentum_flux(
+    const int cc, const int neighbour_cc, const int ff, const int node_index,
+    const int subcell_index, vec_t* subcell_c, vec_t* cell_c,
+    const double* se_nodes_x, const double* se_nodes_y,
+    const double* se_nodes_z, const double* subcell_mass,
+    const double* subcell_volume, const double* cell_centroids_x,
+    const double* cell_centroids_y, const double* cell_centroids_z,
+    double* subcell_momentum_flux_x, double* subcell_momentum_flux_y,
+    double* subcell_momentum_flux_z, double* velocity_x, double* velocity_y,
+    double* velocity_z, const int* swept_edge_faces_to_nodes,
+    const double* subcell_centroids_x, const double* subcell_centroids_y,
+    const double* subcell_centroids_z, const int* swept_edge_to_faces,
+    const int* swept_edge_faces_to_nodes_offsets,
+    const int* subcells_to_subcells_offsets, const int* subcells_to_subcells,
+    const int* cells_offsets, const int* cells_to_nodes,
+    const int* nodes_to_cells, const int* nodes_offsets, const double* nodes_x,
+    const double* nodes_y, const double* nodes_z, const int internal);
