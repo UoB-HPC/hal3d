@@ -14,6 +14,7 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
   // Describe the subcell node layout
   printf("\nPerforming the Lagrangian Phase\n");
 
+#if 0
   // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
   // due to the pressure (ideal gas) and artificial viscous forces
   lagrangian_phase(
@@ -36,14 +37,13 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
       umesh->faces_to_nodes, umesh->faces_to_nodes_offsets,
       umesh->faces_to_cells0, umesh->faces_to_cells1,
       umesh->cells_to_faces_offsets, umesh->cells_to_faces);
+#endif // if 0
 
-#if 0
   for (int nn = 0; nn < umesh->nnodes; ++nn) {
     if (nn % (mesh->local_nx + 1) == mesh->local_nx / 2) {
       umesh->nodes_x0[nn] += 1.0 / mesh->local_nx / 4.0;
     }
   }
-#endif // if 0
 
   if (hale_data->visit_dump) {
     write_unstructured_to_visit_3d(umesh->nnodes, umesh->ncells, timestep * 3,
@@ -93,20 +93,19 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
                 umesh->faces_to_nodes, hale_data->subcells_to_faces_offsets,
                 hale_data->subcells_to_faces,
                 hale_data->subcells_to_subcells_offsets,
-                hale_data->subcells_to_subcells, hale_data->subcell_centroids_x,
+                hale_data->subcells_to_subcells, umesh->faces_to_cells0,
+                umesh->faces_to_cells1, hale_data->subcell_centroids_x,
                 hale_data->subcell_centroids_y, hale_data->subcell_centroids_z,
                 hale_data->subcell_volume, hale_data->subcell_mass,
                 hale_data->subcell_mass_flux, hale_data->subcell_ie_mass,
                 hale_data->subcell_ie_mass_flux);
 
-#if 0
     init_subcell_data_structures(mesh, hale_data, umesh);
     write_unstructured_to_visit_3d(
         hale_data->nsubcell_nodes, umesh->ncells * hale_data->nsubcells_by_cell,
         timestep * 3 + 1, hale_data->subcell_nodes_x,
         hale_data->subcell_nodes_y, hale_data->subcell_nodes_z,
         hale_data->subcells_to_nodes, hale_data->subcell_mass_flux, 0, 1);
-#endif // if 0
 
     printf("\nEulerian Mesh Rezone\n");
 
@@ -140,18 +139,11 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
                   umesh->cells_to_faces_offsets, umesh->cells_to_faces,
                   umesh->cells_offsets, umesh->cells_to_nodes);
 
-    write_unstructured_to_visit_3d(
-        umesh->nnodes, umesh->ncells, timestep * 3 + 1, umesh->nodes_x0,
-        umesh->nodes_y0, umesh->nodes_z0, umesh->cells_to_nodes,
-        hale_data->cell_mass, 0, 1);
-
-#if 0
     init_subcell_data_structures(mesh, hale_data, umesh);
     write_unstructured_to_visit_3d(
         hale_data->nsubcell_nodes, umesh->ncells * hale_data->nsubcells_by_cell,
         timestep * 3 + 2, hale_data->subcell_nodes_x,
         hale_data->subcell_nodes_y, hale_data->subcell_nodes_z,
         hale_data->subcells_to_nodes, hale_data->subcell_mass, 0, 1);
-#endif // if 0
   }
 }
