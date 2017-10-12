@@ -19,6 +19,53 @@ void scatter_phase(const int ncells, const int nnodes, const double total_mass,
                    int* cells_to_faces, int* cells_offsets,
                    int* cells_to_nodes) {
 
+  // Scatter the subcell energy and mass quantities back to the cell centers
+  scatter_energy_and_mass(
+      ncells, total_mass, total_ie, rezoned_nodes_x, rezoned_nodes_y,
+      rezoned_nodes_z, cell_volume, energy0, energy1, density0, cell_mass,
+      subcell_ie_mass, subcell_mass, subcell_ie_mass_flux, subcell_mass_flux,
+      faces_to_nodes, faces_to_nodes_offsets, cells_to_faces_offsets,
+      cells_to_faces, cells_offsets, cells_to_nodes);
+
+#if 0
+  // Scattering the momentum
+  double total_vx = 0.0;
+  double total_vy = 0.0;
+  double total_vz = 0.0;
+#pragma omp parallel for reduction(+ : total_vx, total_vy, total_vz)
+  for (int nn = 0; nn < nnodes; ++nn) {
+    velocity_x0[(nn)] = 0.0;
+    velocity_y0[(nn)] = 0.0;
+    velocity_z0[(nn)] = 0.0;
+
+    const int node_to_faces_off = nodes_to_faces_offsets[(nn)];
+    const int nfaces_by_node =
+        nodes_to_faces_offsets[(nn + 1)] - node_to_faces_off;
+
+    for (int cc = 0; cc < ncells_by_node; ++cc) {
+    }
+
+    total_vx += velocity_x0[(nn)];
+    total_vy += velocity_y0[(nn)];
+    total_vz += velocity_z0[(nn)];
+  }
+
+  printf("Total Scattered Velocity %.12f %.12f %.12f\n", total_vx, total_vy,
+         total_vz);
+#endif // if 0
+}
+
+// Scatter the subcell energy and mass quantities back to the cell centers
+void scatter_energy_and_mass(
+    const int ncells, const double total_mass, const double total_ie,
+    const double* rezoned_nodes_x, const double* rezoned_nodes_y,
+    const double* rezoned_nodes_z, double* cell_volume, double* energy0,
+    double* energy1, double* density0, double* cell_mass,
+    double* subcell_ie_mass, double* subcell_mass, double* subcell_ie_mass_flux,
+    double* subcell_mass_flux, int* faces_to_nodes, int* faces_to_nodes_offsets,
+    int* cells_to_faces_offsets, int* cells_to_faces, int* cells_offsets,
+    int* cells_to_nodes) {
+
   // Scatter energy and density, and print the conservation of mass
   double rz_total_mass = 0.0;
   double rz_total_ie = 0.0;
@@ -72,80 +119,4 @@ void scatter_phase(const int ncells, const int nnodes, const double total_mass,
          "Difference "
          "%.12f\n",
          rz_total_ie, total_ie, rz_total_ie - total_ie);
-
-#if 0
-  // Scattering the momentum
-  double total_vx = 0.0;
-  double total_vy = 0.0;
-  double total_vz = 0.0;
-#pragma omp parallel for reduction(+ : total_vx, total_vy, total_vz)
-  for (int nn = 0; nn < nnodes; ++nn) {
-    velocity_x0[(nn)] = 0.0;
-    velocity_y0[(nn)] = 0.0;
-    velocity_z0[(nn)] = 0.0;
-
-    const int node_to_faces_off = nodes_to_faces_offsets[(nn)];
-    const int nfaces_by_node =
-        nodes_to_faces_offsets[(nn + 1)] - node_to_faces_off;
-
-    // Consider all faces attached to node
-    for (int ff = 0; ff < nfaces_by_node; ++ff) {
-      const int face_index = nodes_to_faces[(node_to_faces_off + ff)];
-      if (face_index == -1) {
-        continue;
-      }
-
-      // Determine the offset into the list of nodes
-      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-      const int nnodes_by_face =
-          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-
-      // Find node center and location of current node on face
-      int node_in_face_c;
-      for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
-        // Choose the node in the list of nodes attached to the face
-        if (nn == faces_to_nodes[(face_to_nodes_off + nn2)]) {
-          node_in_face_c = nn2;
-        }
-      }
-
-      // Fetch the cells attached to our current face
-      int cells[2];
-      cells[0] = faces_to_cells0[(face_index)];
-      cells[1] = faces_to_cells1[(face_index)];
-
-      // Add contributions from all of the cells attached to the face
-      for (int cc = 0; cc < NSUBSUBCELLS; ++cc) {
-        if (cells[(cc)] == -1) {
-          continue;
-        }
-
-        const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
-        const int subcell_off = subcell_face_offsets[(cell_to_faces_off + ff)];
-
-        // Add contributions for both edges attached to our current node
-        const int nedges_by_node = 2;
-        for (int nn2 = 0; nn2 < nedges_by_node; ++nn2) {
-          velocity_x0[(nn)] +=
-              subcell_momentum_flux_x[(subcell_off + node_in_face_c)];
-          velocity_y0[(nn)] +=
-              subcell_momentum_flux_y[(subcell_off + node_in_face_c)];
-          velocity_z0[(nn)] +=
-              subcell_momentum_flux_z[(subcell_off + node_in_face_c)];
-        }
-      }
-    }
-
-    velocity_x0[(nn)] /= nodal_mass[(nn)];
-    velocity_y0[(nn)] /= nodal_mass[(nn)];
-    velocity_z0[(nn)] /= nodal_mass[(nn)];
-
-    total_vx += velocity_x0[(nn)];
-    total_vy += velocity_y0[(nn)];
-    total_vz += velocity_z0[(nn)];
-  }
-
-  printf("Total Scattered Velocity %.12f %.12f %.12f\n", total_vx, total_vy,
-         total_vz);
-#endif // if 0
 }
