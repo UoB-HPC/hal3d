@@ -51,8 +51,8 @@ void gather_subcell_quantities(
       nodes_y, nodes_z, velocity_x, velocity_y, velocity_z, subcell_volume,
       subcell_momentum_x, subcell_momentum_y, subcell_momentum_z,
       subcell_centroids_x, subcell_centroids_y, subcell_centroids_z,
-      nodes_to_cells_offsets, cells_to_nodes_offsets, nodes_to_nodes_offsets,
-      nodes_to_nodes);
+      nodes_to_cells_offsets, cells_to_nodes_offsets, cells_to_nodes,
+      nodes_to_nodes_offsets, nodes_to_nodes);
 }
 
 // Gathers all of the subcell quantities on the mesh
@@ -192,7 +192,7 @@ void gather_subcell_momentum(
     double* subcell_momentum_z, double* subcell_centroids_x,
     double* subcell_centroids_y, double* subcell_centroids_z,
     int* nodes_to_cells_offsets, int* cells_to_nodes_offsets,
-    int* nodes_to_nodes_offsets, int* nodes_to_nodes) {
+    int* cells_to_nodes, int* nodes_to_nodes_offsets, int* nodes_to_nodes) {
 
   for (int nn = 0; nn < nnodes; ++nn) {
     const int node_to_cells_off = nodes_to_cells_offsets[(nn)];
@@ -200,7 +200,6 @@ void gather_subcell_momentum(
         nodes_to_cells_offsets[(nn + 1)] - node_to_cells_off;
 
     // Calculate the gradient for the nodal momentum
-
     vec_t rhsx = {0.0, 0.0, 0.0};
     vec_t rhsy = {0.0, 0.0, 0.0};
     vec_t rhsz = {0.0, 0.0, 0.0};
@@ -305,7 +304,7 @@ void gather_subcell_momentum(
                        gmax.z, gmin.z);
 
     for (int cc = 0; cc < ncells_by_node; ++cc) {
-      const int cell_index = nodes_to_cells_offsets[(node_to_cells_off + cc)];
+      const int cell_index = nodes_to_cells[(node_to_cells_off + cc)];
       const int cell_to_nodes_off = cells_to_nodes_offsets[(cell_index)];
       const int nnodes_by_cell =
           cells_to_nodes_offsets[(cell_index + 1)] - cell_to_nodes_off;
@@ -313,7 +312,7 @@ void gather_subcell_momentum(
       // Determine the position of the node in the cell
       int nn2;
       for (nn2 = 0; nn2 < nnodes_by_cell; ++nn2) {
-        if (cells_to_nodes_offsets[(cell_to_nodes_off + nn2)] == nn) {
+        if (cells_to_nodes[(cell_to_nodes_off + nn2)] == nn) {
           break;
         }
       }

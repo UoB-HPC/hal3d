@@ -69,7 +69,7 @@ void gather_subcell_momentum(
     double* subcell_momentum_z, double* subcell_centroids_x,
     double* subcell_centroids_y, double* subcell_centroids_z,
     int* nodes_to_cells_offsets, int* cells_to_nodes_offsets,
-    int* nodes_to_nodes_offsets, int* nodes_to_nodes);
+    int* cells_to_nodes, int* nodes_to_nodes_offsets, int* nodes_to_nodes);
 
 // Gathers all of the subcell quantities on the mesh
 void gather_subcell_energy(

@@ -931,8 +931,8 @@ void contribute_momentum_flux(
        grad_vz.y * (swept_edge_c.y - sweep_subcell_c.y) +
        grad_vz.z * (swept_edge_c.z - sweep_subcell_c.z));
 
-  if (local_x_momentum_flux < 0.0 || local_y_momentum_flux < 0.0 ||
-      local_z_momentum_flux < 0.0) {
+  if (local_x_momentum_flux < -EPS || local_y_momentum_flux < -EPS ||
+      local_z_momentum_flux < -EPS) {
     printf("Encountered negative swept edge region flux.\n");
   }
 
