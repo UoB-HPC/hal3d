@@ -325,7 +325,7 @@ void calc_volumes_centroids(
     }
   }
 
-  printf("Total Cell Volume %.12f\n", total_cell_volume);
+  printf("Total Cell Volume    %.12f\n", total_cell_volume);
   printf("Total Subcell Volume %.12f\n", total_subcell_volume);
 }
 

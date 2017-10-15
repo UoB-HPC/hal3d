@@ -173,7 +173,7 @@ void gather_subcell_energy(
 
   printf("Total Energy in Cells    %.12f\n", total_ie);
   printf("Total Energy in Subcells %.12f\n", total_ie_in_subcells);
-  printf("Difference %.12f\n", total_ie - total_ie_in_subcells);
+  printf("Difference               %.12f\n\n", total_ie - total_ie_in_subcells);
 }
 
 // Gathers the momentum into the subcells
@@ -352,7 +352,7 @@ void gather_subcell_momentum(
          initial_momentum->x, initial_momentum->y, initial_momentum->z);
   printf("Total Momentum in Subcells (%.12f,%.12f,%.12f)\n", total_subcell_vx,
          total_subcell_vy, total_subcell_vz);
-  printf("Difference                 (%.12f,%.12f,%.12f)\n",
+  printf("Difference                 (%.12f,%.12f,%.12f)\n\n",
          initial_momentum->x - total_subcell_vx,
          initial_momentum->y - total_subcell_vy,
          initial_momentum->z - total_subcell_vz);

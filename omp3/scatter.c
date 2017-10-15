@@ -95,13 +95,13 @@ void scatter_energy_and_mass(
     rz_total_ie += energy1[(cc)];
   }
 
-  printf(
-      "Rezoned Total Mass %.12f, Initial Total Mass %.12f, Difference %.12f\n",
-      rz_total_mass, total_mass, total_mass - rz_total_mass);
-  printf("Rezoned Total Internal Energy %.12f, Initial Total Energy %.12f, "
-         "Difference "
-         "%.12f\n",
-         rz_total_ie, total_ie, rz_total_ie - total_ie);
+  printf("Rezoned Total Mass %.12f\n", rz_total_mass);
+  printf("Initial Total Mass %.12f\n", total_mass);
+  printf("Difference         %.12f\n\n", total_mass - rz_total_mass);
+
+  printf("Rezoned Total Internal Energy %.12f\n", rz_total_ie);
+  printf("Initial Total Energy          %.12f\n", total_ie);
+  printf("Difference                    %.12f\n\n", rz_total_ie - total_ie);
 }
 
 // Scatter the subcell momentum to the node centered velocities
@@ -167,8 +167,12 @@ void scatter_momentum(const int nnodes, vec_t* initial_momentum,
     }
   }
 
-  printf("Rezoned total momentum %.12e %.12e %.12e.\n", total_node_momentum_x,
+  printf("Rezoned total momentum %.12f %.12f %.12f\n", total_node_momentum_x,
          total_node_momentum_y, total_node_momentum_z);
-  printf("Initial total momentum %.12e %.12e %.12e.\n", initial_momentum->x,
+  printf("Initial total momentum %.12f %.12f %.12f\n", initial_momentum->x,
          initial_momentum->y, initial_momentum->z);
+  printf("Difference             %.12f %.12f %.12f\n\n",
+         initial_momentum->x - total_node_momentum_x,
+         initial_momentum->y - total_node_momentum_y,
+         initial_momentum->z - total_node_momentum_z);
 }
