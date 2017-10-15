@@ -4,8 +4,7 @@
 #include <stdio.h>
 
 // Perform the scatter step of the ALE remapping algorithm
-void scatter_phase(const int ncells, const int nnodes, const double total_mass,
-                   const double total_ie, vec_t* initial_momentum,
+void scatter_phase(const int ncells, const int nnodes, vec_t* initial_momentum,
                    const double* rezoned_nodes_x, const double* rezoned_nodes_y,
                    const double* rezoned_nodes_z, double* cell_volume,
                    double* energy0, double* energy1, double* density,
@@ -20,15 +19,16 @@ void scatter_phase(const int ncells, const int nnodes, const double total_mass,
                    int* faces_to_nodes_offsets, int* cells_to_faces_offsets,
                    int* cells_to_faces, int* nodes_to_cells_offsets,
                    int* nodes_to_cells, int* cells_to_nodes_offsets,
-                   int* cells_offsets, int* cells_to_nodes) {
+                   int* cells_offsets, int* cells_to_nodes, double* total_mass,
+                   double* total_ie) {
 
   // Scatter the subcell energy and mass quantities back to the cell centers
   scatter_energy_and_mass(
-      ncells, total_mass, total_ie, rezoned_nodes_x, rezoned_nodes_y,
-      rezoned_nodes_z, cell_volume, energy0, energy1, density, cell_mass,
-      subcell_ie_mass, subcell_mass, subcell_ie_mass_flux, subcell_mass_flux,
-      faces_to_nodes, faces_to_nodes_offsets, cells_to_faces_offsets,
-      cells_to_faces, cells_offsets, cells_to_nodes);
+      ncells, rezoned_nodes_x, rezoned_nodes_y, rezoned_nodes_z, cell_volume,
+      energy0, energy1, density, cell_mass, subcell_ie_mass, subcell_mass,
+      subcell_ie_mass_flux, subcell_mass_flux, faces_to_nodes,
+      faces_to_nodes_offsets, cells_to_faces_offsets, cells_to_faces,
+      cells_offsets, cells_to_nodes, total_mass, total_ie);
 
   scatter_momentum(nnodes, initial_momentum, nodes_to_cells_offsets,
                    nodes_to_cells, cells_to_nodes_offsets, cells_to_nodes,
@@ -39,26 +39,34 @@ void scatter_phase(const int ncells, const int nnodes, const double total_mass,
 }
 
 // Scatter the subcell energy and mass quantities back to the cell centers
-void scatter_energy_and_mass(
-    const int ncells, const double total_mass, const double total_ie,
-    const double* rezoned_nodes_x, const double* rezoned_nodes_y,
-    const double* rezoned_nodes_z, double* cell_volume, double* energy0,
-    double* energy1, double* density0, double* cell_mass,
-    double* subcell_ie_mass, double* subcell_mass, double* subcell_ie_mass_flux,
-    double* subcell_mass_flux, int* faces_to_nodes, int* faces_to_nodes_offsets,
-    int* cells_to_faces_offsets, int* cells_to_faces, int* cells_offsets,
-    int* cells_to_nodes) {
+void scatter_energy_and_mass(const int ncells, const double* rezoned_nodes_x,
+                             const double* rezoned_nodes_y,
+                             const double* rezoned_nodes_z, double* cell_volume,
+                             double* energy0, double* energy1, double* density0,
+                             double* cell_mass, double* subcell_ie_mass,
+                             double* subcell_mass, double* subcell_ie_mass_flux,
+                             double* subcell_mass_flux, int* faces_to_nodes,
+                             int* faces_to_nodes_offsets,
+                             int* cells_to_faces_offsets, int* cells_to_faces,
+                             int* cells_offsets, int* cells_to_nodes,
+                             double* total_mass, double* total_ie) {
 
   // Scatter energy and density, and print the conservation of mass
-  double rz_total_mass = 0.0;
   double rz_total_ie = 0.0;
-#pragma omp parallel for reduction(+ : rz_total_mass, rz_total_ie)
+  double rz_total_mass = 0.0;
+  double initial_total_mass = 0.0;
+  double initial_total_ie = 0.0;
+#pragma omp parallel for reduction(+ : rz_total_mass, rz_total_ie,             \
+                                   initial_total_mass, initial_total_ie)
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
         cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
+
+    initial_total_mass += cell_mass[(cc)];
+    initial_total_ie += cell_mass[(cc)] * energy0[(cc)];
 
     cell_mass[(cc)] = 0.0;
     energy1[(cc)] = 0.0;
@@ -92,16 +100,19 @@ void scatter_energy_and_mass(
 
     // Calculate the conservation data
     rz_total_mass += cell_mass[(cc)];
-    rz_total_ie += energy1[(cc)];
+    rz_total_ie += cell_mass[(cc)] * energy0[(cc)];
   }
 
+  *total_mass = initial_total_mass;
+  *total_ie = initial_total_ie;
+
   printf("Rezoned Total Mass %.12f\n", rz_total_mass);
-  printf("Initial Total Mass %.12f\n", total_mass);
-  printf("Difference         %.12f\n\n", total_mass - rz_total_mass);
+  printf("Initial Total Mass %.12f\n", *total_mass);
+  printf("Difference         %.12f\n\n", *total_mass - rz_total_mass);
 
   printf("Rezoned Total Internal Energy %.12f\n", rz_total_ie);
-  printf("Initial Total Energy          %.12f\n", total_ie);
-  printf("Difference                    %.12f\n\n", rz_total_ie - total_ie);
+  printf("Initial Total Energy          %.12f\n", *total_ie);
+  printf("Difference                    %.12f\n\n", rz_total_ie - *total_ie);
 }
 
 // Scatter the subcell momentum to the node centered velocities
@@ -164,6 +175,10 @@ void scatter_momentum(const int nnodes, vec_t* initial_momentum,
       total_node_momentum_x += new_subcell_momentum_x;
       total_node_momentum_y += new_subcell_momentum_y;
       total_node_momentum_z += new_subcell_momentum_z;
+
+      subcell_momentum_flux_x[(subcell_index)] = 0.0;
+      subcell_momentum_flux_y[(subcell_index)] = 0.0;
+      subcell_momentum_flux_z[(subcell_index)] = 0.0;
     }
   }
 

@@ -49,6 +49,8 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
   if (hale_data->perform_remap) {
     printf("\nPerforming Gathering Phase\n");
 
+    double total_ie = 0.0;
+    double total_mass = 0.0;
     vec_t initial_momentum = {0.0, 0.0, 0.0};
 
     // gathers all of the subcell quantities on the mesh
@@ -72,9 +74,7 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
         umesh->nodes_to_nodes_offsets, umesh->nodes_to_nodes,
         &initial_momentum);
 
-    // Store the total mass and internal energy
-    double total_mass = 0.0;
-    double total_ie = 0.0;
+// Store the total mass and internal energy
 #pragma omp parallel for reduction(+ : total_mass, total_ie)
     for (int cc = 0; cc < umesh->ncells; ++cc) {
       total_mass += hale_data->cell_mass[(cc)];
@@ -126,7 +126,7 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
 
     // Perform the scatter step of the ALE remapping algorithm
     scatter_phase(
-        umesh->ncells, umesh->nnodes, total_mass, total_ie, &initial_momentum,
+        umesh->ncells, umesh->nnodes, &initial_momentum,
         hale_data->rezoned_nodes_x, hale_data->rezoned_nodes_y,
         hale_data->rezoned_nodes_z, hale_data->cell_volume, hale_data->energy0,
         hale_data->energy1, hale_data->density0, hale_data->velocity_x0,
@@ -139,7 +139,7 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
         umesh->faces_to_nodes, umesh->faces_to_nodes_offsets,
         umesh->cells_to_faces_offsets, umesh->cells_to_faces,
         umesh->nodes_offsets, umesh->nodes_to_cells, umesh->cells_offsets,
-        umesh->cells_offsets, umesh->cells_to_nodes);
+        umesh->cells_offsets, umesh->cells_to_nodes, &total_mass, &total_ie);
 
 #if 0
     init_subcell_data_structures(mesh, hale_data, umesh);

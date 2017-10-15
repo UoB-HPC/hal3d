@@ -277,8 +277,7 @@ void contribute_momentum_flux(
     const double* nodes_y, const double* nodes_z, const int internal);
 
 // Perform the scatter step of the ALE remapping algorithm
-void scatter_phase(const int ncells, const int nnodes, const double total_mass,
-                   const double total_ie, vec_t* initial_momentum,
+void scatter_phase(const int ncells, const int nnodes, vec_t* initial_momentum,
                    const double* rezoned_nodes_x, const double* rezoned_nodes_y,
                    const double* rezoned_nodes_z, double* cell_volume,
                    double* energy0, double* energy1, double* density,
@@ -293,18 +292,21 @@ void scatter_phase(const int ncells, const int nnodes, const double total_mass,
                    int* faces_to_nodes_offsets, int* cells_to_faces_offsets,
                    int* cells_to_faces, int* nodes_to_cells_offsets,
                    int* nodes_to_cells, int* cells_to_nodes_offsets,
-                   int* cells_offsets, int* cells_to_nodes);
+                   int* cells_offsets, int* cells_to_nodes, double* total_mass,
+                   double* total_ie);
 
 // Scatter the subcell energy and mass quantities back to the cell centers
-void scatter_energy_and_mass(
-    const int ncells, const double total_mass, const double total_ie,
-    const double* rezoned_nodes_x, const double* rezoned_nodes_y,
-    const double* rezoned_nodes_z, double* cell_volume, double* energy0,
-    double* energy1, double* density0, double* cell_mass,
-    double* subcell_ie_mass, double* subcell_mass, double* subcell_ie_mass_flux,
-    double* subcell_mass_flux, int* faces_to_nodes, int* faces_to_nodes_offsets,
-    int* cells_to_faces_offsets, int* cells_to_faces, int* cells_offsets,
-    int* cells_to_nodes);
+void scatter_energy_and_mass(const int ncells, const double* rezoned_nodes_x,
+                             const double* rezoned_nodes_y,
+                             const double* rezoned_nodes_z, double* cell_volume,
+                             double* energy0, double* energy1, double* density0,
+                             double* cell_mass, double* subcell_ie_mass,
+                             double* subcell_mass, double* subcell_ie_mass_flux,
+                             double* subcell_mass_flux, int* faces_to_nodes,
+                             int* faces_to_nodes_offsets,
+                             int* cells_to_faces_offsets, int* cells_to_faces,
+                             int* cells_offsets, int* cells_to_nodes,
+                             double* total_mass, double* total_ie);
 
 // Scatter the subcell momentum to the node centered velocities
 void scatter_momentum(const int nnodes, vec_t* initial_momentum,

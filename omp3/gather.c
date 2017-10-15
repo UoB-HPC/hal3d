@@ -71,7 +71,7 @@ void gather_subcell_energy(
   double total_ie_in_subcells = 0.0;
 
 // Calculate the sub-cell internal energies
-#pragma omp parallel for
+#pragma omp parallel for reduction(+ : total_ie, total_ie_in_subcells)
   for (int cc = 0; cc < ncells; ++cc) {
     // Calculating the volume dist necessary for the least squares
     // regression
@@ -196,7 +196,8 @@ void gather_subcell_momentum(
   double total_subcell_vz = 0.0;
 
 #pragma omp parallel for reduction(+ : initial_momentum_x, initial_momentum_y, \
-                                   initial_momentum_z)
+                                   initial_momentum_z, total_subcell_vx,       \
+                                   total_subcell_vy, total_subcell_vz)
   for (int nn = 0; nn < nnodes; ++nn) {
     const int node_to_cells_off = nodes_to_cells_offsets[(nn)];
     const int ncells_by_node =
