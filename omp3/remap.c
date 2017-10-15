@@ -933,7 +933,8 @@ void contribute_momentum_flux(
 
   if (local_x_momentum_flux < -EPS || local_y_momentum_flux < -EPS ||
       local_z_momentum_flux < -EPS) {
-    printf("Encountered negative swept edge region flux.\n");
+    printf("Encountered negative swept edge region flux %.12e %.12e %.12e.\n",
+           local_x_momentum_flux, local_y_momentum_flux, local_z_momentum_flux);
   }
 
   // Either the momentum is flowing in or out

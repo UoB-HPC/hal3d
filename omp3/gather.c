@@ -4,7 +4,7 @@
 #include <math.h>
 #include <stdio.h>
 
-// Gathers all of the subcell quantities on the mesh
+// gathers all of the subcell quantities on the mesh
 void gather_subcell_quantities(
     const int ncells, const int nnodes, const int nnodes_by_subcell,
     double* nodal_volumes, const double* nodal_mass, double* cell_centroids_x,
@@ -20,7 +20,8 @@ void gather_subcell_quantities(
     int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
     int* cells_to_faces_offsets, int* cells_to_faces, int* subcells_to_faces,
     int* nodes_to_cells_offsets, int* cells_to_nodes_offsets,
-    int* cells_to_nodes, int* nodes_to_nodes_offsets, int* nodes_to_nodes) {
+    int* cells_to_nodes, int* nodes_to_nodes_offsets, int* nodes_to_nodes,
+    vec_t* initial_momentum) {
 
   /*
   *      GATHERING STAGE OF THE REMAP
@@ -47,12 +48,12 @@ void gather_subcell_quantities(
 
   // Gathers the momentum  the subcells
   gather_subcell_momentum(
-      ncells, nnodes, nodal_volumes, nodal_mass, nodes_to_cells, nodes_x,
-      nodes_y, nodes_z, velocity_x, velocity_y, velocity_z, subcell_volume,
+      nnodes, nodal_volumes, nodal_mass, nodes_to_cells, nodes_x, nodes_y,
+      nodes_z, velocity_x, velocity_y, velocity_z, subcell_volume,
       subcell_momentum_x, subcell_momentum_y, subcell_momentum_z,
       subcell_centroids_x, subcell_centroids_y, subcell_centroids_z,
       nodes_to_cells_offsets, cells_to_nodes_offsets, cells_to_nodes,
-      nodes_to_nodes_offsets, nodes_to_nodes);
+      nodes_to_nodes_offsets, nodes_to_nodes, initial_momentum);
 }
 
 // Gathers all of the subcell quantities on the mesh
@@ -65,6 +66,9 @@ void gather_subcell_energy(
     double* subcell_centroids_x, double* subcell_centroids_y,
     double* subcell_centroids_z, int* faces_to_cells0, int* faces_to_cells1,
     int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes) {
+
+  double total_ie = 0.0;
+  double total_ie_in_subcells = 0.0;
 
 // Calculate the sub-cell internal energies
 #pragma omp parallel for
@@ -84,6 +88,8 @@ void gather_subcell_energy(
 
     vec_t rhs = {0.0, 0.0, 0.0};
     vec_t coeff[3] = {{0.0, 0.0, 0.0}};
+
+    total_ie += cell_mass[(cc)] * energy[(cc)];
 
     // Determine the weighted volume dist for neighbouring cells
     double gmax = -DBL_MAX;
@@ -156,24 +162,12 @@ void gather_subcell_energy(
           (cell_ie + grad_ie.x * dist.x + grad_ie.y * dist.y +
            grad_ie.z * dist.z);
 
+      total_ie_in_subcells += subcell_ie_mass[(subcell_index)];
+
       if (subcell_ie_mass[(subcell_index)] < 0.0) {
         printf("Negative internal energy mass %d %.12f\n", subcell_index,
                subcell_ie_mass[(subcell_index)]);
       }
-    }
-  }
-
-  // Print out the conservation of energy following the gathering
-  double total_ie = 0.0;
-  double total_ie_in_subcells = 0.0;
-#pragma omp parallel for reduction(+ : total_ie, total_ie_in_subcells)
-  for (int cc = 0; cc < ncells; ++cc) {
-    double ie = cell_mass[(cc)] * energy[(cc)];
-    total_ie += ie;
-    double total_ie_in_cell = 0.0;
-    for (int ss = 0; ss < 8; ++ss) {
-      total_ie_in_subcells += subcell_ie_mass[(cc * 8 + ss)];
-      total_ie_in_cell += subcell_ie_mass[(cc * 8 + ss)];
     }
   }
 
@@ -184,16 +178,25 @@ void gather_subcell_energy(
 
 // Gathers the momentum into the subcells
 void gather_subcell_momentum(
-    const int ncells, const int nnodes, const double* nodal_volumes,
-    const double* nodal_mass, int* nodes_to_cells, const double* nodes_x,
-    const double* nodes_y, const double* nodes_z, double* velocity_x,
-    double* velocity_y, double* velocity_z, double* subcell_volume,
-    double* subcell_momentum_x, double* subcell_momentum_y,
-    double* subcell_momentum_z, double* subcell_centroids_x,
-    double* subcell_centroids_y, double* subcell_centroids_z,
-    int* nodes_to_cells_offsets, int* cells_to_nodes_offsets,
-    int* cells_to_nodes, int* nodes_to_nodes_offsets, int* nodes_to_nodes) {
+    const int nnodes, const double* nodal_volumes, const double* nodal_mass,
+    int* nodes_to_cells, const double* nodes_x, const double* nodes_y,
+    const double* nodes_z, double* velocity_x, double* velocity_y,
+    double* velocity_z, double* subcell_volume, double* subcell_momentum_x,
+    double* subcell_momentum_y, double* subcell_momentum_z,
+    double* subcell_centroids_x, double* subcell_centroids_y,
+    double* subcell_centroids_z, int* nodes_to_cells_offsets,
+    int* cells_to_nodes_offsets, int* cells_to_nodes,
+    int* nodes_to_nodes_offsets, int* nodes_to_nodes, vec_t* initial_momentum) {
 
+  double initial_momentum_x = 0.0;
+  double initial_momentum_y = 0.0;
+  double initial_momentum_z = 0.0;
+  double total_subcell_vx = 0.0;
+  double total_subcell_vy = 0.0;
+  double total_subcell_vz = 0.0;
+
+#pragma omp parallel for reduction(+ : initial_momentum_x, initial_momentum_y, \
+                                   initial_momentum_z)
   for (int nn = 0; nn < nnodes; ++nn) {
     const int node_to_cells_off = nodes_to_cells_offsets[(nn)];
     const int ncells_by_node =
@@ -211,6 +214,10 @@ void gather_subcell_momentum(
     vec_t node_mom = {nodal_density * velocity_x[(nn)],
                       nodal_density * velocity_y[(nn)],
                       nodal_density * velocity_z[(nn)]};
+
+    initial_momentum_x += nodal_mass[(nn)] * velocity_x[(nn)];
+    initial_momentum_y += nodal_mass[(nn)] * velocity_y[(nn)];
+    initial_momentum_z += nodal_mass[(nn)] * velocity_z[(nn)];
 
     const int node_to_nodes_off = nodes_to_nodes_offsets[(nn)];
     const int nnodes_by_node =
@@ -330,26 +337,6 @@ void gather_subcell_momentum(
           vol * (node_mom.y + grad_vy.x * dx + grad_vy.y * dy + grad_vy.z * dz);
       subcell_momentum_z[(subcell_index)] =
           vol * (node_mom.z + grad_vz.x * dx + grad_vz.y * dy + grad_vz.z * dz);
-    }
-  }
-
-  // The following method is a homegrown solution. It doesn't feel totally
-  // precise, but it is a quite reasonable approach based on the popular
-  // methods but seems to end up with lots of computational work (much of which
-  // is redundant).
-  double total_subcell_vx = 0.0;
-  double total_subcell_vy = 0.0;
-  double total_subcell_vz = 0.0;
-#pragma omp parallel for reduction(+ : total_subcell_vx, total_subcell_vy,     \
-                                   total_subcell_vz)
-  for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_to_nodes_offsets[(cc)];
-    const int nnodes_by_cell =
-        cells_to_nodes_offsets[(cc + 1)] - cell_to_nodes_off;
-
-    // Loop over subcells
-    for (int nn = 0; nn < nnodes_by_cell; ++nn) {
-      const int subcell_index = cell_to_nodes_off + nn;
 
       total_subcell_vx += subcell_momentum_x[(subcell_index)];
       total_subcell_vy += subcell_momentum_y[(subcell_index)];
@@ -357,21 +344,16 @@ void gather_subcell_momentum(
     }
   }
 
-  double total_vx = 0.0;
-  double total_vy = 0.0;
-  double total_vz = 0.0;
-#pragma omp parallel for reduction(+ : total_vx, total_vy, total_vz)
-  for (int nn = 0; nn < nnodes; ++nn) {
-    total_vx += nodal_mass[nn] * velocity_x[nn];
-    total_vy += nodal_mass[nn] * velocity_y[nn];
-    total_vz += nodal_mass[nn] * velocity_z[nn];
-  }
+  initial_momentum->x = initial_momentum_x;
+  initial_momentum->y = initial_momentum_y;
+  initial_momentum->z = initial_momentum_z;
 
-  printf("\nTotal Momentum in Cells    (%.12f,%.12f,%.12f)\n", total_vx,
-         total_vy, total_vz);
+  printf("\nTotal Momentum in Cells    (%.12f,%.12f,%.12f)\n",
+         initial_momentum->x, initial_momentum->y, initial_momentum->z);
   printf("Total Momentum in Subcells (%.12f,%.12f,%.12f)\n", total_subcell_vx,
          total_subcell_vy, total_subcell_vz);
   printf("Difference                 (%.12f,%.12f,%.12f)\n",
-         total_vx - total_subcell_vx, total_vy - total_subcell_vy,
-         total_vz - total_subcell_vz);
+         initial_momentum->x - total_subcell_vx,
+         initial_momentum->y - total_subcell_vy,
+         initial_momentum->z - total_subcell_vz);
 }
