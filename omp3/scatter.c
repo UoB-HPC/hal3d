@@ -9,11 +9,11 @@ void scatter_phase(const int ncells, const int nnodes, vec_t* initial_momentum,
                    const double* rezoned_nodes_z, double* cell_volume,
                    double* energy0, double* energy1, double* density,
                    double* velocity_x, double* velocity_y, double* velocity_z,
-                   double* cell_mass, double* subcell_ie_mass,
-                   double* subcell_mass, double* subcell_ie_mass_flux,
-                   double* subcell_mass_flux, double* subcell_momentum_x,
-                   double* subcell_momentum_y, double* subcell_momentum_z,
-                   double* subcell_momentum_flux_x,
+                   double* cell_mass, double* nodal_mass,
+                   double* subcell_ie_mass, double* subcell_mass,
+                   double* subcell_ie_mass_flux, double* subcell_mass_flux,
+                   double* subcell_momentum_x, double* subcell_momentum_y,
+                   double* subcell_momentum_z, double* subcell_momentum_flux_x,
                    double* subcell_momentum_flux_y,
                    double* subcell_momentum_flux_z, int* faces_to_nodes,
                    int* faces_to_nodes_offsets, int* cells_to_faces_offsets,
@@ -32,7 +32,7 @@ void scatter_phase(const int ncells, const int nnodes, vec_t* initial_momentum,
 
   scatter_momentum(nnodes, initial_momentum, nodes_to_cells_offsets,
                    nodes_to_cells, cells_to_nodes_offsets, cells_to_nodes,
-                   velocity_x, velocity_y, velocity_z, subcell_mass,
+                   velocity_x, velocity_y, velocity_z, nodal_mass, subcell_mass,
                    subcell_momentum_x, subcell_momentum_y, subcell_momentum_z,
                    subcell_momentum_flux_x, subcell_momentum_flux_y,
                    subcell_momentum_flux_z);
@@ -120,9 +120,9 @@ void scatter_momentum(const int nnodes, vec_t* initial_momentum,
                       int* nodes_to_cells_offsets, int* nodes_to_cells,
                       int* cells_to_nodes_offsets, int* cells_to_nodes,
                       double* velocity_x, double* velocity_y,
-                      double* velocity_z, double* subcell_mass,
-                      double* subcell_momentum_x, double* subcell_momentum_y,
-                      double* subcell_momentum_z,
+                      double* velocity_z, double* nodal_mass,
+                      double* subcell_mass, double* subcell_momentum_x,
+                      double* subcell_momentum_y, double* subcell_momentum_z,
                       double* subcell_momentum_flux_x,
                       double* subcell_momentum_flux_y,
                       double* subcell_momentum_flux_z) {
@@ -165,12 +165,9 @@ void scatter_momentum(const int nnodes, vec_t* initial_momentum,
       double new_subcell_momentum_z = subcell_momentum_z[(subcell_index)] -
                                       subcell_momentum_flux_z[(subcell_index)];
 
-      velocity_x[(nn)] +=
-          new_subcell_momentum_x / subcell_mass[(subcell_index)];
-      velocity_y[(nn)] +=
-          new_subcell_momentum_y / subcell_mass[(subcell_index)];
-      velocity_z[(nn)] +=
-          new_subcell_momentum_z / subcell_mass[(subcell_index)];
+      velocity_x[(nn)] += new_subcell_momentum_x;
+      velocity_y[(nn)] += new_subcell_momentum_y;
+      velocity_z[(nn)] += new_subcell_momentum_z;
 
       total_node_momentum_x += new_subcell_momentum_x;
       total_node_momentum_y += new_subcell_momentum_y;
@@ -180,6 +177,10 @@ void scatter_momentum(const int nnodes, vec_t* initial_momentum,
       subcell_momentum_flux_y[(subcell_index)] = 0.0;
       subcell_momentum_flux_z[(subcell_index)] = 0.0;
     }
+
+    velocity_x[(nn)] /= nodal_mass[(nn)];
+    velocity_y[(nn)] /= nodal_mass[(nn)];
+    velocity_z[(nn)] /= nodal_mass[(nn)];
   }
 
   printf("Rezoned total momentum %.12f %.12f %.12f\n", total_node_momentum_x,

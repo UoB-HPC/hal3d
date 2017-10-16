@@ -931,12 +931,6 @@ void contribute_momentum_flux(
        grad_vz.y * (swept_edge_c.y - sweep_subcell_c.y) +
        grad_vz.z * (swept_edge_c.z - sweep_subcell_c.z));
 
-  if (local_x_momentum_flux < -EPS || local_y_momentum_flux < -EPS ||
-      local_z_momentum_flux < -EPS) {
-    printf("Encountered negative swept edge region flux %.12e %.12e %.12e.\n",
-           local_x_momentum_flux, local_y_momentum_flux, local_z_momentum_flux);
-  }
-
   // Either the momentum is flowing in or out
   if (is_outflux) {
     subcell_momentum_flux_x[(subcell_index)] += local_x_momentum_flux;
