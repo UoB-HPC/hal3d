@@ -976,23 +976,14 @@ int calc_surface_normal(const int nnodes_by_face, const int face_to_nodes_off,
   face_normal->y = 0.0;
   face_normal->z = 0.0;
 
-  double tn_x[3];
-  double tn_y[3];
-  double tn_z[3];
-
   for (int nn = 0; nn < nnodes_by_face; ++nn) {
     const int n0 = faces_to_nodes[(face_to_nodes_off + nn)];
     const int next_node = (nn == nnodes_by_face - 1) ? 0 : nn + 1;
     const int n1 = faces_to_nodes[(face_to_nodes_off + next_node)];
-    tn_x[0] = nodes_x[(n0)];
-    tn_y[0] = nodes_y[(n0)];
-    tn_z[0] = nodes_z[(n0)];
-    tn_x[1] = nodes_x[(n1)];
-    tn_y[1] = nodes_y[(n1)];
-    tn_z[1] = nodes_z[(n1)];
-    tn_x[2] = face_c->x;
-    tn_y[2] = face_c->y;
-    tn_z[2] = face_c->z;
+
+    double tn_x[3] = {nodes_x[(n0)], nodes_x[(n1)], face_c->x};
+    double tn_y[3] = {nodes_y[(n0)], nodes_y[(n1)], face_c->y};
+    double tn_z[3] = {nodes_z[(n0)], nodes_z[(n1)], face_c->z};
 
     // Calculate the unit normal vector
     vec_t normal = {0.0, 0.0, 0.0};
@@ -1068,9 +1059,6 @@ void contribute_face_volume(const int nnodes_by_face, const int* faces_to_nodes,
                             const double* nodes_z, const vec_t* cell_c,
                             double* vol) {
 
-  double tn_x[3];
-  double tn_y[3];
-  double tn_z[3];
   double local_vol = 0.0;
   vec_t face_normal = {0.0, 0.0, 0.0};
   vec_t face_c = {0.0, 0.0, 0.0};
@@ -1085,15 +1073,9 @@ void contribute_face_volume(const int nnodes_by_face, const int* faces_to_nodes,
     const int faces_to_nodes_tri[3] = {0, 1, 2};
 
     // Construct the face triangle associated with the node
-    tn_x[0] = nodes_x[(n0)];
-    tn_y[0] = nodes_y[(n0)];
-    tn_z[0] = nodes_z[(n0)];
-    tn_x[1] = nodes_x[(n1)];
-    tn_y[1] = nodes_y[(n1)];
-    tn_z[1] = nodes_z[(n1)];
-    tn_x[2] = face_c.x;
-    tn_y[2] = face_c.y;
-    tn_z[2] = face_c.z;
+    double tn_x[3] = {nodes_x[(n0)], nodes_x[(n1)], face_c.x};
+    double tn_y[3] = {nodes_y[(n0)], nodes_y[(n1)], face_c.y};
+    double tn_z[3] = {nodes_z[(n0)], nodes_z[(n1)], face_c.z};
 
     vec_t tnormal = {0.0, 0.0, 0.0};
     calc_unit_normal(0, 1, 2, tn_x, tn_y, tn_z, &tnormal);
