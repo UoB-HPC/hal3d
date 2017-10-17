@@ -14,9 +14,9 @@ visc_coeff2   0.5
 iterations    2
 visit_dump    1
 perform_remap 1
-nx            10
-ny            10
-nz            10
+nx            4
+ny            4
+nz            4
 
 # READING UMESH IS NOT YET SUPPORTED IN 3D
 node_file     problems/tri.1.node

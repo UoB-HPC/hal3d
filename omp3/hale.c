@@ -37,15 +37,6 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
       umesh->faces_to_cells0, umesh->faces_to_cells1,
       umesh->cells_to_faces_offsets, umesh->cells_to_faces);
 
-#if 0
-  if (hale_data->visit_dump) {
-    write_unstructured_to_visit_3d(umesh->nnodes, umesh->ncells, timestep * 3,
-                                   umesh->nodes_x0, umesh->nodes_y0,
-                                   umesh->nodes_z0, umesh->cells_to_nodes,
-                                   hale_data->energy0, 0, 1);
-  }
-#endif // if 0
-
   if (hale_data->perform_remap) {
     printf("\nPerforming Gathering Phase\n");
 
@@ -93,14 +84,14 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
         hale_data->subcell_mass, hale_data->subcell_mass_flux,
         hale_data->subcell_ie_mass, hale_data->subcell_ie_mass_flux);
 
+    printf("\nEulerian Mesh Rezone\n");
+
     init_subcell_data_structures(mesh, hale_data, umesh);
     write_unstructured_to_visit_3d(
         hale_data->nsubcell_nodes, umesh->ncells * hale_data->nsubcells_by_cell,
         timestep + 10, hale_data->subcell_nodes_x, hale_data->subcell_nodes_y,
         hale_data->subcell_nodes_z, hale_data->subcells_to_nodes,
         hale_data->subcell_mass_flux, 0, 1);
-
-    printf("\nEulerian Mesh Rezone\n");
 
     // Finalise the mesh rezone
     apply_mesh_rezoning(umesh->nnodes, hale_data->rezoned_nodes_x,
@@ -115,35 +106,26 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
 
     printf("\nPerforming the Scattering Phase\n");
 
+    write_unstructured_to_visit_3d(umesh->nnodes, umesh->ncells, timestep,
+                                   umesh->nodes_x0, umesh->nodes_y0,
+                                   umesh->nodes_z0, umesh->cells_to_nodes,
+                                   hale_data->cell_mass, 0, 1);
+
     // Perform the scatter step of the ALE remapping algorithm
     scatter_phase(
         umesh->ncells, umesh->nnodes, &initial_momentum,
         hale_data->rezoned_nodes_x, hale_data->rezoned_nodes_y,
         hale_data->rezoned_nodes_z, hale_data->cell_volume, hale_data->energy0,
-        hale_data->energy1, hale_data->density0, hale_data->velocity_x0,
-        hale_data->velocity_y0, hale_data->velocity_z0, hale_data->cell_mass,
-        hale_data->nodal_mass, hale_data->subcell_ie_mass,
-        hale_data->subcell_mass, hale_data->subcell_ie_mass_flux,
-        hale_data->subcell_mass_flux, hale_data->subcell_momentum_x,
-        hale_data->subcell_momentum_y, hale_data->subcell_momentum_z,
-        hale_data->subcell_momentum_flux_x, hale_data->subcell_momentum_flux_y,
-        hale_data->subcell_momentum_flux_z, umesh->faces_to_nodes,
-        umesh->faces_to_nodes_offsets, umesh->cells_to_faces_offsets,
-        umesh->cells_to_faces, umesh->nodes_offsets, umesh->nodes_to_cells,
-        umesh->cells_offsets, umesh->cells_offsets, umesh->cells_to_nodes,
-        &total_mass, &total_ie);
+        hale_data->density0, hale_data->velocity_x0, hale_data->velocity_y0,
+        hale_data->velocity_z0, hale_data->cell_mass, hale_data->nodal_mass,
+        hale_data->subcell_ie_mass, hale_data->subcell_mass,
+        hale_data->subcell_ie_mass_flux, hale_data->subcell_mass_flux,
+        hale_data->subcell_momentum_x, hale_data->subcell_momentum_y,
+        hale_data->subcell_momentum_z, hale_data->subcell_momentum_flux_x,
+        hale_data->subcell_momentum_flux_y, hale_data->subcell_momentum_flux_z,
+        umesh->faces_to_nodes, umesh->faces_to_nodes_offsets,
+        umesh->cells_to_faces_offsets, umesh->cells_to_faces,
+        umesh->nodes_offsets, umesh->nodes_to_cells, umesh->cells_offsets,
+        umesh->cells_to_nodes, &total_mass, &total_ie);
   }
-
-#if 0
-  init_subcell_data_structures(mesh, hale_data, umesh);
-  write_unstructured_to_visit_3d(
-      hale_data->nsubcell_nodes, umesh->ncells * hale_data->nsubcells_by_cell,
-      timestep + 2, hale_data->subcell_nodes_x, hale_data->subcell_nodes_y,
-      hale_data->subcell_nodes_z, hale_data->subcells_to_nodes,
-      hale_data->subcell_mass, 0, 1);
-
-  write_unstructured_to_visit_3d(
-      umesh->nnodes, umesh->ncells, timestep, umesh->nodes_x0, umesh->nodes_y0,
-      umesh->nodes_z0, umesh->cells_to_nodes, hale_data->velocity_x0, 1, 1);
-#endif // if 0
 }

@@ -52,7 +52,9 @@ void perform_advection(
     double* subcell_mass_flux, double* subcell_ie_mass,
     double* subcell_ie_mass_flux) {
 
+#if 0
 #pragma omp parallel for
+#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
@@ -88,13 +90,6 @@ void perform_advection(
                                      ? faces_to_cells1[(face_index)]
                                      : faces_to_cells0[(face_index)];
 
-        // We explicitly disallow flux on the boundary, this could be disable
-        // for testing purposes in order to ensure that no flux is inadvertently
-        // accumulating on the boundaries
-        if (neighbour_cc == -1) {
-          continue;
-        }
-
         // The face centroid is the same for all nodes on the face
         vec_t face_c = {0.0, 0.0, 0.0};
         calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes,
@@ -126,68 +121,12 @@ void perform_advection(
         const int lnode_off = (face_clockwise ? next_node : prev_node);
         const int rnode_index = faces_to_nodes[(face_to_nodes_off + rnode_off)];
         const int lnode_index = faces_to_nodes[(face_to_nodes_off + lnode_off)];
-
-        /* EXTERNAL FACE */
-
         const int swept_edge_to_faces[] = {0, 1, 2, 3, 4, 5};
         const int swept_edge_faces_to_nodes[] = {0, 1, 2, 3, 4, 5, 6, 7,
                                                  0, 4, 7, 3, 7, 6, 2, 3,
                                                  1, 2, 6, 5, 0, 1, 5, 4};
         const int swept_edge_faces_to_nodes_offsets[] = {0,  4,  8, 12,
                                                          16, 20, 24};
-
-        double enodes_x[2 * NNODES_BY_SUBCELL_FACE] = {
-            nodes_x[(node_index)],
-            0.5 * (nodes_x[(node_index)] + nodes_x[(rnode_index)]), face_c.x,
-            0.5 * (nodes_x[(node_index)] + nodes_x[(lnode_index)]),
-            rezoned_nodes_x[(node_index)],
-            0.5 * (rezoned_nodes_x[(node_index)] +
-                   rezoned_nodes_x[(rnode_index)]),
-            rz_face_c.x, 0.5 * (rezoned_nodes_x[(node_index)] +
-                                rezoned_nodes_x[(lnode_index)])};
-        double enodes_y[2 * NNODES_BY_SUBCELL_FACE] = {
-            nodes_y[(node_index)],
-            0.5 * (nodes_y[(node_index)] + nodes_y[(rnode_index)]), face_c.y,
-            0.5 * (nodes_y[(node_index)] + nodes_y[(lnode_index)]),
-            rezoned_nodes_y[(node_index)],
-            0.5 * (rezoned_nodes_y[(node_index)] +
-                   rezoned_nodes_y[(rnode_index)]),
-            rz_face_c.y, 0.5 * (rezoned_nodes_y[(node_index)] +
-                                rezoned_nodes_y[(lnode_index)])};
-        double enodes_z[2 * NNODES_BY_SUBCELL_FACE] = {
-            nodes_z[(node_index)],
-            0.5 * (nodes_z[(node_index)] + nodes_z[(rnode_index)]), face_c.z,
-            0.5 * (nodes_z[(node_index)] + nodes_z[(lnode_index)]),
-            rezoned_nodes_z[(node_index)],
-            0.5 * (rezoned_nodes_z[(node_index)] +
-                   rezoned_nodes_z[(rnode_index)]),
-            rz_face_c.z, 0.5 * (rezoned_nodes_z[(node_index)] +
-                                rezoned_nodes_z[(lnode_index)])};
-
-        // Contributes the local mass and energy flux for a given subcell face
-        contribute_mass_and_energy_flux(
-            cc, neighbour_cc, ff, node_index, subcell_index, &subcell_c,
-            &cell_c, enodes_x, enodes_y, enodes_z, subcell_mass,
-            subcell_mass_flux, subcell_ie_mass, subcell_ie_mass_flux,
-            subcell_volume, swept_edge_faces_to_nodes, subcell_centroids_x,
-            subcell_centroids_y, subcell_centroids_z, swept_edge_to_faces,
-            swept_edge_faces_to_nodes_offsets, subcells_to_subcells_offsets,
-            subcells_to_subcells, subcells_to_faces_offsets, subcells_to_faces,
-            faces_to_nodes_offsets, faces_to_nodes, cells_offsets,
-            cells_to_nodes, nodes_x, nodes_y, nodes_z, 0);
-
-        // Contributes the local mass and energy flux for a given subcell face
-        contribute_momentum_flux(
-            cc, neighbour_cc, ff, node_index, subcell_index, &subcell_c,
-            &cell_c, enodes_x, enodes_y, enodes_z, subcell_volume,
-            subcell_momentum_flux_x, subcell_momentum_flux_y,
-            subcell_momentum_flux_z, subcell_momentum_x, subcell_momentum_y,
-            subcell_momentum_z, swept_edge_faces_to_nodes, subcell_centroids_x,
-            subcell_centroids_y, subcell_centroids_z, swept_edge_to_faces,
-            swept_edge_faces_to_nodes_offsets, subcells_to_subcells_offsets,
-            subcells_to_subcells, subcells_to_faces_offsets, subcells_to_faces,
-            faces_to_nodes_offsets, faces_to_nodes, cells_offsets,
-            cells_to_nodes, nodes_x, nodes_y, nodes_z, 0);
 
         /* INTERNAL FACE */
 
@@ -286,6 +225,68 @@ void perform_advection(
             subcells_to_subcells, subcells_to_faces_offsets, subcells_to_faces,
             faces_to_nodes_offsets, faces_to_nodes, cells_offsets,
             cells_to_nodes, nodes_x, nodes_y, nodes_z, 1);
+
+        /* EXTERNAL FACE */
+
+        // We explicitly disallow flux on the boundary, this could be disable
+        // for testing purposes in order to ensure that no flux is inadvertently
+        // accumulating on the boundaries
+        if (neighbour_cc == -1) {
+          continue;
+        }
+
+        double enodes_x[2 * NNODES_BY_SUBCELL_FACE] = {
+            nodes_x[(node_index)],
+            0.5 * (nodes_x[(node_index)] + nodes_x[(rnode_index)]), face_c.x,
+            0.5 * (nodes_x[(node_index)] + nodes_x[(lnode_index)]),
+            rezoned_nodes_x[(node_index)],
+            0.5 * (rezoned_nodes_x[(node_index)] +
+                   rezoned_nodes_x[(rnode_index)]),
+            rz_face_c.x, 0.5 * (rezoned_nodes_x[(node_index)] +
+                                rezoned_nodes_x[(lnode_index)])};
+        double enodes_y[2 * NNODES_BY_SUBCELL_FACE] = {
+            nodes_y[(node_index)],
+            0.5 * (nodes_y[(node_index)] + nodes_y[(rnode_index)]), face_c.y,
+            0.5 * (nodes_y[(node_index)] + nodes_y[(lnode_index)]),
+            rezoned_nodes_y[(node_index)],
+            0.5 * (rezoned_nodes_y[(node_index)] +
+                   rezoned_nodes_y[(rnode_index)]),
+            rz_face_c.y, 0.5 * (rezoned_nodes_y[(node_index)] +
+                                rezoned_nodes_y[(lnode_index)])};
+        double enodes_z[2 * NNODES_BY_SUBCELL_FACE] = {
+            nodes_z[(node_index)],
+            0.5 * (nodes_z[(node_index)] + nodes_z[(rnode_index)]), face_c.z,
+            0.5 * (nodes_z[(node_index)] + nodes_z[(lnode_index)]),
+            rezoned_nodes_z[(node_index)],
+            0.5 * (rezoned_nodes_z[(node_index)] +
+                   rezoned_nodes_z[(rnode_index)]),
+            rz_face_c.z, 0.5 * (rezoned_nodes_z[(node_index)] +
+                                rezoned_nodes_z[(lnode_index)])};
+
+        // Contributes the local mass and energy flux for a given subcell face
+        contribute_mass_and_energy_flux(
+            cc, neighbour_cc, ff, node_index, subcell_index, &subcell_c,
+            &cell_c, enodes_x, enodes_y, enodes_z, subcell_mass,
+            subcell_mass_flux, subcell_ie_mass, subcell_ie_mass_flux,
+            subcell_volume, swept_edge_faces_to_nodes, subcell_centroids_x,
+            subcell_centroids_y, subcell_centroids_z, swept_edge_to_faces,
+            swept_edge_faces_to_nodes_offsets, subcells_to_subcells_offsets,
+            subcells_to_subcells, subcells_to_faces_offsets, subcells_to_faces,
+            faces_to_nodes_offsets, faces_to_nodes, cells_offsets,
+            cells_to_nodes, nodes_x, nodes_y, nodes_z, 0);
+
+        // Contributes the local mass and energy flux for a given subcell face
+        contribute_momentum_flux(
+            cc, neighbour_cc, ff, node_index, subcell_index, &subcell_c,
+            &cell_c, enodes_x, enodes_y, enodes_z, subcell_volume,
+            subcell_momentum_flux_x, subcell_momentum_flux_y,
+            subcell_momentum_flux_z, subcell_momentum_x, subcell_momentum_y,
+            subcell_momentum_z, swept_edge_faces_to_nodes, subcell_centroids_x,
+            subcell_centroids_y, subcell_centroids_z, swept_edge_to_faces,
+            swept_edge_faces_to_nodes_offsets, subcells_to_subcells_offsets,
+            subcells_to_subcells, subcells_to_faces_offsets, subcells_to_faces,
+            faces_to_nodes_offsets, faces_to_nodes, cells_offsets,
+            cells_to_nodes, nodes_x, nodes_y, nodes_z, 0);
       }
     }
   }
@@ -328,8 +329,19 @@ void contribute_mass_and_energy_flux(
               se_nodes_x, se_nodes_y, se_nodes_z, &swept_edge_c,
               &swept_edge_vol);
 
+#if 0
+  if (subcell_index == 137) {
+    printf("se nodes:\n");
+    for (int nn = 0; nn < 2 * NNODES_BY_SUBCELL_FACE; ++nn) {
+      printf("%.6e %.6e %.6e\n", se_nodes_x[nn], se_nodes_y[nn],
+             se_nodes_z[nn]);
+    }
+    printf("%.12e\n", swept_edge_vol);
+  }
+#endif // if 0
+
   // Ignore the special case of an empty swept edge region
-  if (swept_edge_vol < EPS) {
+  if (swept_edge_vol <= 0.0) {
     if (swept_edge_vol < -EPS) {
       printf("Negative swept edge volume %d %.12f\n", cc, swept_edge_vol);
     }
@@ -639,7 +651,7 @@ void contribute_momentum_flux(
               &swept_edge_vol);
 
   // Ignore the special case of an empty swept edge region
-  if (swept_edge_vol < EPS) {
+  if (swept_edge_vol <= 0.0) {
     if (swept_edge_vol < -EPS) {
       printf("Negative swept edge volume %d %.12f\n", cc, swept_edge_vol);
     }
@@ -1244,23 +1256,6 @@ double calc_cell_limiter(const double rho, const double gmax, const double gmin,
   return limiter;
 }
 
-// Calculates the local limiter for a node
-double calc_node_limiter(const double rho, const double gmax, const double gmin,
-                         vec_t* grad, const double cell_x, const double cell_y,
-                         const double cell_z, const vec_t* node) {
-  double g_unlimited = rho + grad->x * (cell_x - node->x) +
-                       grad->y * (cell_y - node->y) +
-                       grad->z * (cell_z - node->z);
-
-  double limiter = 1.0;
-  if (g_unlimited - rho > 0.0) {
-    limiter = min(1.0, ((gmax - rho) / (g_unlimited - rho)));
-  } else if (g_unlimited - rho < 0.0) {
-    limiter = min(1.0, ((gmin - rho) / (g_unlimited - rho)));
-  }
-  return limiter;
-}
-
 // Calculates the limiter for the provided gradient
 double apply_cell_limiter(const int nnodes_by_cell, const int cell_to_nodes_off,
                           const int* cells_to_nodes, vec_t* grad,
@@ -1307,6 +1302,23 @@ double apply_node_limiter(const int ncells_by_node, const int node_to_cells_off,
   grad->y *= limiter;
   grad->z *= limiter;
 
+  return limiter;
+}
+
+// Calculates the local limiter for a node
+double calc_node_limiter(const double rho, const double gmax, const double gmin,
+                         vec_t* grad, const double cell_x, const double cell_y,
+                         const double cell_z, const vec_t* node) {
+  double g_unlimited = rho + grad->x * (cell_x - node->x) +
+                       grad->y * (cell_y - node->y) +
+                       grad->z * (cell_z - node->z);
+
+  double limiter = 1.0;
+  if (g_unlimited - rho > 0.0) {
+    limiter = min(1.0, ((gmax - rho) / (g_unlimited - rho)));
+  } else if (g_unlimited - rho < 0.0) {
+    limiter = min(1.0, ((gmin - rho) / (g_unlimited - rho)));
+  }
   return limiter;
 }
 
