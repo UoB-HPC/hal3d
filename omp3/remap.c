@@ -100,12 +100,10 @@ void perform_advection(
                       &rz_face_c);
 
         // Determine the orientation of the face
-        const int n0 = faces_to_nodes[(face_to_nodes_off + 0)];
-        const int n1 = faces_to_nodes[(face_to_nodes_off + 1)];
-        const int n2 = faces_to_nodes[(face_to_nodes_off + 2)];
         vec_t face_normal;
         const int face_clockwise = calc_surface_normal(
-            n0, n1, n2, nodes_x, nodes_y, nodes_z, &cell_c, &face_normal);
+            nnodes_by_face, face_to_nodes_off, faces_to_nodes, nodes_x, nodes_y,
+            nodes_z, &face_c, &cell_c, &face_normal);
 
         // Determine the position of the node in the face list of nodes
         int nn2;
@@ -143,13 +141,15 @@ void perform_advection(
         const int nnodes_by_lface =
             faces_to_nodes_offsets[(lface_index + 1)] - lface_to_nodes_off;
 
+        vec_t r_iface_c = {0.0, 0.0, 0.0};
+        calc_centroid(nnodes_by_r_face, nodes_x, nodes_y, nodes_z,
+                      faces_to_nodes, r_face_to_nodes_off, &r_iface_c);
+
         // Determine the orientation of the face
-        const int rn0 = faces_to_nodes[(r_face_to_nodes_off + 0)];
-        const int rn1 = faces_to_nodes[(r_face_to_nodes_off + 1)];
-        const int rn2 = faces_to_nodes[(r_face_to_nodes_off + 2)];
         vec_t r_face_normal;
         const int r_face_clockwise = calc_surface_normal(
-            rn0, rn1, rn2, nodes_x, nodes_y, nodes_z, &cell_c, &r_face_normal);
+            nnodes_by_r_face, r_face_to_nodes_off, faces_to_nodes, nodes_x,
+            nodes_y, nodes_z, &r_iface_c, &cell_c, &r_face_normal);
 
         // Determine the position of the node in the face list of nodes
         for (nn2 = 0; nn2 < nnodes_by_r_face; ++nn2) {
@@ -167,9 +167,6 @@ void perform_advection(
         const int r_face_rnode_index =
             faces_to_nodes[(r_face_to_nodes_off + r_face_rnode_off)];
 
-        vec_t r_iface_c = {0.0, 0.0, 0.0};
-        calc_centroid(nnodes_by_r_face, nodes_x, nodes_y, nodes_z,
-                      faces_to_nodes, r_face_to_nodes_off, &r_iface_c);
         vec_t l_iface_c = {0.0, 0.0, 0.0};
         calc_centroid(nnodes_by_lface, nodes_x, nodes_y, nodes_z,
                       faces_to_nodes, lface_to_nodes_off, &l_iface_c);
@@ -213,6 +210,7 @@ void perform_advection(
             faces_to_nodes_offsets, faces_to_nodes, cells_offsets,
             cells_to_nodes, nodes_x, nodes_y, nodes_z, 1);
 
+#if 0
         // Contributes the local mass and energy flux for a given subcell face
         contribute_momentum_flux(
             cc, neighbour_cc, ff, node_index, subcell_index, &subcell_c,
@@ -225,6 +223,7 @@ void perform_advection(
             subcells_to_subcells, subcells_to_faces_offsets, subcells_to_faces,
             faces_to_nodes_offsets, faces_to_nodes, cells_offsets,
             cells_to_nodes, nodes_x, nodes_y, nodes_z, 1);
+#endif // if 0
 
         /* EXTERNAL FACE */
 
@@ -275,6 +274,7 @@ void perform_advection(
             faces_to_nodes_offsets, faces_to_nodes, cells_offsets,
             cells_to_nodes, nodes_x, nodes_y, nodes_z, 0);
 
+#if 0
         // Contributes the local mass and energy flux for a given subcell face
         contribute_momentum_flux(
             cc, neighbour_cc, ff, node_index, subcell_index, &subcell_c,
@@ -287,6 +287,7 @@ void perform_advection(
             subcells_to_subcells, subcells_to_faces_offsets, subcells_to_faces,
             faces_to_nodes_offsets, faces_to_nodes, cells_offsets,
             cells_to_nodes, nodes_x, nodes_y, nodes_z, 0);
+#endif // if 0
       }
     }
   }
@@ -329,16 +330,20 @@ void contribute_mass_and_energy_flux(
               se_nodes_x, se_nodes_y, se_nodes_z, &swept_edge_c,
               &swept_edge_vol);
 
-#if 0
-  if (subcell_index == 137) {
+  int scin = 6513;
+  if (subcell_index == scin) {
+    vec_t dfc = {rz_face_c.x - face_c.x, rz_face_c.y - face_c.y,
+                 rz_face_c.z - face_c.z};
+    if (sqrt(dfc.x * dfc.x + dfc.y * dfc.y + dfc.z * dfc.z) < EPS) {
+      printf("Fake face inc\n");
+    }
     printf("se nodes:\n");
     for (int nn = 0; nn < 2 * NNODES_BY_SUBCELL_FACE; ++nn) {
-      printf("%.6e %.6e %.6e\n", se_nodes_x[nn], se_nodes_y[nn],
+      printf("%.14e %.14e %.14e\n", se_nodes_x[nn], se_nodes_y[nn],
              se_nodes_z[nn]);
     }
     printf("%.12e\n", swept_edge_vol);
   }
-#endif // if 0
 
   // Ignore the special case of an empty swept edge region
   if (swept_edge_vol <= 0.0) {
@@ -597,6 +602,11 @@ void contribute_mass_and_energy_flux(
                         grad_ie.x * (swept_edge_c.x - sweep_subcell_c.x) +
                         grad_ie.y * (swept_edge_c.y - sweep_subcell_c.y) +
                         grad_ie.z * (swept_edge_c.z - sweep_subcell_c.z));
+
+  if (subcell_index == scin) {
+    printf("local mass flux %.14e %s\n", local_mass_flux,
+           is_outflux ? "out" : "in");
+  }
 
   if (local_mass_flux < 0.0 || local_energy_flux < 0.0) {
     printf("Encountered negative swept edge region flux.\n");
@@ -955,39 +965,56 @@ void contribute_momentum_flux(
   }
 }
 
-// Checks if the normal vector is pointing inward or outward
-// n0 is just a point on the plane
-int check_normal_orientation(const int n0, const double* nodes_x,
-                             const double* nodes_y, const double* nodes_z,
-                             const vec_t* centroid, vec_t* normal) {
+// Calculates the outward pointing surface normal of a face
+int calc_surface_normal(const int nnodes_by_face, const int face_to_nodes_off,
+                        const int* faces_to_nodes, const double* nodes_x,
+                        const double* nodes_y, const double* nodes_z,
+                        const vec_t* face_c, const vec_t* cell_c,
+                        vec_t* face_normal) {
 
-  // Calculate a vector from face to cell centroid
-  vec_t ab;
-  ab.x = (centroid->x - nodes_x[(n0)]);
-  ab.y = (centroid->y - nodes_y[(n0)]);
-  ab.z = (centroid->z - nodes_z[(n0)]);
+  face_normal->x = 0.0;
+  face_normal->y = 0.0;
+  face_normal->z = 0.0;
 
-  return (ab.x * normal->x + ab.y * normal->y + ab.z * normal->z > 0.0);
-}
+  double tn_x[3];
+  double tn_y[3];
+  double tn_z[3];
 
-// Calculates the surface normal of a vector pointing outwards
-int calc_surface_normal(const int n0, const int n1, const int n2,
-                        const double* nodes_x, const double* nodes_y,
-                        const double* nodes_z, const vec_t* cell_c,
-                        vec_t* normal) {
+  for (int nn = 0; nn < nnodes_by_face; ++nn) {
+    const int n0 = faces_to_nodes[(face_to_nodes_off + nn)];
+    const int next_node = (nn == nnodes_by_face - 1) ? 0 : nn + 1;
+    const int n1 = faces_to_nodes[(face_to_nodes_off + next_node)];
+    tn_x[0] = nodes_x[(n0)];
+    tn_y[0] = nodes_y[(n0)];
+    tn_z[0] = nodes_z[(n0)];
+    tn_x[1] = nodes_x[(n1)];
+    tn_y[1] = nodes_y[(n1)];
+    tn_z[1] = nodes_z[(n1)];
+    tn_x[2] = face_c->x;
+    tn_y[2] = face_c->y;
+    tn_z[2] = face_c->z;
 
-  // Calculate the unit normal vector
-  calc_unit_normal(n0, n1, n2, nodes_x, nodes_y, nodes_z, normal);
+    // Calculate the unit normal vector
+    vec_t normal = {0.0, 0.0, 0.0};
+    calc_unit_normal(0, 1, 2, tn_x, tn_y, tn_z, &normal);
+    face_normal->x += normal.x / nnodes_by_face;
+    face_normal->y += normal.y / nnodes_by_face;
+    face_normal->z += normal.z / nnodes_by_face;
+  }
 
   // Determine the orientation of the normal
-  const int face_clockwise =
-      check_normal_orientation(n0, nodes_x, nodes_y, nodes_z, cell_c, normal);
+  vec_t ab;
+  ab.x = (cell_c->x - face_c->x);
+  ab.y = (cell_c->y - face_c->y);
+  ab.z = (cell_c->z - face_c->z);
 
   // Flip the vector if necessary
-  normal->x *= (face_clockwise ? -1.0 : 1.0);
-  normal->y *= (face_clockwise ? -1.0 : 1.0);
-  normal->z *= (face_clockwise ? -1.0 : 1.0);
-
+  const double dot =
+      ab.x * face_normal->x + ab.y * face_normal->y + ab.z * face_normal->z;
+  const int face_clockwise = (dot > 0.0);
+  face_normal->x *= (face_clockwise ? -1.0 : 1.0);
+  face_normal->y *= (face_clockwise ? -1.0 : 1.0);
+  face_normal->z *= (face_clockwise ? -1.0 : 1.0);
   return face_clockwise;
 }
 
@@ -1041,42 +1068,38 @@ void contribute_face_volume(const int nnodes_by_face, const int* faces_to_nodes,
                             const double* nodes_z, const vec_t* cell_c,
                             double* vol) {
 
-  // Determine the outward facing unit normal vector
-  vec_t normal = {0.0, 0.0, 0.0};
-  const int face_clockwise = calc_surface_normal(
-      faces_to_nodes[(0)], faces_to_nodes[(1)], faces_to_nodes[(2)], nodes_x,
-      nodes_y, nodes_z, cell_c, &normal);
-
+  double tn_x[3];
+  double tn_y[3];
+  double tn_z[3];
+  double local_vol = 0.0;
+  vec_t face_normal = {0.0, 0.0, 0.0};
   vec_t face_c = {0.0, 0.0, 0.0};
   calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes, 0,
                 &face_c);
 
-  double tn_x[3];
-  double tn_y[3];
-  double tn_z[3];
-
   // We have a triangle per edge, which are per node on the face
-  for (int tt = 0; tt < nnodes_by_face; ++tt) {
-    const int next_node = (tt == nnodes_by_face - 1) ? 0 : tt + 1;
-    const int prev_node = (tt == 0) ? nnodes_by_face - 1 : tt - 1;
-    const int n0 = faces_to_nodes[(tt)];
-    const int n1n = faces_to_nodes[(next_node)];
-    const int n1p = faces_to_nodes[(prev_node)];
+  for (int nn = 0; nn < nnodes_by_face; ++nn) {
+    const int next_node = (nn == nnodes_by_face - 1) ? 0 : nn + 1;
+    const int n0 = faces_to_nodes[(nn)];
+    const int n1 = faces_to_nodes[(next_node)];
     const int faces_to_nodes_tri[3] = {0, 1, 2};
 
     // Construct the face triangle associated with the node
     tn_x[0] = nodes_x[(n0)];
     tn_y[0] = nodes_y[(n0)];
     tn_z[0] = nodes_z[(n0)];
-    tn_x[1] = (face_clockwise ? nodes_x[(n1p)] : nodes_x[(n1n)]);
-    tn_y[1] = (face_clockwise ? nodes_y[(n1p)] : nodes_y[(n1n)]);
-    tn_z[1] = (face_clockwise ? nodes_z[(n1p)] : nodes_z[(n1n)]);
+    tn_x[1] = nodes_x[(n1)];
+    tn_y[1] = nodes_y[(n1)];
+    tn_z[1] = nodes_z[(n1)];
     tn_x[2] = face_c.x;
     tn_y[2] = face_c.y;
     tn_z[2] = face_c.z;
 
     vec_t tnormal = {0.0, 0.0, 0.0};
-    calc_surface_normal(0, 1, 2, tn_x, tn_y, tn_z, cell_c, &tnormal);
+    calc_unit_normal(0, 1, 2, tn_x, tn_y, tn_z, &tnormal);
+    face_normal.x += tnormal.x / nnodes_by_face;
+    face_normal.y += tnormal.y / nnodes_by_face;
+    face_normal.z += tnormal.z / nnodes_by_face;
 
     // The projection of the normal vector onto a point on the face
     double omega = -(tnormal.x * tn_x[(2)] + tnormal.y * tn_y[(2)] +
@@ -1093,19 +1116,30 @@ void contribute_face_volume(const int nnodes_by_face, const int* faces_to_nodes,
     // The basis ensures that gamma is always maximised
     if (basis == XYZ) {
       calc_face_integrals(3, 0, omega, faces_to_nodes_tri, tn_x, tn_y, tnormal,
-                          vol);
+                          &local_vol);
     } else if (basis == YZX) {
       dswap(tnormal.x, tnormal.y);
       dswap(tnormal.y, tnormal.z);
       calc_face_integrals(3, 0, omega, faces_to_nodes_tri, tn_y, tn_z, tnormal,
-                          vol);
+                          &local_vol);
     } else if (basis == ZXY) {
       dswap(tnormal.x, tnormal.y);
       dswap(tnormal.x, tnormal.z);
       calc_face_integrals(3, 0, omega, faces_to_nodes_tri, tn_z, tn_x, tnormal,
-                          vol);
+                          &local_vol);
     }
   }
+
+  // Determine the orientation of the normal
+  vec_t ab;
+  ab.x = (cell_c->x - face_c.x);
+  ab.y = (cell_c->y - face_c.y);
+  ab.z = (cell_c->z - face_c.z);
+
+  const double dot =
+      ab.x * face_normal.x + ab.y * face_normal.y + ab.z * face_normal.z;
+  const int face_clockwise = (dot > 0.0);
+  *vol += (face_clockwise) ? -local_vol : local_vol;
 }
 
 // Calculates the weighted volume dist for a provided cell along x-y-z
@@ -1126,11 +1160,11 @@ void calc_volume(const int cell_to_faces_off, const int nfaces_by_cell,
 
     contribute_face_volume(nnodes_by_face, &faces_to_nodes[(face_to_nodes_off)],
                            nodes_x, nodes_y, nodes_z, cell_c, vol);
-  }
 
-  if (isnan(*vol)) {
-    *vol = 0.0;
-    return;
+    if (isnan(*vol)) {
+      *vol = 0.0;
+      return;
+    }
   }
 
   *vol = fabs(*vol);

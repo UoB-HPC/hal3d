@@ -100,17 +100,12 @@ void remap_phase(
     double* subcell_volume, double* subcell_mass, double* subcell_mass_flux,
     double* subcell_ie_mass, double* subcell_ie_mass_flux);
 
-// Checks if the normal vector is pointing inward or outward
-// n0 is just a point on the plane
-int check_normal_orientation(const int n0, const double* nodes_x,
-                             const double* nodes_y, const double* nodes_z,
-                             const vec_t* cell_centroid, vec_t* normal);
-
-// Calculates the surface normal of a vector pointing outwards
-int calc_surface_normal(const int n0, const int n1, const int n2,
-                        const double* nodes_x, const double* nodes_y,
-                        const double* nodes_z, const vec_t* cell_centroid,
-                        vec_t* normal);
+// Calculates the outward pointing surface normal of a face
+int calc_surface_normal(const int nnodes_by_face, const int face_to_nodes_off,
+                        const int* faces_to_nodes, const double* nodes_x,
+                        const double* nodes_y, const double* nodes_z,
+                        const vec_t* face_c, const vec_t* cell_c,
+                        vec_t* face_normal);
 
 // Calculate the normal vector from the provided nodes
 void calc_unit_normal(const int n0, const int n1, const int n2,
