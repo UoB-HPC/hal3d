@@ -29,7 +29,9 @@ void init_mesh_mass(const int ncells, const int nnodes,
 
   // Calculate the predicted energy
   START_PROFILING(&compute_profile);
+#if 0
 #pragma omp parallel for
+#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
@@ -46,7 +48,9 @@ void init_mesh_mass(const int ncells, const int nnodes,
   }
   STOP_PROFILING(&compute_profile, __func__);
 
+#if 0
 #pragma omp parallel for
+#endif // if 0
   for (int nn = 0; nn < nnodes; ++nn) {
     const int node_to_cells_off = nodes_offsets[(nn)];
     const int ncells_by_node = nodes_offsets[(nn + 1)] - node_to_cells_off;
@@ -86,7 +90,9 @@ void calc_volumes_centroids(
 
   double total_cell_volume = 0.0;
   double total_subcell_volume = 0.0;
+#if 0
 #pragma omp parallel for reduction(+ : total_cell_volume, total_subcell_volume)
+#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
@@ -102,6 +108,7 @@ void calc_volumes_centroids(
     calc_volume(cell_to_faces_off, nfaces_by_cell, cells_to_faces,
                 faces_to_nodes, faces_to_nodes_offsets, nodes_x, nodes_y,
                 nodes_z, &cell_c, &cell_volume[(cc)]);
+
     total_cell_volume += cell_volume[(cc)];
 
     // Looping over corner subcells here
@@ -297,7 +304,9 @@ void calc_volumes_centroids(
     }
   }
 
+#if 0
 #pragma omp parallel for
+#endif // if 0
   for (int nn = 0; nn < nnodes; ++nn) {
     const int node_to_cells_off = nodes_offsets[(nn)];
     const int ncells_by_node = nodes_offsets[(nn + 1)] - node_to_cells_off;
@@ -333,7 +342,9 @@ void init_cell_centroids(const int ncells, const int* cells_offsets,
 
   // Calculate the cell centroids
   START_PROFILING(&compute_profile);
+#if 0
 #pragma omp parallel for
+#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
     const int cells_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cells_off;
@@ -358,7 +369,9 @@ void init_subcells_to_faces(
     const double* nodes_x, const double* nodes_y, const double* nodes_z,
     int* subcells_to_faces_offsets) {
 
+#if 0
 #pragma omp parallel for
+#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
@@ -385,7 +398,9 @@ void init_subcells_to_faces(
     subcells_to_faces_offsets[(ss + 1)] += subcells_to_faces_offsets[(ss)];
   }
 
+#if 0
 #pragma omp parallel for
+#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
@@ -490,7 +505,9 @@ void init_subcells_to_subcells(
     int* nodes_to_faces_offsets, int* nodes_to_faces, int* cells_to_nodes,
     int* subcells_to_faces, int* subcells_to_faces_offsets) {
 
+#if 0
 #pragma omp parallel for
+#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
@@ -519,7 +536,9 @@ void init_subcells_to_subcells(
         subcells_to_subcells_offsets[(ss)];
   }
 
+#if 0
 #pragma omp parallel for
+#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
@@ -665,7 +684,9 @@ void init_subcell_data_structures(Mesh* mesh, HaleData* hale_data,
 #define CELL_C_IND(i, j, k) (subcell_cell_c_off + ((i)*nx * ny + (j)*nx + (k)))
 
 // Construct the nodal positions
+#if 0
 #pragma omp parallel for
+#endif // if 0
   for (int ii = 0; ii < nz + 1; ++ii) {
     for (int jj = 0; jj < ny + 1; ++jj) {
       for (int kk = 0; kk < nx + 1; ++kk) {
@@ -812,7 +833,9 @@ void init_subcell_data_structures(Mesh* mesh, HaleData* hale_data,
     }
   }
 
+#if 0
 #pragma omp parallel for
+#endif // if 0
   for (int ii = 0; ii < nz; ++ii) {
     for (int jj = 0; jj < ny; ++jj) {
       for (int kk = 0; kk < nx; ++kk) {

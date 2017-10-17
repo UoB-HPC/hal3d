@@ -330,7 +330,7 @@ void contribute_mass_and_energy_flux(
               se_nodes_x, se_nodes_y, se_nodes_z, &swept_edge_c,
               &swept_edge_vol);
 
-  int scin = 6513;
+  int scin = 7092;
   if (subcell_index == scin) {
     vec_t dfc = {rz_face_c.x - face_c.x, rz_face_c.y - face_c.y,
                  rz_face_c.z - face_c.z};
@@ -1113,13 +1113,12 @@ void contribute_face_volume(const int nnodes_by_face, const int* faces_to_nodes,
   }
 
   // Determine the orientation of the normal
-  vec_t ab;
-  ab.x = (cell_c->x - face_c.x);
-  ab.y = (cell_c->y - face_c.y);
-  ab.z = (cell_c->z - face_c.z);
+  vec_t ab = {(cell_c->x - face_c.x), (cell_c->y - face_c.y),
+              (cell_c->z - face_c.z)};
 
   const double dot =
       ab.x * face_normal.x + ab.y * face_normal.y + ab.z * face_normal.z;
+
   const int face_clockwise = (dot > 0.0);
   *vol += (face_clockwise) ? -local_vol : local_vol;
 }

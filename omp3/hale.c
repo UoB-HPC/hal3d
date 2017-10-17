@@ -11,6 +11,7 @@
 void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
                                  UnstructuredMesh* umesh, const int timestep) {
 
+#if 0
   // Describe the subcell node layout
   printf("\nPerforming the Lagrangian Phase\n");
 
@@ -86,24 +87,10 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
 
     printf("\nEulerian Mesh Rezone\n");
 
-    init_subcell_data_structures(mesh, hale_data, umesh);
-    write_unstructured_to_visit_3d(
-        hale_data->nsubcell_nodes, umesh->ncells * hale_data->nsubcells_by_cell,
-        timestep * 2, hale_data->subcell_nodes_x, hale_data->subcell_nodes_y,
-        hale_data->subcell_nodes_z, hale_data->subcells_to_nodes,
-        hale_data->subcell_mass_flux, 0, 1);
-
     // Finalise the mesh rezone
     apply_mesh_rezoning(umesh->nnodes, hale_data->rezoned_nodes_x,
                         hale_data->rezoned_nodes_y, hale_data->rezoned_nodes_z,
                         umesh->nodes_x0, umesh->nodes_y0, umesh->nodes_z0);
-
-    init_subcell_data_structures(mesh, hale_data, umesh);
-    write_unstructured_to_visit_3d(
-        hale_data->nsubcell_nodes, umesh->ncells * hale_data->nsubcells_by_cell,
-        timestep * 2 + 1, hale_data->subcell_nodes_x,
-        hale_data->subcell_nodes_y, hale_data->subcell_nodes_z,
-        hale_data->subcells_to_nodes, hale_data->subcell_mass_flux, 0, 1);
 
     // Determine the new cell centroids
     init_cell_centroids(umesh->ncells, umesh->cells_offsets,
@@ -113,11 +100,12 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
 
     printf("\nPerforming the Scattering Phase\n");
 
-    write_unstructured_to_visit_3d(umesh->nnodes, umesh->ncells, timestep,
-                                   umesh->nodes_x0, umesh->nodes_y0,
-                                   umesh->nodes_z0, umesh->cells_to_nodes,
-                                   hale_data->cell_mass, 0, 1);
-
+    init_subcell_data_structures(mesh, hale_data, umesh);
+    write_unstructured_to_visit_3d(
+        hale_data->nsubcell_nodes, umesh->ncells * hale_data->nsubcells_by_cell,
+        timestep * 2 + 1, hale_data->subcell_nodes_x,
+        hale_data->subcell_nodes_y, hale_data->subcell_nodes_z,
+        hale_data->subcells_to_nodes, hale_data->subcell_mass_flux, 0, 1);
     // Perform the scatter step of the ALE remapping algorithm
     scatter_phase(
         umesh->ncells, umesh->nnodes, &initial_momentum,
@@ -135,34 +123,45 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
         umesh->nodes_offsets, umesh->nodes_to_cells, umesh->cells_offsets,
         umesh->cells_to_nodes, &total_mass, &total_ie);
   }
+  write_unstructured_to_visit_3d(
+      umesh->nnodes, umesh->ncells, timestep, umesh->nodes_x0, umesh->nodes_y0,
+      umesh->nodes_z0, umesh->cells_to_nodes, hale_data->density0, 0, 1);
+#endif // if 0
 
-#if 0
   double a = 0.0;
   int c_to_n[] = {0, 1, 2, 3, 4, 5, 6, 7};
   const int swept_edge_to_faces[] = {0, 1, 2, 3, 4, 5};
   const int swept_edge_faces_to_nodes_offsets[] = {0, 4, 8, 12, 16, 20, 24};
   const int swept_edge_faces_to_nodes[] = {0, 1, 2, 3, 4, 5, 6, 7, 0, 4, 7, 3,
                                            7, 6, 2, 3, 1, 2, 6, 5, 0, 1, 5, 4};
-  double nodes_x[] = {5.12163493437608e-01, 5.12163493535731e-01,
-                      4.56458682697067e-01, 4.56458682715267e-01,
-                      5.00000000000000e-01, 5.00000000000000e-01,
-                      4.50000000000000e-01, 4.50000000000000e-01};
-  double nodes_y[] = {9.99999998254011e-02, 1.49999999912701e-01,
-                      1.49999999937882e-01, 9.99999998757641e-02,
-                      1.00000000000000e-01, 1.50000000000000e-01,
-                      1.50000000000000e-01, 1.00000000000000e-01};
-  double nodes_z[] = {8.00000000000000e-01, 8.00000000000000e-01,
-                      8.00000000000000e-01, 8.00000000000000e-01,
+  double nodes_x[] = {6.10529301274715e-01, 6.56414250371847e-01,
+                      6.56414250796353e-01, 6.10529302391724e-01,
+                      6.00000000000000e-01, 6.50000000000000e-01,
+                      6.50000000000000e-01, 6.00000000000000e-01};
+
+  double nodes_y[] = {8.00000000015110e-01, 7.99999999979950e-01,
+                      7.99999999978640e-01, 8.00000000015553e-01,
                       8.00000000000000e-01, 8.00000000000000e-01,
                       8.00000000000000e-01, 8.00000000000000e-01};
+
+  double nodes_z[] = {8.99999999824102e-01, 8.99999999085645e-01,
+                      8.49999999531488e-01, 8.49999999920049e-01,
+                      9.00000000000000e-01, 9.00000000000000e-01,
+                      8.50000000000000e-01, 8.50000000000000e-01};
 
   double swept_edge_vol = 0.0;
   vec_t swept_edge_c = {0.0, 0.0, 0.0};
   calc_centroid(2 * NNODES_BY_SUBCELL_FACE, nodes_x, nodes_y, nodes_z,
                 swept_edge_faces_to_nodes, 0, &swept_edge_c);
+  calc_volume(0, 2 + NNODES_BY_SUBCELL_FACE, swept_edge_to_faces,
+              swept_edge_faces_to_nodes, swept_edge_faces_to_nodes_offsets,
+              nodes_x, nodes_y, nodes_z, &swept_edge_c, &swept_edge_vol);
   printf("sec %.12e %.12e %.12e\n", swept_edge_c.x, swept_edge_c.y,
          swept_edge_c.z);
 
+  write_unstructured_to_visit_3d(8, 1, 10000, nodes_x, nodes_y, nodes_z, c_to_n,
+                                 &a, 0, 1);
+#if 0
   // Contributes a face to the volume of some cell
   int nfaces_by_cell = 2 + NNODES_BY_SUBCELL_FACE;
   for (int ff = 0; ff < nfaces_by_cell; ++ff) {
@@ -263,10 +262,6 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
     swept_edge_vol += (face_clockwise) ? -face_vol : face_vol;
   }
 
-  write_unstructured_to_visit_3d(8, 1, 10000, nodes_x, nodes_y, nodes_z, c_to_n,
-                                 &a, 0, 1);
-  printf("swept_edge_vol %.12e\n", swept_edge_vol);
-
 #if 0
     double nodes_x[] = {4.56458682715267e-01, 4.56458682731202e-01,
                         4.56458682714134e-01, 4.56458682697067e-01,
@@ -282,11 +277,23 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
                         8.50000000057282e-01, 8.00000000000000e-01,
                         8.00000000000000e-01, 8.50000000000000e-01,
                         8.50000000000000e-01, 8.00000000000000e-01};
-#endif // if 0
+
 #if 0
-  calc_volume(0, 2 + NNODES_BY_SUBCELL_FACE, swept_edge_to_faces,
-              swept_edge_faces_to_nodes, swept_edge_faces_to_nodes_offsets,
-              nodes_x, nodes_y, nodes_z, &swept_edge_c, &swept_edge_vol);
+  double nodes_x[] = {5.12163493437608e-01, 5.12163493535731e-01,
+                      4.56458682697067e-01, 4.56458682715267e-01,
+                      5.00000000000000e-01, 5.00000000000000e-01,
+                      4.50000000000000e-01, 4.50000000000000e-01};
+  double nodes_y[] = {9.99999998254011e-02, 1.49999999912701e-01,
+                      1.49999999937882e-01, 9.99999998757641e-02,
+                      1.00000000000000e-01, 1.50000000000000e-01,
+                      1.50000000000000e-01, 1.00000000000000e-01};
+  double nodes_z[] = {8.00000000000000e-01, 8.00000000000000e-01,
+                      8.00000000000000e-01, 8.00000000000000e-01,
+                      8.00000000000000e-01, 8.00000000000000e-01,
+                      8.00000000000000e-01, 8.00000000000000e-01};
+#endif // if 0
+
 #endif // if 0
 #endif // if 0
+  printf("swept_edge_vol %.12e\n", swept_edge_vol);
 }
