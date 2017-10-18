@@ -216,18 +216,19 @@ void perform_advection(
               cells_offsets, cells_to_nodes, nodes_x, nodes_y, nodes_z, 1);
 
 #if 0
-        // Contributes the local mass and energy flux for a given subcell face
-        contribute_momentum_flux(
-            cc, neighbour_cc, ff, node_index, subcell_index, &subcell_c,
-            &cell_c, inodes_x, inodes_y, inodes_z, subcell_volume,
-            subcell_momentum_flux_x, subcell_momentum_flux_y,
-            subcell_momentum_flux_z, subcell_momentum_x, subcell_momentum_y,
-            subcell_momentum_z, swept_edge_faces_to_nodes, subcell_centroids_x,
-            subcell_centroids_y, subcell_centroids_z, swept_edge_to_faces,
-            swept_edge_faces_to_nodes_offsets, subcells_to_subcells_offsets,
-            subcells_to_subcells, subcells_to_faces_offsets, subcells_to_faces,
-            faces_to_nodes_offsets, faces_to_nodes, cells_offsets,
-            cells_to_nodes, nodes_x, nodes_y, nodes_z, 1);
+          // Contributes the local mass and energy flux for a given subcell face
+          contribute_momentum_flux(
+              cc, neighbour_cc, ff, node_index, subcell_index, &subcell_c,
+              &cell_c, inodes_x, inodes_y, inodes_z, subcell_volume,
+              subcell_momentum_flux_x, subcell_momentum_flux_y,
+              subcell_momentum_flux_z, subcell_momentum_x, subcell_momentum_y,
+              subcell_momentum_z, swept_edge_faces_to_nodes,
+              subcell_centroids_x, subcell_centroids_y, subcell_centroids_z,
+              swept_edge_to_faces, swept_edge_faces_to_nodes_offsets,
+              subcells_to_subcells_offsets, subcells_to_subcells,
+              subcells_to_faces_offsets, subcells_to_faces,
+              faces_to_nodes_offsets, faces_to_nodes, cells_offsets,
+              cells_to_nodes, nodes_x, nodes_y, nodes_z, 1);
 #endif // if 0
         }
 
@@ -286,18 +287,19 @@ void perform_advection(
               cells_offsets, cells_to_nodes, nodes_x, nodes_y, nodes_z, 0);
 
 #if 0
-        // Contributes the local mass and energy flux for a given subcell face
-        contribute_momentum_flux(
-            cc, neighbour_cc, ff, node_index, subcell_index, &subcell_c,
-            &cell_c, enodes_x, enodes_y, enodes_z, subcell_volume,
-            subcell_momentum_flux_x, subcell_momentum_flux_y,
-            subcell_momentum_flux_z, subcell_momentum_x, subcell_momentum_y,
-            subcell_momentum_z, swept_edge_faces_to_nodes, subcell_centroids_x,
-            subcell_centroids_y, subcell_centroids_z, swept_edge_to_faces,
-            swept_edge_faces_to_nodes_offsets, subcells_to_subcells_offsets,
-            subcells_to_subcells, subcells_to_faces_offsets, subcells_to_faces,
-            faces_to_nodes_offsets, faces_to_nodes, cells_offsets,
-            cells_to_nodes, nodes_x, nodes_y, nodes_z, 0);
+          // Contributes the local mass and energy flux for a given subcell face
+          contribute_momentum_flux(
+              cc, neighbour_cc, ff, node_index, subcell_index, &subcell_c,
+              &cell_c, enodes_x, enodes_y, enodes_z, subcell_volume,
+              subcell_momentum_flux_x, subcell_momentum_flux_y,
+              subcell_momentum_flux_z, subcell_momentum_x, subcell_momentum_y,
+              subcell_momentum_z, swept_edge_faces_to_nodes,
+              subcell_centroids_x, subcell_centroids_y, subcell_centroids_z,
+              swept_edge_to_faces, swept_edge_faces_to_nodes_offsets,
+              subcells_to_subcells_offsets, subcells_to_subcells,
+              subcells_to_faces_offsets, subcells_to_faces,
+              faces_to_nodes_offsets, faces_to_nodes, cells_offsets,
+              cells_to_nodes, nodes_x, nodes_y, nodes_z, 0);
 #endif // if 0
         }
       }
@@ -350,6 +352,7 @@ void contribute_mass_and_energy_flux(
     return;
   }
 
+#if 0
   // Determine whether the swept edge region is flowing into or out of the
   // current sub cell
   vec_t ab = {rz_face_c.x - face_c.x, rz_face_c.y - face_c.y,
@@ -357,6 +360,7 @@ void contribute_mass_and_energy_flux(
   vec_t ac = {subcell_c->x - face_c.x, subcell_c->y - face_c.y,
               subcell_c->z - face_c.z};
   const int is_outflux = (ab.x * ac.x + ab.y * ac.y + ab.z * ac.z > 0.0);
+#endif // if 0
 
   // Depending upon which subcell we are sweeping into, choose the
   // subcell index with which to reconstruct the density
@@ -601,7 +605,11 @@ void contribute_mass_and_energy_flux(
                         grad_ie.z * (swept_edge_c.z - sweep_subcell_c.z));
 
   if (local_mass_flux < 0.0 || local_energy_flux < 0.0) {
-    printf("Encountered negative swept edge region flux.\n");
+    printf("Encountered negative swept edge region flux in subcell %d: mass "
+           "%.12e energy %.12e.\n",
+           subcell_index, local_mass_flux, local_energy_flux);
+    printf("swept_edge_vol %.12e mass %.12e energy %.12e\n", swept_edge_vol,
+           subcell_mass[(sweep_subcell_index)], sweep_subcell_ie_density);
   }
 
   // Mass and energy are either flowing into or out of the subcell
@@ -980,10 +988,18 @@ int calc_surface_normal(const int nnodes_by_face, const int face_to_nodes_off,
     // Calculate the unit normal vector
     vec_t normal = {0.0, 0.0, 0.0};
     calc_unit_normal(0, 1, 2, tn_x, tn_y, tn_z, &normal);
-    face_normal->x += normal.x / nnodes_by_face;
-    face_normal->y += normal.y / nnodes_by_face;
-    face_normal->z += normal.z / nnodes_by_face;
+    face_normal->x += normal.x;
+    face_normal->y += normal.y;
+    face_normal->z += normal.z;
   }
+
+  const double len =
+      sqrt(face_normal->x * face_normal->x + face_normal->y * face_normal->y +
+           face_normal->z * face_normal->z);
+
+  face_normal->x /= len;
+  face_normal->y /= len;
+  face_normal->z /= len;
 
   // Determine the orientation of the normal
   vec_t ab;
@@ -1034,22 +1050,9 @@ int test_prism_overlap(const int nnodes_by_face, const int* faces_to_nodes,
   // then application of Green's theorem breaks down and results in large
   // erroneous volumes. As part of this check we essentially perform an
   // intersection test between two planes.
-  vec_t cell_c = {0.0, 0.0, 0.0};
-  calc_centroid(2 * nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes,
-                0, &cell_c);
-
-  vec_t face_c = {0.0, 0.0, 0.0};
-  calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes, 0,
-                &face_c);
-
-  // Determine the orientation of the face
-  vec_t face_normal;
-  calc_surface_normal(nnodes_by_face, 0, faces_to_nodes, nodes_x, nodes_y,
-                      nodes_z, &face_c, &cell_c, &face_normal);
 
   // NOTE: For correct function it is ESSENTIAL that edges of the faces are in
   // the same order, as this is how the overlap is determined.
-  int init = 0;
   int global_sign = 0;
   for (int nn = 0; nn < nnodes_by_face; ++nn) {
     const int f1_node_index = faces_to_nodes[(nn)];
@@ -1059,24 +1062,32 @@ int test_prism_overlap(const int nnodes_by_face, const int* faces_to_nodes,
                 nodes_y[(f2_node_index)] - nodes_y[(f1_node_index)],
                 nodes_z[(f2_node_index)] - nodes_z[(f1_node_index)]};
 
-    const double dot =
-        dn.x * face_normal.x + dn.y * face_normal.y + dn.z * face_normal.z;
-    const int local_sign = dot > 0.0;
+    const int next_node = (nn == nnodes_by_face - 1) ? 0 : nn + 1;
+    const int prev_node = (nn == 0) ? nnodes_by_face - 1 : nn - 1;
+    const int f1_rnode_index = faces_to_nodes[(next_node)];
+    const int f1_lnode_index = faces_to_nodes[(prev_node)];
+
+    vec_t normal;
+    calc_normal(f1_node_index, f1_rnode_index, f1_lnode_index, nodes_x, nodes_y,
+                nodes_z, &normal);
+
+    const double dot = dn.x * normal.x + dn.y * normal.y + dn.z * normal.z;
+
+    const int local_sign = (dot > 0.0) ? 1 : -1;
 
     // We have two coplanar faces on the constructed prism
-    if (dot == 0.0) {
-      return 1;
+    if (dot < EPS) {
+      return 0;
     }
 
-    if (!init) {
-      init = 1;
+    if (global_sign == 0) {
       global_sign = local_sign;
     } else if (global_sign != local_sign) {
-      return 1;
+      return 0;
     }
   }
 
-  return 0;
+  return global_sign;
 }
 
 // Calculate the normal for a plane

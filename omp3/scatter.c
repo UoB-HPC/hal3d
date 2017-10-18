@@ -1,3 +1,4 @@
+#include "../../shared.h"
 #include "../hale_data.h"
 #include "hale.h"
 #include <float.h>
