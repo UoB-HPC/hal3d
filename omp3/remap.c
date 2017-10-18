@@ -198,39 +198,30 @@ void perform_advection(
                    rezoned_nodes_z[(r_face_rnode_index)]),
             rz_r_iface_c.z, rz_cell_c.z, rz_l_iface_c.z};
 
-        int overlap = test_prism_overlap(NNODES_BY_SUBCELL_FACE,
-                                         swept_edge_faces_to_nodes, inodes_x,
-                                         inodes_y, inodes_z);
+        // Contributes the local mass and energy flux for a given subcell face
+        contribute_mass_and_energy_flux(
+            cc, neighbour_cc, ff, node_index, subcell_index, &subcell_c,
+            &cell_c, inodes_x, inodes_y, inodes_z, subcell_mass,
+            subcell_mass_flux, subcell_ie_mass, subcell_ie_mass_flux,
+            subcell_volume, swept_edge_faces_to_nodes, subcell_centroids_x,
+            subcell_centroids_y, subcell_centroids_z, swept_edge_to_faces,
+            swept_edge_faces_to_nodes_offsets, subcells_to_subcells_offsets,
+            subcells_to_subcells, subcells_to_faces_offsets, subcells_to_faces,
+            faces_to_nodes_offsets, faces_to_nodes, cells_offsets,
+            cells_to_nodes, nodes_x, nodes_y, nodes_z, 1);
 
-        if (overlap != 0) {
-          // Contributes the local mass and energy flux for a given subcell face
-          contribute_mass_and_energy_flux(
-              cc, neighbour_cc, ff, node_index, subcell_index, &subcell_c,
-              &cell_c, inodes_x, inodes_y, inodes_z, subcell_mass,
-              subcell_mass_flux, subcell_ie_mass, subcell_ie_mass_flux,
-              subcell_volume, swept_edge_faces_to_nodes, subcell_centroids_x,
-              subcell_centroids_y, subcell_centroids_z, swept_edge_to_faces,
-              swept_edge_faces_to_nodes_offsets, subcells_to_subcells_offsets,
-              subcells_to_subcells, subcells_to_faces_offsets,
-              subcells_to_faces, faces_to_nodes_offsets, faces_to_nodes,
-              cells_offsets, cells_to_nodes, nodes_x, nodes_y, nodes_z, 1);
-
-#if 0
-          // Contributes the local mass and energy flux for a given subcell face
-          contribute_momentum_flux(
-              cc, neighbour_cc, ff, node_index, subcell_index, &subcell_c,
-              &cell_c, inodes_x, inodes_y, inodes_z, subcell_volume,
-              subcell_momentum_flux_x, subcell_momentum_flux_y,
-              subcell_momentum_flux_z, subcell_momentum_x, subcell_momentum_y,
-              subcell_momentum_z, swept_edge_faces_to_nodes,
-              subcell_centroids_x, subcell_centroids_y, subcell_centroids_z,
-              swept_edge_to_faces, swept_edge_faces_to_nodes_offsets,
-              subcells_to_subcells_offsets, subcells_to_subcells,
-              subcells_to_faces_offsets, subcells_to_faces,
-              faces_to_nodes_offsets, faces_to_nodes, cells_offsets,
-              cells_to_nodes, nodes_x, nodes_y, nodes_z, 1);
-#endif // if 0
-        }
+        // Contributes the local mass and energy flux for a given subcell face
+        contribute_momentum_flux(
+            cc, neighbour_cc, ff, node_index, subcell_index, &subcell_c,
+            &cell_c, inodes_x, inodes_y, inodes_z, subcell_volume,
+            subcell_momentum_flux_x, subcell_momentum_flux_y,
+            subcell_momentum_flux_z, subcell_momentum_x, subcell_momentum_y,
+            subcell_momentum_z, swept_edge_faces_to_nodes, subcell_centroids_x,
+            subcell_centroids_y, subcell_centroids_z, swept_edge_to_faces,
+            swept_edge_faces_to_nodes_offsets, subcells_to_subcells_offsets,
+            subcells_to_subcells, subcells_to_faces_offsets, subcells_to_faces,
+            faces_to_nodes_offsets, faces_to_nodes, cells_offsets,
+            cells_to_nodes, nodes_x, nodes_y, nodes_z, 1);
 
         /* EXTERNAL FACE */
 
@@ -269,40 +260,30 @@ void perform_advection(
             rz_face_c.z, 0.5 * (rezoned_nodes_z[(node_index)] +
                                 rezoned_nodes_z[(lnode_index)])};
 
-        overlap = test_prism_overlap(NNODES_BY_SUBCELL_FACE,
-                                     swept_edge_faces_to_nodes, enodes_x,
-                                     enodes_y, enodes_z);
+        // Contributes the local mass and energy flux for a given subcell face
+        contribute_mass_and_energy_flux(
+            cc, neighbour_cc, ff, node_index, subcell_index, &subcell_c,
+            &cell_c, enodes_x, enodes_y, enodes_z, subcell_mass,
+            subcell_mass_flux, subcell_ie_mass, subcell_ie_mass_flux,
+            subcell_volume, swept_edge_faces_to_nodes, subcell_centroids_x,
+            subcell_centroids_y, subcell_centroids_z, swept_edge_to_faces,
+            swept_edge_faces_to_nodes_offsets, subcells_to_subcells_offsets,
+            subcells_to_subcells, subcells_to_faces_offsets, subcells_to_faces,
+            faces_to_nodes_offsets, faces_to_nodes, cells_offsets,
+            cells_to_nodes, nodes_x, nodes_y, nodes_z, 0);
 
-        if (overlap != 0) {
-
-          // Contributes the local mass and energy flux for a given subcell face
-          contribute_mass_and_energy_flux(
-              cc, neighbour_cc, ff, node_index, subcell_index, &subcell_c,
-              &cell_c, enodes_x, enodes_y, enodes_z, subcell_mass,
-              subcell_mass_flux, subcell_ie_mass, subcell_ie_mass_flux,
-              subcell_volume, swept_edge_faces_to_nodes, subcell_centroids_x,
-              subcell_centroids_y, subcell_centroids_z, swept_edge_to_faces,
-              swept_edge_faces_to_nodes_offsets, subcells_to_subcells_offsets,
-              subcells_to_subcells, subcells_to_faces_offsets,
-              subcells_to_faces, faces_to_nodes_offsets, faces_to_nodes,
-              cells_offsets, cells_to_nodes, nodes_x, nodes_y, nodes_z, 0);
-
-#if 0
-          // Contributes the local mass and energy flux for a given subcell face
-          contribute_momentum_flux(
-              cc, neighbour_cc, ff, node_index, subcell_index, &subcell_c,
-              &cell_c, enodes_x, enodes_y, enodes_z, subcell_volume,
-              subcell_momentum_flux_x, subcell_momentum_flux_y,
-              subcell_momentum_flux_z, subcell_momentum_x, subcell_momentum_y,
-              subcell_momentum_z, swept_edge_faces_to_nodes,
-              subcell_centroids_x, subcell_centroids_y, subcell_centroids_z,
-              swept_edge_to_faces, swept_edge_faces_to_nodes_offsets,
-              subcells_to_subcells_offsets, subcells_to_subcells,
-              subcells_to_faces_offsets, subcells_to_faces,
-              faces_to_nodes_offsets, faces_to_nodes, cells_offsets,
-              cells_to_nodes, nodes_x, nodes_y, nodes_z, 0);
-#endif // if 0
-        }
+        // Contributes the local mass and energy flux for a given subcell face
+        contribute_momentum_flux(
+            cc, neighbour_cc, ff, node_index, subcell_index, &subcell_c,
+            &cell_c, enodes_x, enodes_y, enodes_z, subcell_volume,
+            subcell_momentum_flux_x, subcell_momentum_flux_y,
+            subcell_momentum_flux_z, subcell_momentum_x, subcell_momentum_y,
+            subcell_momentum_z, swept_edge_faces_to_nodes, subcell_centroids_x,
+            subcell_centroids_y, subcell_centroids_z, swept_edge_to_faces,
+            swept_edge_faces_to_nodes_offsets, subcells_to_subcells_offsets,
+            subcells_to_subcells, subcells_to_faces_offsets, subcells_to_faces,
+            faces_to_nodes_offsets, faces_to_nodes, cells_offsets,
+            cells_to_nodes, nodes_x, nodes_y, nodes_z, 0);
       }
     }
   }
@@ -1037,60 +1018,6 @@ void calc_unit_normal(const int n0, const int n1, const int n2,
   normal->z /= len;
 }
 
-// The construction of the swept edge prisms can result in tangled or coplanar
-// faces between the original and rezoned mesh. This must be recognised and
-// handled correctly in order to stop the calculations breaking down.
-int test_prism_overlap(const int nnodes_by_face, const int* faces_to_nodes,
-                       const double* nodes_x, const double* nodes_y,
-                       const double* nodes_z) {
-
-  // We have to handle the pathological case of coplanar faces. If we do not
-  // then application of Green's theorem breaks down and results in large
-  // erroneous volumes. As part of this check we essentially perform an
-  // intersection test between two planes.
-
-  // NOTE: For correct function it is ESSENTIAL that edges of the faces are in
-  // the same order, as this is how the overlap is determined.
-  int global_sign = 0;
-  for (int nn = 0; nn < nnodes_by_face; ++nn) {
-    const int f1_node_index = faces_to_nodes[(nn)];
-    const int f2_node_index = faces_to_nodes[(nnodes_by_face + nn)];
-
-    vec_t dn = {nodes_x[(f2_node_index)] - nodes_x[(f1_node_index)],
-                nodes_y[(f2_node_index)] - nodes_y[(f1_node_index)],
-                nodes_z[(f2_node_index)] - nodes_z[(f1_node_index)]};
-
-    const int next_node = (nn == nnodes_by_face - 1) ? 0 : nn + 1;
-    const int prev_node = (nn == 0) ? nnodes_by_face - 1 : nn - 1;
-    const int f1_rnode_index = faces_to_nodes[(next_node)];
-    const int f1_lnode_index = faces_to_nodes[(prev_node)];
-
-    vec_t normal;
-    calc_normal(f1_node_index, f1_rnode_index, f1_lnode_index, nodes_x, nodes_y,
-                nodes_z, &normal);
-
-    const double dot = dn.x * normal.x + dn.y * normal.y + dn.z * normal.z;
-
-    const int local_sign = (dot < 0.0) ? 1 : -1;
-
-    if (global_sign == 0) {
-      global_sign = local_sign;
-    }
-
-    // We are tangled
-    if (global_sign != local_sign) {
-      return 0;
-    }
-
-    // We have two coplanar faces on the constructed prism
-    if (dot < EPS && dot > -EPS) {
-      return 0;
-    }
-  }
-
-  return global_sign;
-}
-
 // Calculate the normal for a plane
 void calc_normal(const int n0, const int n1, const int n2,
                  const double* nodes_x, const double* nodes_y,
@@ -1125,52 +1052,41 @@ void contribute_face_volume(const int nnodes_by_face, const int* faces_to_nodes,
   calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes, 0,
                 &face_c);
 
-  // We have a triangle per edge, which are per node on the face
   for (int nn = 0; nn < nnodes_by_face; ++nn) {
-    const int next_node = (nn == nnodes_by_face - 1) ? 0 : nn + 1;
-    const int n0 = faces_to_nodes[(nn)];
-    const int n1 = faces_to_nodes[(next_node)];
-    const int faces_to_nodes_tri[3] = {0, 1, 2};
+    // Fetch the nodes attached to our current node on the current face
+    const int current_node = faces_to_nodes[(nn)];
+    const int next_node = (nn + 1 < nnodes_by_face) ? faces_to_nodes[(nn + 1)]
+                                                    : faces_to_nodes[(0)];
 
-    // Construct the face triangle associated with the node
-    double tn_x[3] = {nodes_x[(n0)], nodes_x[(n1)], face_c.x};
-    double tn_y[3] = {nodes_y[(n0)], nodes_y[(n1)], face_c.y};
-    double tn_z[3] = {nodes_z[(n0)], nodes_z[(n1)], face_c.z};
+    // Get the halfway point on the right edge
+    vec_t half_edge;
+    half_edge.x = 0.5 * (nodes_x[(current_node)] + nodes_x[(next_node)]);
+    half_edge.y = 0.5 * (nodes_y[(current_node)] + nodes_y[(next_node)]);
+    half_edge.z = 0.5 * (nodes_z[(current_node)] + nodes_z[(next_node)]);
 
-    vec_t tnormal = {0.0, 0.0, 0.0};
-    calc_unit_normal(0, 1, 2, tn_x, tn_y, tn_z, &tnormal);
+    // Setup basis on plane of tetrahedron
+    vec_t a;
+    a.x = (half_edge.x - face_c.x);
+    a.y = (half_edge.y - face_c.y);
+    a.z = (half_edge.z - face_c.z);
+    vec_t b;
+    b.x = (cell_c->x - face_c.x);
+    b.y = (cell_c->y - face_c.y);
+    b.z = (cell_c->z - face_c.z);
 
-    tnormal.x *= (face_clockwise) ? 1.0 : -1.0;
-    tnormal.y *= (face_clockwise) ? 1.0 : -1.0;
-    tnormal.z *= (face_clockwise) ? 1.0 : -1.0;
+    // Calculate the area vector S using cross product
+    vec_t S;
+    S.x = 0.5 * (a.y * b.z - a.z * b.y);
+    S.y = -0.5 * (a.x * b.z - a.z * b.x);
+    S.z = 0.5 * (a.x * b.y - a.y * b.x);
 
-    // The projection of the normal vector onto a point on the face
-    double omega = -(tnormal.x * tn_x[(2)] + tnormal.y * tn_y[(2)] +
-                     tnormal.z * tn_z[(2)]);
-
-    // Select the orientation based on the face area
-    int basis;
-    if (fabs(tnormal.x) > fabs(tnormal.y)) {
-      basis = (fabs(tnormal.x) > fabs(tnormal.z)) ? YZX : XYZ;
-    } else {
-      basis = (fabs(tnormal.z) > fabs(tnormal.y)) ? XYZ : ZXY;
-    }
-
-    // The basis ensures that gamma is always maximised
-    if (basis == XYZ) {
-      calc_face_integrals(3, 0, omega, faces_to_nodes_tri, tn_x, tn_y, tnormal,
-                          &local_vol);
-    } else if (basis == YZX) {
-      dswap(tnormal.x, tnormal.y);
-      dswap(tnormal.y, tnormal.z);
-      calc_face_integrals(3, 0, omega, faces_to_nodes_tri, tn_y, tn_z, tnormal,
-                          &local_vol);
-    } else if (basis == ZXY) {
-      dswap(tnormal.x, tnormal.y);
-      dswap(tnormal.x, tnormal.z);
-      calc_face_integrals(3, 0, omega, faces_to_nodes_tri, tn_z, tn_x, tnormal,
-                          &local_vol);
-    }
+    // TODO: WE MULTIPLY BY 2 HERE BECAUSE WE ARE ADDING THE VOLUME TO BOTH
+    // THE CURRENT AND NEXT NODE, OTHERWISE WE ONLY ACCOUNT FOR HALF OF THE
+    // 'HALF' TETRAHEDRONS
+    local_vol += fabs(2.0 * ((half_edge.x - nodes_x[(current_node)]) * S.x +
+                             (half_edge.y - nodes_y[(current_node)]) * S.y +
+                             (half_edge.z - nodes_z[(current_node)]) * S.z) /
+                      3.0);
   }
 
   *vol += local_vol;
@@ -1202,49 +1118,6 @@ void calc_volume(const int cell_to_faces_off, const int nfaces_by_cell,
   }
 
   *vol = fabs(*vol);
-}
-
-// Resolves the volume dist in alpha-beta-gamma basis
-void calc_face_integrals(const int nnodes_by_face, const int face_to_nodes_off,
-                         const double omega, const int* faces_to_nodes,
-                         const double* nodes_alpha, const double* nodes_beta,
-                         vec_t normal, double* vol) {
-
-  double pione = 0.0;
-  double pialpha = 0.0;
-  double pibeta = 0.0;
-
-  // Calculate the coefficients for the projected face integral
-  for (int nn = 0; nn < nnodes_by_face; ++nn) {
-    const int n0 = faces_to_nodes[(face_to_nodes_off + nn)];
-    const int n1 = (nn == nnodes_by_face - 1)
-                       ? faces_to_nodes[(face_to_nodes_off)]
-                       : faces_to_nodes[(face_to_nodes_off + nn + 1)];
-
-    // Calculate all of the coefficients
-    const double a0 = nodes_alpha[(n0)];
-    const double a1 = nodes_alpha[(n1)];
-    const double b0 = nodes_beta[(n0)];
-    const double b1 = nodes_beta[(n1)];
-    const double dalpha = a1 - a0;
-    const double dbeta = b1 - b0;
-    const double Calpha = a1 * (a1 + a0) + a0 * a0;
-    const double Cbeta = b1 * (b1 + b0) + b0 * b0;
-
-    // Accumulate the projection dist
-    pione += dbeta * (a1 + a0) / 2.0;
-    pialpha += dbeta * (Calpha) / 6.0;
-    pibeta -= dalpha * (Cbeta) / 6.0;
-  }
-
-  // Finalise the weighted face dist
-  const double Falpha = pialpha / normal.z;
-  const double Fbeta = pibeta / normal.z;
-  const double Fgamma =
-      -(normal.x * pialpha + normal.y * pibeta + omega * pione) /
-      (normal.z * normal.z);
-
-  *vol += (normal.x * Falpha + normal.y * Fbeta + normal.z * Fgamma) / 3.0;
 }
 
 // Stores the rezoned mesh specification as the original mesh. Until we
