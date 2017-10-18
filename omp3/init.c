@@ -10,22 +10,23 @@ void init_mesh_mass(const int ncells, const int nnodes,
                     const double* nodes_z, double* subcell_mass,
                     double* nodal_mass, int* cells_to_faces_offsets,
                     int* cells_to_faces, int* faces_to_nodes_offsets,
-                    int* faces_to_nodes, int* cells_offsets,
-                    int* cells_to_nodes, int* subcells_to_faces_offsets,
-                    int* subcells_to_faces, int* nodes_offsets,
-                    int* nodes_to_cells, double* subcell_centroids_x,
-                    double* subcell_centroids_y, double* subcell_centroids_z,
-                    double* subcell_volume, double* cell_volume,
-                    double* nodal_volumes, double* cell_mass) {
+                    int* faces_to_nodes, int* faces_cclockwise_cell,
+                    int* cells_offsets, int* cells_to_nodes,
+                    int* subcells_to_faces_offsets, int* subcells_to_faces,
+                    int* nodes_offsets, int* nodes_to_cells,
+                    double* subcell_centroids_x, double* subcell_centroids_y,
+                    double* subcell_centroids_z, double* subcell_volume,
+                    double* cell_volume, double* nodal_volumes,
+                    double* cell_mass) {
 
   // Calculates the cell volume, subcell volume and the subcell centroids
   calc_volumes_centroids(
       ncells, nnodes, nnodes_by_subcell, cells_offsets, cells_to_nodes,
       cells_to_faces_offsets, cells_to_faces, subcells_to_faces_offsets,
-      subcells_to_faces, faces_to_nodes, faces_to_nodes_offsets, nodes_x,
-      nodes_y, nodes_z, subcell_centroids_x, subcell_centroids_y,
-      subcell_centroids_z, subcell_volume, cell_volume, nodal_volumes,
-      nodes_offsets, nodes_to_cells);
+      subcells_to_faces, faces_to_nodes, faces_to_nodes_offsets,
+      faces_cclockwise_cell, nodes_x, nodes_y, nodes_z, subcell_centroids_x,
+      subcell_centroids_y, subcell_centroids_z, subcell_volume, cell_volume,
+      nodal_volumes, nodes_offsets, nodes_to_cells);
 
   // Calculate the predicted energy
   START_PROFILING(&compute_profile);
@@ -83,10 +84,11 @@ void calc_volumes_centroids(
     const int* cells_to_faces_offsets, const int* cells_to_faces,
     const int* subcells_to_faces_offsets, const int* subcells_to_faces,
     const int* faces_to_nodes, const int* faces_to_nodes_offsets,
-    const double* nodes_x, const double* nodes_y, const double* nodes_z,
-    double* subcell_centroids_x, double* subcell_centroids_y,
-    double* subcell_centroids_z, double* subcell_volume, double* cell_volume,
-    double* nodal_volumes, int* nodes_offsets, int* nodes_to_cells) {
+    const int* faces_cclockwise_cell, const double* nodes_x,
+    const double* nodes_y, const double* nodes_z, double* subcell_centroids_x,
+    double* subcell_centroids_y, double* subcell_centroids_z,
+    double* subcell_volume, double* cell_volume, double* nodal_volumes,
+    int* nodes_offsets, int* nodes_to_cells) {
 
   double total_cell_volume = 0.0;
   double total_subcell_volume = 0.0;
@@ -136,11 +138,7 @@ void calc_volumes_centroids(
         calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes,
                       face_to_nodes_off, &face_c);
 
-        // Determine the orientation of the face
-        vec_t face_normal;
-        const int face_clockwise = calc_surface_normal(
-            nnodes_by_face, face_to_nodes_off, faces_to_nodes, nodes_x, nodes_y,
-            nodes_z, &face_c, &cell_c, &face_normal);
+        const int face_clockwise = (faces_cclockwise_cell[(face_index)] != cc);
 
         // Determine the position of the node in the face list of nodes
         int nn2;
@@ -194,11 +192,7 @@ void calc_volumes_centroids(
         calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes,
                       face_to_nodes_off, &face_c);
 
-        // Determine the orientation of the face
-        vec_t face_normal;
-        const int face_clockwise = calc_surface_normal(
-            nnodes_by_face, face_to_nodes_off, faces_to_nodes, nodes_x, nodes_y,
-            nodes_z, &face_c, &cell_c, &face_normal);
+        const int face_clockwise = (faces_cclockwise_cell[(face_index)] != cc);
 
         // Determine the position of the node in the face list of nodes
         int nn2;
@@ -238,32 +232,29 @@ void calc_volumes_centroids(
 
         /* INTERNAL FACE */
 
-        const int rface_off = (ff == nfaces_by_subcell - 1) ? 0 : ff + 1;
-        const int lface_off = (ff == 0) ? nfaces_by_subcell - 1 : ff - 1;
-        const int rface_index =
-            subcells_to_faces[(subcell_to_faces_off + rface_off)];
-        const int lface_index =
-            subcells_to_faces[(subcell_to_faces_off + lface_off)];
-        const int rface_to_nodes_off = faces_to_nodes_offsets[(rface_index)];
-        const int lface_to_nodes_off = faces_to_nodes_offsets[(lface_index)];
+        const int r_face_off = (ff == nfaces_by_subcell - 1) ? 0 : ff + 1;
+        const int l_face_off = (ff == 0) ? nfaces_by_subcell - 1 : ff - 1;
+        const int r_face_index =
+            subcells_to_faces[(subcell_to_faces_off + r_face_off)];
+        const int l_face_index =
+            subcells_to_faces[(subcell_to_faces_off + l_face_off)];
+        const int r_face_to_nodes_off = faces_to_nodes_offsets[(r_face_index)];
+        const int l_face_to_nodes_off = faces_to_nodes_offsets[(l_face_index)];
         const int nnodes_by_rface =
-            faces_to_nodes_offsets[(rface_index + 1)] - rface_to_nodes_off;
+            faces_to_nodes_offsets[(r_face_index + 1)] - r_face_to_nodes_off;
         const int nnodes_by_lface =
-            faces_to_nodes_offsets[(lface_index + 1)] - lface_to_nodes_off;
+            faces_to_nodes_offsets[(l_face_index + 1)] - l_face_to_nodes_off;
 
         vec_t rface_c = {0.0, 0.0, 0.0};
         calc_centroid(nnodes_by_rface, nodes_x, nodes_y, nodes_z,
-                      faces_to_nodes, rface_to_nodes_off, &rface_c);
+                      faces_to_nodes, r_face_to_nodes_off, &rface_c);
 
-        // Determine the orientation of the face
-        vec_t rface_normal;
-        const int rface_clockwise = calc_surface_normal(
-            nnodes_by_rface, rface_to_nodes_off, faces_to_nodes, nodes_x,
-            nodes_y, nodes_z, &rface_c, &cell_c, &rface_normal);
+        const int r_face_clockwise =
+            (faces_cclockwise_cell[(r_face_index)] != cc);
 
         // Determine the position of the node in the face list of nodes
         for (nn2 = 0; nn2 < nnodes_by_rface; ++nn2) {
-          if (faces_to_nodes[(rface_to_nodes_off + nn2)] == node_index) {
+          if (faces_to_nodes[(r_face_to_nodes_off + nn2)] == node_index) {
             break;
           }
         }
@@ -271,13 +262,13 @@ void calc_volumes_centroids(
         const int rface_next_node = (nn2 == nnodes_by_rface - 1) ? 0 : nn2 + 1;
         const int rface_prev_node = (nn2 == 0) ? nnodes_by_rface - 1 : nn2 - 1;
         const int rface_rnode_off =
-            (rface_clockwise ? rface_prev_node : rface_next_node);
+            (r_face_clockwise ? rface_prev_node : rface_next_node);
         const int rface_rnode_index =
-            faces_to_nodes[(rface_to_nodes_off + rface_rnode_off)];
+            faces_to_nodes[(r_face_to_nodes_off + rface_rnode_off)];
 
         vec_t lface_c = {0.0, 0.0, 0.0};
         calc_centroid(nnodes_by_lface, nodes_x, nodes_y, nodes_z,
-                      faces_to_nodes, lface_to_nodes_off, &lface_c);
+                      faces_to_nodes, l_face_to_nodes_off, &lface_c);
 
         double inodes_x[NNODES_BY_SUBCELL_FACE] = {
             0.5 * (nodes_x[(node_index)] + nodes_x[(rface_rnode_index)]),
@@ -365,9 +356,9 @@ void init_subcells_to_faces(
     const int* nodes_to_faces_offsets, const int* cells_to_nodes,
     const int* faces_to_cells0, const int* faces_to_cells1,
     const int* nodes_to_faces, const int* faces_to_nodes,
-    const int* faces_to_nodes_offsets, int* subcells_to_faces,
-    const double* nodes_x, const double* nodes_y, const double* nodes_z,
-    int* subcells_to_faces_offsets) {
+    const int* faces_to_nodes_offsets, const int* faces_cclockwise_cell,
+    int* subcells_to_faces, const double* nodes_x, const double* nodes_y,
+    const double* nodes_z, int* subcells_to_faces_offsets) {
 
 #if 0
 #pragma omp parallel for
@@ -455,10 +446,7 @@ void init_subcells_to_faces(
         calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes,
                       face_to_nodes_off, &face_c);
 
-        vec_t face_normal;
-        const int face_clockwise = calc_surface_normal(
-            nnodes_by_face, face_to_nodes_off, faces_to_nodes, nodes_x, nodes_y,
-            nodes_z, &face_c, &cell_c, &face_normal);
+        const int face_clockwise = (faces_cclockwise_cell[(face_index)] != cc);
         const int next_node = (nn2 == nnodes_by_face - 1) ? 0 : nn2 + 1;
         const int prev_node = (nn2 == 0) ? nnodes_by_face - 1 : nn2 - 1;
         const int rnode_off = (face_clockwise ? prev_node : next_node);
@@ -499,11 +487,12 @@ void init_subcells_to_faces(
 void init_subcells_to_subcells(
     const int ncells, const int nsubcells, const int* faces_to_cells0,
     const int* faces_to_cells1, const int* faces_to_nodes_offsets,
-    const int* faces_to_nodes, const double* nodes_x, const double* nodes_y,
-    const double* nodes_z, int* subcells_to_subcells,
-    int* subcells_to_subcells_offsets, int* cells_offsets,
-    int* nodes_to_faces_offsets, int* nodes_to_faces, int* cells_to_nodes,
-    int* subcells_to_faces, int* subcells_to_faces_offsets) {
+    const int* faces_to_nodes, const int* faces_cclockwise_cell,
+    const double* nodes_x, const double* nodes_y, const double* nodes_z,
+    int* subcells_to_subcells, int* subcells_to_subcells_offsets,
+    int* cells_offsets, int* nodes_to_faces_offsets, int* nodes_to_faces,
+    int* cells_to_nodes, int* subcells_to_faces,
+    int* subcells_to_faces_offsets) {
 
 #if 0
 #pragma omp parallel for
@@ -576,10 +565,7 @@ void init_subcells_to_subcells(
         calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes,
                       face_to_nodes_off, &face_c);
 
-        vec_t face_normal;
-        const int face_clockwise = calc_surface_normal(
-            nnodes_by_face, face_to_nodes_off, faces_to_nodes, nodes_x, nodes_y,
-            nodes_z, &face_c, &cell_c, &face_normal);
+        const int face_clockwise = (faces_cclockwise_cell[(face_index)] != cc);
 
         // We have to find our position on the face
         // The nodes will mostly be in cache anyway so should be cheap

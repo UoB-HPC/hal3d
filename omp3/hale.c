@@ -14,11 +14,6 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
   // Describe the subcell node layout
   printf("\nPerforming the Lagrangian Phase\n");
 
-  for (int nn = 0; nn < umesh->nnodes; ++nn) {
-    hale_data->velocity_y0[nn] = 0.0;
-    hale_data->velocity_z0[nn] = 0.0;
-  }
-
   // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
   // due to the pressure (ideal gas) and artificial viscous forces
   lagrangian_phase(
@@ -42,11 +37,6 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
       umesh->faces_to_cells0, umesh->faces_to_cells1,
       umesh->cells_to_faces_offsets, umesh->cells_to_faces);
 
-  for (int nn = 0; nn < umesh->nnodes; ++nn) {
-    hale_data->velocity_y0[nn] = 0.0;
-    hale_data->velocity_z0[nn] = 0.0;
-  }
-
   if (hale_data->perform_remap) {
     printf("\nPerforming Gathering Phase\n");
 
@@ -68,10 +58,11 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
         hale_data->subcell_centroids_x, hale_data->subcell_centroids_y,
         hale_data->subcell_centroids_z, hale_data->cell_volume,
         hale_data->subcells_to_faces_offsets, umesh->faces_to_nodes,
-        umesh->faces_to_nodes_offsets, umesh->faces_to_cells0,
-        umesh->faces_to_cells1, umesh->cells_to_faces_offsets,
-        umesh->cells_to_faces, hale_data->subcells_to_faces,
-        umesh->nodes_offsets, umesh->cells_offsets, umesh->cells_to_nodes,
+        umesh->faces_to_nodes_offsets, umesh->faces_cclockwise_cell,
+        umesh->faces_to_cells0, umesh->faces_to_cells1,
+        umesh->cells_to_faces_offsets, umesh->cells_to_faces,
+        hale_data->subcells_to_faces, umesh->nodes_offsets,
+        umesh->cells_offsets, umesh->cells_to_nodes,
         umesh->nodes_to_nodes_offsets, umesh->nodes_to_nodes,
         &initial_momentum);
 
@@ -84,8 +75,9 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
         hale_data->rezoned_nodes_z, hale_data->subcell_momentum_x,
         hale_data->subcell_momentum_y, hale_data->subcell_momentum_z,
         umesh->cells_to_nodes, umesh->faces_to_nodes_offsets,
-        umesh->faces_to_nodes, hale_data->subcells_to_faces_offsets,
-        hale_data->subcells_to_faces, hale_data->subcells_to_subcells_offsets,
+        umesh->faces_to_nodes, umesh->faces_cclockwise_cell,
+        hale_data->subcells_to_faces_offsets, hale_data->subcells_to_faces,
+        hale_data->subcells_to_subcells_offsets,
         hale_data->subcells_to_subcells, umesh->faces_to_cells0,
         umesh->faces_to_cells1, hale_data->subcell_momentum_flux_x,
         hale_data->subcell_momentum_flux_y, hale_data->subcell_momentum_flux_z,
@@ -133,56 +125,4 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
         hale_data->subcell_nodes_y, hale_data->subcell_nodes_z,
         hale_data->subcells_to_nodes, hale_data->subcell_mass, 0, 1);
   }
-
-#if 0
-  const int swept_edge_to_faces[] = {0, 1, 2, 3, 4, 5};
-  const int swept_edge_faces_to_nodes_offsets[] = {0, 4, 8, 12, 16, 20, 24};
-  const int swept_edge_faces_to_nodes[] = {0, 1, 2, 3, 4, 5, 6, 7, 0, 3, 7, 4,
-                                           7, 6, 2, 3, 1, 5, 6, 2, 0, 4, 5, 1};
-
-  double nodes_x[] = {
-      5.0365859460523499e-01, 5.0365943962097104e-01, 4.8783740022215616e-01,
-      4.8783700859445478e-01, 5.0000000000000000e-01, 5.0000000000000000e-01,
-      4.8437500000000000e-01, 4.8437500000000000e-01,
-  };
-  double nodes_y[] = {
-      0.0000000000000000e+00, 1.2500000012113061e-01, 1.2500000056778543e-01,
-      0.0000000000000000e+00, 0.0000000000000000e+00, 1.2500000000000000e-01,
-      1.2500000000000000e-01, 0.0000000000000000e+00,
-  };
-  double nodes_z[] = {
-      9.2187499850109511e-01, 9.2187499829605823e-01, 9.2187500832103775e-01,
-      9.2187500846352721e-01, 9.2187500000000000e-01, 9.2187500000000000e-01,
-      9.2187500000000000e-01, 9.2187500000000000e-01,
-  };
-
-  double swept_edge_vol = 0.0;
-
-  int overlap =
-      test_prism_overlap(NNODES_BY_SUBCELL_FACE, swept_edge_faces_to_nodes,
-                         nodes_x, nodes_y, nodes_z);
-
-  printf("THE PRISM DID %sOVERLAP\n", overlap == 0 ? "" : "NOT ");
-
-  // The face centroid is the same for all nodes on the face
-  vec_t face_c = {0.0, 0.0, 0.0};
-  calc_centroid(NNODES_BY_SUBCELL_FACE, nodes_x, nodes_y, nodes_z,
-                swept_edge_faces_to_nodes, 0, &face_c);
-  printf("%.12e %.12e %.12e\n", face_c.x, face_c.y, face_c.z);
-
-  vec_t cell_c = {0.0, 0.0, 0.0};
-  calc_centroid(2 * NNODES_BY_SUBCELL_FACE, nodes_x, nodes_y, nodes_z,
-                swept_edge_faces_to_nodes, 0, &cell_c);
-  printf("%.12e %.12e %.12e\n", cell_c.x, cell_c.y, cell_c.z);
-
-  vec_t swept_edge_c = {0.0, 0.0, 0.0};
-  calc_centroid(2 * NNODES_BY_SUBCELL_FACE, nodes_x, nodes_y, nodes_z,
-                swept_edge_faces_to_nodes, 0, &swept_edge_c);
-  calc_volume(0, 2 + NNODES_BY_SUBCELL_FACE, swept_edge_to_faces,
-              swept_edge_faces_to_nodes, swept_edge_faces_to_nodes_offsets,
-              nodes_x, nodes_y, nodes_z, &swept_edge_c, &swept_edge_vol);
-  write_unstructured_to_visit_3d(2 * NNODES_BY_SUBCELL_FACE, 1, 10000, nodes_x,
-                                 nodes_y, nodes_z, swept_edge_faces_to_nodes,
-                                 &swept_edge_vol, 0, 1);
-#endif // if 0
 }

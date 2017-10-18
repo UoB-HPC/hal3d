@@ -12,23 +12,24 @@ void remap_phase(
     const double* subcell_momentum_x, const double* subcell_momentum_y,
     const double* subcell_momentum_z, const int* cells_to_nodes,
     const int* faces_to_nodes_offsets, const int* faces_to_nodes,
-    const int* subcells_to_faces_offsets, const int* subcells_to_faces,
-    const int* subcells_to_subcells_offsets, const int* subcells_to_subcells,
-    const int* faces_to_cells0, const int* faces_to_cells1,
-    double* subcell_momentum_flux_x, double* subcell_momentum_flux_y,
-    double* subcell_momentum_flux_z, const double* subcell_centroids_x,
-    const double* subcell_centroids_y, const double* subcell_centroids_z,
-    double* subcell_volume, double* subcell_mass, double* subcell_mass_flux,
-    double* subcell_ie_mass, double* subcell_ie_mass_flux) {
+    const int* faces_cclockwise_cell, const int* subcells_to_faces_offsets,
+    const int* subcells_to_faces, const int* subcells_to_subcells_offsets,
+    const int* subcells_to_subcells, const int* faces_to_cells0,
+    const int* faces_to_cells1, double* subcell_momentum_flux_x,
+    double* subcell_momentum_flux_y, double* subcell_momentum_flux_z,
+    const double* subcell_centroids_x, const double* subcell_centroids_y,
+    const double* subcell_centroids_z, double* subcell_volume,
+    double* subcell_mass, double* subcell_mass_flux, double* subcell_ie_mass,
+    double* subcell_ie_mass_flux) {
 
   // Advects mass and energy through the subcell faces using swept edge approx
   perform_advection(
       ncells, cells_offsets, nodes_x, nodes_y, nodes_z, rezoned_nodes_x,
       rezoned_nodes_y, rezoned_nodes_z, cells_to_nodes, faces_to_nodes_offsets,
-      faces_to_nodes, subcells_to_faces_offsets, subcells_to_faces,
-      subcells_to_subcells_offsets, subcells_to_subcells, subcell_centroids_x,
-      subcell_centroids_y, subcell_centroids_z, faces_to_cells0,
-      faces_to_cells1, subcell_volume, subcell_momentum_flux_x,
+      faces_to_nodes, faces_cclockwise_cell, subcells_to_faces_offsets,
+      subcells_to_faces, subcells_to_subcells_offsets, subcells_to_subcells,
+      subcell_centroids_x, subcell_centroids_y, subcell_centroids_z,
+      faces_to_cells0, faces_to_cells1, subcell_volume, subcell_momentum_flux_x,
       subcell_momentum_flux_y, subcell_momentum_flux_z, subcell_momentum_x,
       subcell_momentum_y, subcell_momentum_z, subcell_mass, subcell_mass_flux,
       subcell_ie_mass, subcell_ie_mass_flux);
@@ -40,16 +41,16 @@ void perform_advection(
     const double* nodes_y, const double* nodes_z, const double* rezoned_nodes_x,
     const double* rezoned_nodes_y, const double* rezoned_nodes_z,
     const int* cells_to_nodes, const int* faces_to_nodes_offsets,
-    const int* faces_to_nodes, const int* subcells_to_faces_offsets,
-    const int* subcells_to_faces, const int* subcells_to_subcells_offsets,
-    const int* subcells_to_subcells, const double* subcell_centroids_x,
-    const double* subcell_centroids_y, const double* subcell_centroids_z,
-    const int* faces_to_cells0, const int* faces_to_cells1,
-    double* subcell_volume, double* subcell_momentum_flux_x,
-    double* subcell_momentum_flux_y, double* subcell_momentum_flux_z,
-    const double* subcell_momentum_x, const double* subcell_momentum_y,
-    const double* subcell_momentum_z, double* subcell_mass,
-    double* subcell_mass_flux, double* subcell_ie_mass,
+    const int* faces_to_nodes, const int* faces_cclockwise_cell,
+    const int* subcells_to_faces_offsets, const int* subcells_to_faces,
+    const int* subcells_to_subcells_offsets, const int* subcells_to_subcells,
+    const double* subcell_centroids_x, const double* subcell_centroids_y,
+    const double* subcell_centroids_z, const int* faces_to_cells0,
+    const int* faces_to_cells1, double* subcell_volume,
+    double* subcell_momentum_flux_x, double* subcell_momentum_flux_y,
+    double* subcell_momentum_flux_z, const double* subcell_momentum_x,
+    const double* subcell_momentum_y, const double* subcell_momentum_z,
+    double* subcell_mass, double* subcell_mass_flux, double* subcell_ie_mass,
     double* subcell_ie_mass_flux) {
 
 #if 0
@@ -99,12 +100,6 @@ void perform_advection(
                       rezoned_nodes_z, faces_to_nodes, face_to_nodes_off,
                       &rz_face_c);
 
-        // Determine the orientation of the face
-        vec_t face_normal;
-        const int face_clockwise = calc_surface_normal(
-            nnodes_by_face, face_to_nodes_off, faces_to_nodes, nodes_x, nodes_y,
-            nodes_z, &face_c, &cell_c, &face_normal);
-
         // Determine the position of the node in the face list of nodes
         int nn2;
         for (nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
@@ -113,6 +108,7 @@ void perform_advection(
           }
         }
 
+        const int face_clockwise = (faces_cclockwise_cell[(face_index)] != cc);
         const int next_node = (nn2 == nnodes_by_face - 1) ? 0 : nn2 + 1;
         const int prev_node = (nn2 == 0) ? nnodes_by_face - 1 : nn2 - 1;
         const int rnode_off = (face_clockwise ? prev_node : next_node);
@@ -145,11 +141,8 @@ void perform_advection(
         calc_centroid(nnodes_by_r_face, nodes_x, nodes_y, nodes_z,
                       faces_to_nodes, r_face_to_nodes_off, &r_iface_c);
 
-        // Determine the orientation of the face
-        vec_t r_face_normal;
-        const int r_face_clockwise = calc_surface_normal(
-            nnodes_by_r_face, r_face_to_nodes_off, faces_to_nodes, nodes_x,
-            nodes_y, nodes_z, &r_iface_c, &cell_c, &r_face_normal);
+        const int r_face_clockwise =
+            (faces_cclockwise_cell[(r_face_index)] != cc);
 
         // Determine the position of the node in the face list of nodes
         for (nn2 = 0; nn2 < nnodes_by_r_face; ++nn2) {
@@ -942,58 +935,6 @@ void contribute_momentum_flux(
     subcell_momentum_flux_y[(subcell_index)] -= local_y_momentum_flux;
     subcell_momentum_flux_z[(subcell_index)] -= local_z_momentum_flux;
   }
-}
-
-// Calculates the outward pointing surface normal of a face
-int calc_surface_normal(const int nnodes_by_face, const int face_to_nodes_off,
-                        const int* faces_to_nodes, const double* nodes_x,
-                        const double* nodes_y, const double* nodes_z,
-                        const vec_t* face_c, const vec_t* cell_c,
-                        vec_t* face_normal) {
-
-  face_normal->x = 0.0;
-  face_normal->y = 0.0;
-  face_normal->z = 0.0;
-
-  for (int nn = 0; nn < nnodes_by_face; ++nn) {
-    const int n0 = faces_to_nodes[(face_to_nodes_off + nn)];
-    const int next_node = (nn == nnodes_by_face - 1) ? 0 : nn + 1;
-    const int n1 = faces_to_nodes[(face_to_nodes_off + next_node)];
-
-    double tn_x[3] = {nodes_x[(n0)], nodes_x[(n1)], face_c->x};
-    double tn_y[3] = {nodes_y[(n0)], nodes_y[(n1)], face_c->y};
-    double tn_z[3] = {nodes_z[(n0)], nodes_z[(n1)], face_c->z};
-
-    // Calculate the unit normal vector
-    vec_t normal = {0.0, 0.0, 0.0};
-    calc_unit_normal(0, 1, 2, tn_x, tn_y, tn_z, &normal);
-    face_normal->x += normal.x;
-    face_normal->y += normal.y;
-    face_normal->z += normal.z;
-  }
-
-  const double len =
-      sqrt(face_normal->x * face_normal->x + face_normal->y * face_normal->y +
-           face_normal->z * face_normal->z);
-
-  face_normal->x /= len;
-  face_normal->y /= len;
-  face_normal->z /= len;
-
-  // Determine the orientation of the normal
-  vec_t ab;
-  ab.x = (cell_c->x - face_c->x);
-  ab.y = (cell_c->y - face_c->y);
-  ab.z = (cell_c->z - face_c->z);
-
-  // Flip the vector if necessary
-  const double dot =
-      ab.x * face_normal->x + ab.y * face_normal->y + ab.z * face_normal->z;
-  const int face_clockwise = (dot > 0.0);
-  face_normal->x *= (face_clockwise ? -1.0 : 1.0);
-  face_normal->y *= (face_clockwise ? -1.0 : 1.0);
-  face_normal->z *= (face_clockwise ? -1.0 : 1.0);
-  return face_clockwise;
 }
 
 // Calculate the normal vector from the provided nodes

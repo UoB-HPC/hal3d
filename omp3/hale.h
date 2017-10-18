@@ -54,11 +54,11 @@ void gather_subcell_quantities(
     double* subcell_centroids_x, double* subcell_centroids_y,
     double* subcell_centroids_z, double* cell_volume,
     int* subcells_to_faces_offsets, int* faces_to_nodes,
-    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
-    int* cells_to_faces_offsets, int* cells_to_faces, int* subcells_to_faces,
-    int* nodes_to_cells_offsets, int* cells_to_nodes_offsets,
-    int* cells_to_nodes, int* nodes_to_nodes_offsets, int* nodes_to_nodes,
-    vec_t* initial_momentum);
+    int* faces_to_nodes_offsets, int* faces_cclockwise_cell,
+    int* faces_to_cells0, int* faces_to_cells1, int* cells_to_faces_offsets,
+    int* cells_to_faces, int* subcells_to_faces, int* nodes_to_cells_offsets,
+    int* cells_to_nodes_offsets, int* cells_to_nodes,
+    int* nodes_to_nodes_offsets, int* nodes_to_nodes, vec_t* initial_momentum);
 
 // Gathers the momentum into the subcells
 void gather_subcell_momentum(
@@ -91,21 +91,15 @@ void remap_phase(
     const double* subcell_momentum_x, const double* subcell_momentum_y,
     const double* subcell_momentum_z, const int* cells_to_nodes,
     const int* faces_to_nodes_offsets, const int* faces_to_nodes,
-    const int* subcells_to_faces_offsets, const int* subcells_to_faces,
-    const int* subcells_to_subcells_offsets, const int* subcells_to_subcells,
-    const int* faces_to_cells0, const int* faces_to_cells1,
-    double* subcell_momentum_flux_x, double* subcell_momentum_flux_y,
-    double* subcell_momentum_flux_z, const double* subcell_centroids_x,
-    const double* subcell_centroids_y, const double* subcell_centroids_z,
-    double* subcell_volume, double* subcell_mass, double* subcell_mass_flux,
-    double* subcell_ie_mass, double* subcell_ie_mass_flux);
-
-// Calculates the outward pointing surface normal of a face
-int calc_surface_normal(const int nnodes_by_face, const int face_to_nodes_off,
-                        const int* faces_to_nodes, const double* nodes_x,
-                        const double* nodes_y, const double* nodes_z,
-                        const vec_t* face_c, const vec_t* cell_c,
-                        vec_t* face_normal);
+    const int* faces_cclockwise_cell, const int* subcells_to_faces_offsets,
+    const int* subcells_to_faces, const int* subcells_to_subcells_offsets,
+    const int* subcells_to_subcells, const int* faces_to_cells0,
+    const int* faces_to_cells1, double* subcell_momentum_flux_x,
+    double* subcell_momentum_flux_y, double* subcell_momentum_flux_z,
+    const double* subcell_centroids_x, const double* subcell_centroids_y,
+    const double* subcell_centroids_z, double* subcell_volume,
+    double* subcell_mass, double* subcell_mass_flux, double* subcell_ie_mass,
+    double* subcell_ie_mass_flux);
 
 // Calculate the normal vector from the provided nodes
 void calc_unit_normal(const int n0, const int n1, const int n2,
@@ -190,10 +184,11 @@ void calc_volumes_centroids(
     const int* cells_to_faces_offsets, const int* cells_to_faces,
     const int* subcells_to_faces_offsets, const int* subcells_to_faces,
     const int* faces_to_nodes, const int* faces_to_nodes_offsets,
-    const double* nodes_x, const double* nodes_y, const double* nodes_z,
-    double* subcell_centroids_x, double* subcell_centroids_y,
-    double* subcell_centroids_z, double* subcell_volume, double* cell_volume,
-    double* nodal_volumes, int* nodes_offsets, int* nodes_to_cells);
+    const int* faces_cclockwise_cell, const double* nodes_x,
+    const double* nodes_y, const double* nodes_z, double* subcell_centroids_x,
+    double* subcell_centroids_y, double* subcell_centroids_z,
+    double* subcell_volume, double* cell_volume, double* nodal_volumes,
+    int* nodes_offsets, int* nodes_to_cells);
 
 void apply_mesh_rezoning(const int nnodes, const double* rezoned_nodes_x,
                          const double* rezoned_nodes_y,
@@ -230,16 +225,16 @@ void perform_advection(
     const double* nodes_y, const double* nodes_z, const double* rezoned_nodes_x,
     const double* rezoned_nodes_y, const double* rezoned_nodes_z,
     const int* cells_to_nodes, const int* faces_to_nodes_offsets,
-    const int* faces_to_nodes, const int* subcells_to_faces_offsets,
-    const int* subcells_to_faces, const int* subcells_to_subcells_offsets,
-    const int* subcells_to_subcells, const double* subcell_centroids_x,
-    const double* subcell_centroids_y, const double* subcell_centroids_z,
-    const int* faces_to_cells0, const int* faces_to_cells1,
-    double* subcell_volume, double* subcell_momentum_flux_x,
-    double* subcell_momentum_flux_y, double* subcell_momentum_flux_z,
-    const double* subcell_momentum_x, const double* subcell_momentum_y,
-    const double* subcell_momentum_z, double* subcell_mass,
-    double* subcell_mass_flux, double* subcell_ie_mass,
+    const int* faces_to_nodes, const int* faces_cclockwise_cell,
+    const int* subcells_to_faces_offsets, const int* subcells_to_faces,
+    const int* subcells_to_subcells_offsets, const int* subcells_to_subcells,
+    const double* subcell_centroids_x, const double* subcell_centroids_y,
+    const double* subcell_centroids_z, const int* faces_to_cells0,
+    const int* faces_to_cells1, double* subcell_volume,
+    double* subcell_momentum_flux_x, double* subcell_momentum_flux_y,
+    double* subcell_momentum_flux_z, const double* subcell_momentum_x,
+    const double* subcell_momentum_y, const double* subcell_momentum_z,
+    double* subcell_mass, double* subcell_mass_flux, double* subcell_ie_mass,
     double* subcell_ie_mass_flux);
 
 // Calculates the local limiter for a node

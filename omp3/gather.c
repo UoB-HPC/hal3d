@@ -4,7 +4,7 @@
 #include <math.h>
 #include <stdio.h>
 
-// gathers all of the subcell quantities on the mesh
+// Gathers all of the subcell quantities on the mesh
 void gather_subcell_quantities(
     const int ncells, const int nnodes, const int nnodes_by_subcell,
     double* nodal_volumes, const double* nodal_mass, double* cell_centroids_x,
@@ -17,26 +17,24 @@ void gather_subcell_quantities(
     double* subcell_centroids_x, double* subcell_centroids_y,
     double* subcell_centroids_z, double* cell_volume,
     int* subcells_to_faces_offsets, int* faces_to_nodes,
-    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
-    int* cells_to_faces_offsets, int* cells_to_faces, int* subcells_to_faces,
-    int* nodes_to_cells_offsets, int* cells_to_nodes_offsets,
-    int* cells_to_nodes, int* nodes_to_nodes_offsets, int* nodes_to_nodes,
-    vec_t* initial_momentum) {
+    int* faces_to_nodes_offsets, int* faces_cclockwise_cell,
+    int* faces_to_cells0, int* faces_to_cells1, int* cells_to_faces_offsets,
+    int* cells_to_faces, int* subcells_to_faces, int* nodes_to_cells_offsets,
+    int* cells_to_nodes_offsets, int* cells_to_nodes,
+    int* nodes_to_nodes_offsets, int* nodes_to_nodes, vec_t* initial_momentum) {
 
   /*
   *      GATHERING STAGE OF THE REMAP
   */
 
   // Calculates the cell volume, subcell volume and the subcell centroids
-
-  // Calculates the cell volume, subcell volume and the subcell centroids
   calc_volumes_centroids(
       ncells, nnodes, nnodes_by_subcell, cells_to_nodes_offsets, cells_to_nodes,
       cells_to_faces_offsets, cells_to_faces, subcells_to_faces_offsets,
-      subcells_to_faces, faces_to_nodes, faces_to_nodes_offsets, nodes_x,
-      nodes_y, nodes_z, subcell_centroids_x, subcell_centroids_y,
-      subcell_centroids_z, subcell_volume, cell_volume, nodal_volumes,
-      nodes_to_cells_offsets, nodes_to_cells);
+      subcells_to_faces, faces_to_nodes, faces_to_nodes_offsets,
+      faces_cclockwise_cell, nodes_x, nodes_y, nodes_z, subcell_centroids_x,
+      subcell_centroids_y, subcell_centroids_z, subcell_volume, cell_volume,
+      nodal_volumes, nodes_to_cells_offsets, nodes_to_cells);
 
   // Gathers all of the subcell quantities on the mesh
   gather_subcell_energy(

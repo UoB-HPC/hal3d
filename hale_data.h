@@ -115,13 +115,14 @@ void init_mesh_mass(const int ncells, const int nnodes,
                     const double* nodes_z, double* subcell_mass,
                     double* nodal_mass, int* cells_to_faces_offsets,
                     int* cells_to_faces, int* faces_to_nodes_offsets,
-                    int* faces_to_nodes, int* cells_offsets,
-                    int* cells_to_nodes, int* subcells_to_faces_offsets,
-                    int* subcells_to_faces, int* nodes_offsets,
-                    int* nodes_to_cells, double* subcell_centroids_x,
-                    double* subcell_centroids_y, double* subcell_centroids_z,
-                    double* subcell_volume, double* cell_volume,
-                    double* nodal_volumes, double* cell_mass);
+                    int* faces_to_nodes, int* faces_cclockwise_cell,
+                    int* cells_offsets, int* cells_to_nodes,
+                    int* subcells_to_faces_offsets, int* subcells_to_faces,
+                    int* nodes_offsets, int* nodes_to_cells,
+                    double* subcell_centroids_x, double* subcell_centroids_y,
+                    double* subcell_centroids_z, double* subcell_volume,
+                    double* cell_volume, double* nodal_volumes,
+                    double* cell_mass);
 
 // Initialises the centroids for each cell
 void init_cell_centroids(const int ncells, const int* cells_offsets,
@@ -134,20 +135,21 @@ void init_cell_centroids(const int ncells, const int* cells_offsets,
 void init_subcells_to_subcells(
     const int ncells, const int nsubcells, const int* faces_to_cells0,
     const int* faces_to_cells1, const int* faces_to_nodes_offsets,
-    const int* faces_to_nodes, const double* nodes_x, const double* nodes_y,
-    const double* nodes_z, int* subcells_to_subcells,
-    int* subcells_to_subcells_offsets, int* cells_offsets,
-    int* nodes_to_faces_offsets, int* nodes_to_faces, int* cells_to_nodes,
-    int* subcells_to_faces, int* subcells_to_faces_offsets);
+    const int* faces_to_nodes, const int* faces_cclockwise_cell,
+    const double* nodes_x, const double* nodes_y, const double* nodes_z,
+    int* subcells_to_subcells, int* subcells_to_subcells_offsets,
+    int* cells_offsets, int* nodes_to_faces_offsets, int* nodes_to_faces,
+    int* cells_to_nodes, int* subcells_to_faces,
+    int* subcells_to_faces_offsets);
 
 void init_subcells_to_faces(
     const int ncells, const int nsubcells, const int* cells_offsets,
     const int* nodes_to_faces_offsets, const int* cells_to_nodes,
     const int* faces_to_cells0, const int* faces_to_cells1,
     const int* nodes_to_faces, const int* faces_to_nodes,
-    const int* faces_to_nodes_offsets, int* subcells_to_faces,
-    const double* nodes_x, const double* nodes_y, const double* nodes_z,
-    int* subcells_to_faces_offsets);
+    const int* faces_to_nodes_offsets, const int* faces_cclockwise_cell,
+    int* subcells_to_faces, const double* nodes_x, const double* nodes_y,
+    const double* nodes_z, int* subcells_to_faces_offsets);
 
 // Stores the rezoned grid specification, in case we aren't going to use a
 // rezoning strategy and want to perform an Eulerian remap
