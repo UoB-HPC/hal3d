@@ -310,3 +310,10 @@ void scatter_momentum(const int nnodes, vec_t* initial_momentum,
                       double* subcell_momentum_flux_x,
                       double* subcell_momentum_flux_y,
                       double* subcell_momentum_flux_z);
+
+// The construction of the swept edge prisms can result in tangled or coplanar
+// faces between the original and rezoned mesh. This must be recognised and
+// handled correctly in order to stop the calculations breaking down.
+int test_prism_overlap(const int nnodes_by_face, const int* faces_to_nodes,
+                       const double* nodes_x, const double* nodes_y,
+                       const double* nodes_z);
