@@ -202,7 +202,7 @@ void perform_advection(
                                          swept_edge_faces_to_nodes, inodes_x,
                                          inodes_y, inodes_z);
 
-        if (!overlap) {
+        if (overlap != 0) {
           // Contributes the local mass and energy flux for a given subcell face
           contribute_mass_and_energy_flux(
               cc, neighbour_cc, ff, node_index, subcell_index, &subcell_c,
@@ -273,7 +273,8 @@ void perform_advection(
                                      swept_edge_faces_to_nodes, enodes_x,
                                      enodes_y, enodes_z);
 
-        if (!overlap) {
+        if (overlap != 0) {
+
           // Contributes the local mass and energy flux for a given subcell face
           contribute_mass_and_energy_flux(
               cc, neighbour_cc, ff, node_index, subcell_index, &subcell_c,
@@ -352,15 +353,12 @@ void contribute_mass_and_energy_flux(
     return;
   }
 
-#if 0
-  // Determine whether the swept edge region is flowing into or out of the
   // current sub cell
   vec_t ab = {rz_face_c.x - face_c.x, rz_face_c.y - face_c.y,
               rz_face_c.z - face_c.z};
   vec_t ac = {subcell_c->x - face_c.x, subcell_c->y - face_c.y,
               subcell_c->z - face_c.z};
   const int is_outflux = (ab.x * ac.x + ab.y * ac.y + ab.z * ac.z > 0.0);
-#endif // if 0
 
   // Depending upon which subcell we are sweeping into, choose the
   // subcell index with which to reconstruct the density
@@ -1073,16 +1071,19 @@ int test_prism_overlap(const int nnodes_by_face, const int* faces_to_nodes,
 
     const double dot = dn.x * normal.x + dn.y * normal.y + dn.z * normal.z;
 
-    const int local_sign = (dot > 0.0) ? 1 : -1;
-
-    // We have two coplanar faces on the constructed prism
-    if (dot < EPS) {
-      return 0;
-    }
+    const int local_sign = (dot < 0.0) ? 1 : -1;
 
     if (global_sign == 0) {
       global_sign = local_sign;
-    } else if (global_sign != local_sign) {
+    }
+
+    // We are tangled
+    if (global_sign != local_sign) {
+      return 0;
+    }
+
+    // We have two coplanar faces on the constructed prism
+    if (dot < EPS && dot > -EPS) {
       return 0;
     }
   }
@@ -1120,7 +1121,6 @@ void contribute_face_volume(const int nnodes_by_face, const int* faces_to_nodes,
                             double* vol) {
 
   double local_vol = 0.0;
-  vec_t face_normal = {0.0, 0.0, 0.0};
   vec_t face_c = {0.0, 0.0, 0.0};
   calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes, 0,
                 &face_c);
@@ -1139,9 +1139,10 @@ void contribute_face_volume(const int nnodes_by_face, const int* faces_to_nodes,
 
     vec_t tnormal = {0.0, 0.0, 0.0};
     calc_unit_normal(0, 1, 2, tn_x, tn_y, tn_z, &tnormal);
-    face_normal.x += tnormal.x / nnodes_by_face;
-    face_normal.y += tnormal.y / nnodes_by_face;
-    face_normal.z += tnormal.z / nnodes_by_face;
+
+    tnormal.x *= (face_clockwise) ? 1.0 : -1.0;
+    tnormal.y *= (face_clockwise) ? 1.0 : -1.0;
+    tnormal.z *= (face_clockwise) ? 1.0 : -1.0;
 
     // The projection of the normal vector onto a point on the face
     double omega = -(tnormal.x * tn_x[(2)] + tnormal.y * tn_y[(2)] +
@@ -1172,15 +1173,7 @@ void contribute_face_volume(const int nnodes_by_face, const int* faces_to_nodes,
     }
   }
 
-  // Determine the orientation of the normal
-  vec_t ab = {(cell_c->x - face_c.x), (cell_c->y - face_c.y),
-              (cell_c->z - face_c.z)};
-
-  const double dot =
-      ab.x * face_normal.x + ab.y * face_normal.y + ab.z * face_normal.z;
-
-  const int face_clockwise = (dot > 0.0);
-  *vol += (face_clockwise) ? -local_vol : local_vol;
+  *vol += local_vol;
 }
 
 // Calculates the weighted volume dist for a provided cell along x-y-z
