@@ -118,9 +118,6 @@ void calc_volumes_centroids(
     vec_t cell_c = {0.0, 0.0, 0.0};
     calc_centroid(nnodes_by_cell, nodes_x, nodes_y, nodes_z, cells_to_nodes,
                   cell_to_nodes_off, &cell_c);
-    calc_volume(cell_to_faces_off, nfaces_by_cell, cells_to_faces,
-                faces_to_nodes, faces_to_nodes_offsets, nodes_x, nodes_y,
-                nodes_z, &cell_c, &cell_volume[(cc)]);
 
     total_cell_volume += cell_volume[(cc)];
 

@@ -4,25 +4,10 @@
 #include <math.h>
 #include <stdio.h>
 
-// Gathers all of the subcell quantities on the mesh
-void gather_subcell_quantities(
-    const int ncells, const int nnodes, const int nnodes_by_subcell,
-    double* nodal_volumes, const double* nodal_mass, double* cell_centroids_x,
-    double* cell_centroids_y, double* cell_centroids_z, int* nodes_to_cells,
-    double* nodes_x, const double* nodes_y, const double* nodes_z,
-    double* energy, double* density, double* velocity_x, double* velocity_y,
-    double* velocity_z, double* cell_mass, double* subcell_volume,
-    double* subcell_ie_mass, double* subcell_momentum_x,
-    double* subcell_momentum_y, double* subcell_momentum_z,
-    double* subcell_centroids_x, double* subcell_centroids_y,
-    double* subcell_centroids_z, double* cell_volume,
-    int* subcells_to_faces_offsets, int* faces_to_nodes,
-    int* faces_to_nodes_offsets, int* faces_cclockwise_cell,
-    int* faces_to_cells0, int* faces_to_cells1, int* cells_to_faces_offsets,
-    int* cells_to_faces, int* subcells_to_faces, int* nodes_to_cells_offsets,
-    int* cells_to_nodes_offsets, int* cells_to_nodes,
-    int* nodes_to_nodes_offsets, int* nodes_to_nodes, vec_t* initial_momentum,
-    double* initial_mass, double* initial_ie_mass) {
+// gathers all of the subcell quantities on the mesh
+void gather_subcell_quantities(UnstructuredMesh* umesh, HaleData* hale_data,
+                               vec_t* initial_momentum, double* initial_mass,
+                               double* initial_ie_mass) {
 
   /*
   *      GATHERING STAGE OF THE REMAP
@@ -30,30 +15,41 @@ void gather_subcell_quantities(
 
   // Calculates the cell volume, subcell volume and the subcell centroids
   calc_volumes_centroids(
-      ncells, nnodes, nnodes_by_subcell, cells_to_nodes_offsets, cells_to_nodes,
-      cells_to_faces_offsets, cells_to_faces, subcells_to_faces_offsets,
-      subcells_to_faces, faces_to_nodes, faces_to_nodes_offsets,
-      faces_cclockwise_cell, nodes_x, nodes_y, nodes_z, subcell_centroids_x,
-      subcell_centroids_y, subcell_centroids_z, subcell_volume, cell_volume,
-      nodal_volumes, nodes_to_cells_offsets, nodes_to_cells);
+      umesh->ncells, umesh->nnodes, hale_data->nnodes_by_subcell,
+      umesh->cells_offsets, umesh->cells_to_nodes,
+      umesh->cells_to_faces_offsets, umesh->cells_to_faces,
+      hale_data->subcells_to_faces_offsets, hale_data->subcells_to_faces,
+      umesh->faces_to_nodes, umesh->faces_to_nodes_offsets,
+      umesh->faces_cclockwise_cell, umesh->nodes_x0, umesh->nodes_y0,
+      umesh->nodes_z0, hale_data->subcell_centroids_x,
+      hale_data->subcell_centroids_y, hale_data->subcell_centroids_z,
+      hale_data->subcell_volume, hale_data->cell_volume,
+      hale_data->nodal_volumes, umesh->nodes_offsets, umesh->nodes_to_cells);
 
   // Gathers all of the subcell quantities on the mesh
   gather_subcell_mass_and_energy(
-      ncells, cell_centroids_x, cell_centroids_y, cell_centroids_z,
-      cells_to_nodes_offsets, nodes_x, nodes_y, nodes_z, cell_volume, energy,
-      density, cell_mass, subcell_volume, subcell_ie_mass, subcell_centroids_x,
-      subcell_centroids_y, subcell_centroids_z, faces_to_cells0,
-      faces_to_cells1, cells_to_faces_offsets, cells_to_faces, cells_to_nodes,
-      initial_mass, initial_ie_mass);
+      umesh->ncells, umesh->cell_centroids_x, umesh->cell_centroids_y,
+      umesh->cell_centroids_z, umesh->cells_offsets, umesh->nodes_x0,
+      umesh->nodes_y0, umesh->nodes_z0, hale_data->cell_volume,
+      hale_data->energy0, hale_data->density0, hale_data->cell_mass,
+      hale_data->subcell_volume, hale_data->subcell_ie_mass,
+      hale_data->subcell_centroids_x, hale_data->subcell_centroids_y,
+      hale_data->subcell_centroids_z, umesh->faces_to_cells0,
+      umesh->faces_to_cells1, umesh->cells_to_faces_offsets,
+      umesh->cells_to_faces, umesh->cells_to_nodes, initial_mass,
+      initial_ie_mass);
 
   // Gathers the momentum  the subcells
   gather_subcell_momentum(
-      nnodes, nodal_volumes, nodal_mass, nodes_to_cells, nodes_x, nodes_y,
-      nodes_z, velocity_x, velocity_y, velocity_z, subcell_volume,
-      subcell_momentum_x, subcell_momentum_y, subcell_momentum_z,
-      subcell_centroids_x, subcell_centroids_y, subcell_centroids_z,
-      nodes_to_cells_offsets, cells_to_nodes_offsets, cells_to_nodes,
-      nodes_to_nodes_offsets, nodes_to_nodes, initial_momentum);
+      umesh->nnodes, hale_data->nodal_volumes, hale_data->nodal_mass,
+      umesh->nodes_to_cells, umesh->nodes_x0, umesh->nodes_y0, umesh->nodes_z0,
+      hale_data->velocity_x0, hale_data->velocity_y0, hale_data->velocity_z0,
+      hale_data->subcell_volume, hale_data->subcell_momentum_x,
+      hale_data->subcell_momentum_y, hale_data->subcell_momentum_z,
+      hale_data->subcell_centroids_x, hale_data->subcell_centroids_y,
+      hale_data->subcell_centroids_z, umesh->cells_offsets,
+      umesh->nodes_offsets, umesh->cells_to_nodes,
+      umesh->nodes_to_nodes_offsets, umesh->nodes_to_nodes, initial_momentum);
 }
 
 // Gathers all of the subcell quantities on the mesh

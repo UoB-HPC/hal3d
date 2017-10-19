@@ -2,16 +2,20 @@
 #problem_0 density=0.125 energy=2.0 xpos=0.0 ypos=0.0 zpos=0.0 width=1.0 height=1.0 depth=1.0
 #problem_1 density=1.0 energy=2.5 xpos=0.3 ypos=0.3 zpos=0.3 width=0.4 height=0.4 depth=0.4
 
-# Sod shock
+# Corner square
 problem_0 density=0.125 energy=2.0 xpos=0.0 ypos=0.0 zpos=0.0 width=1.0 height=1.0 depth=1.0
-problem_1 density=1.0 energy=2.5 xpos=0.0 ypos=0.0 zpos=0.0 width=0.5 height=1.0 depth=1.0
+problem_1 density=1.0 energy=2.5 xpos=0.0 ypos=0.0 zpos=0.0 width=0.2 height=0.2 depth=0.2
+
+# Sod shock
+#problem_0 density=0.125 energy=2.0 xpos=0.0 ypos=0.0 zpos=0.0 width=1.0 height=1.0 depth=1.0
+#problem_1 density=1.0 energy=2.5 xpos=0.0 ypos=0.0 zpos=0.0 width=0.5 height=1.0 depth=1.0
 #problem_1 density=1.0 energy=2.5 xpos=0.0 ypos=0.0 zpos=0.0 width=1.0 height=0.5 depth=1.0
 #problem_1 density=1.0 energy=2.5 xpos=0.0 ypos=0.0 zpos=0.0 width=1.0 height=1.0 depth=0.5
 
 dt            1.0e-4
 visc_coeff1   0.5
 visc_coeff2   0.5
-iterations    2
+iterations    6
 visit_dump    1
 perform_remap 1
 nx            32

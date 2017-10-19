@@ -15,11 +15,11 @@ void lagrangian_phase(
     double* velocity_x0, double* velocity_y0, double* velocity_z0,
     double* velocity_x1, double* velocity_y1, double* velocity_z1,
     double* subcell_force_x, double* subcell_force_y, double* subcell_force_z,
-    double* cell_mass, double* nodal_mass, double* nodal_volumes,
-    double* nodal_soundspeed, double* limiter, int* nodes_to_faces_offsets,
-    int* nodes_to_faces, int* faces_to_nodes, int* faces_to_nodes_offsets,
-    int* faces_to_cells0, int* faces_to_cells1, int* cells_to_faces_offsets,
-    int* cells_to_faces);
+    double* cell_mass, double* nodal_mass, double* cell_volume,
+    double* nodal_volumes, double* nodal_soundspeed, double* limiter,
+    int* nodes_to_faces_offsets, int* nodes_to_faces, int* faces_to_nodes,
+    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
+    int* cells_to_faces_offsets, int* cells_to_faces);
 
 // Controls the timestep for the simulation
 void set_timestep(const int ncells, const double* nodes_x,
@@ -41,25 +41,10 @@ void calc_artificial_viscosity(
     double* corner_force_y, double* corner_force_z, int* faces_to_nodes_offsets,
     int* faces_to_nodes, int* cells_to_faces_offsets, int* cells_to_faces);
 
-// Gathers all of the subcell quantities on the mesh
-void gather_subcell_quantities(
-    const int ncells, const int nnodes, const int nnodes_by_subcell,
-    double* nodal_volumes, const double* nodal_mass, double* cell_centroids_x,
-    double* cell_centroids_y, double* cell_centroids_z, int* nodes_to_cells,
-    double* nodes_x, const double* nodes_y, const double* nodes_z,
-    double* energy, double* density, double* velocity_x, double* velocity_y,
-    double* velocity_z, double* cell_mass, double* subcell_volume,
-    double* subcell_ie_mass, double* subcell_momentum_x,
-    double* subcell_momentum_y, double* subcell_momentum_z,
-    double* subcell_centroids_x, double* subcell_centroids_y,
-    double* subcell_centroids_z, double* cell_volume,
-    int* subcells_to_faces_offsets, int* faces_to_nodes,
-    int* faces_to_nodes_offsets, int* faces_cclockwise_cell,
-    int* faces_to_cells0, int* faces_to_cells1, int* cells_to_faces_offsets,
-    int* cells_to_faces, int* subcells_to_faces, int* nodes_to_cells_offsets,
-    int* cells_to_nodes_offsets, int* cells_to_nodes,
-    int* nodes_to_nodes_offsets, int* nodes_to_nodes, vec_t* initial_momentum,
-    double* initial_mass, double* initial_ie_mass);
+// gathers all of the subcell quantities on the mesh
+void gather_subcell_quantities(UnstructuredMesh* umesh, HaleData* hale_data,
+                               vec_t* initial_momentum, double* initial_mass,
+                               double* initial_ie_mass);
 
 // Gathers the momentum into the subcells
 void gather_subcell_momentum(
@@ -86,22 +71,7 @@ void gather_subcell_mass_and_energy(
     double* initial_mass, double* initial_ie_mass);
 
 // Performs a remap and some scattering of the subcell values
-void remap_phase(
-    const int ncells, const int* cells_offsets, const double* nodes_x,
-    const double* nodes_y, const double* nodes_z, const double* rezoned_nodes_x,
-    const double* rezoned_nodes_y, const double* rezoned_nodes_z,
-    const double* subcell_momentum_x, const double* subcell_momentum_y,
-    const double* subcell_momentum_z, const int* cells_to_nodes,
-    const int* faces_to_nodes_offsets, const int* faces_to_nodes,
-    const int* faces_cclockwise_cell, const int* subcells_to_faces_offsets,
-    const int* subcells_to_faces, const int* subcells_to_subcells_offsets,
-    const int* subcells_to_subcells, const int* faces_to_cells0,
-    const int* faces_to_cells1, double* subcell_momentum_flux_x,
-    double* subcell_momentum_flux_y, double* subcell_momentum_flux_z,
-    const double* subcell_centroids_x, const double* subcell_centroids_y,
-    const double* subcell_centroids_z, double* subcell_volume,
-    double* subcell_mass, double* subcell_mass_flux, double* subcell_ie_mass,
-    double* subcell_ie_mass_flux);
+void remap_phase(UnstructuredMesh* umesh, HaleData* hale_data);
 
 // Calculate the normal vector from the provided nodes
 void calc_unit_normal(const int n0, const int n1, const int n2,
@@ -269,22 +239,8 @@ void contribute_momentum_flux(
     const double* nodes_y, const double* nodes_z, const int internal);
 
 // Perform the scatter step of the ALE remapping algorithm
-void scatter_phase(const int ncells, const int nnodes, vec_t* initial_momentum,
-                   const double* rezoned_nodes_x, const double* rezoned_nodes_y,
-                   const double* rezoned_nodes_z, double* cell_volume,
-                   double* energy, double* density, double* velocity_x,
-                   double* velocity_y, double* velocity_z, double* cell_mass,
-                   double* nodal_mass, double* subcell_ie_mass,
-                   double* subcell_mass, double* subcell_ie_mass_flux,
-                   double* subcell_mass_flux, double* subcell_momentum_x,
-                   double* subcell_momentum_y, double* subcell_momentum_z,
-                   double* subcell_momentum_flux_x,
-                   double* subcell_momentum_flux_y,
-                   double* subcell_momentum_flux_z, int* faces_to_nodes,
-                   int* faces_to_nodes_offsets, int* cells_to_faces_offsets,
-                   int* cells_to_faces, int* nodes_to_cells_offsets,
-                   int* nodes_to_cells, int* cells_to_nodes_offsets,
-                   int* cells_to_nodes, double initial_mass,
+void scatter_phase(UnstructuredMesh* umesh, HaleData* hale_data,
+                   vec_t* initial_momentum, double initial_mass,
                    double initial_ie_mass);
 
 // Scatter the subcell energy and mass quantities back to the cell centers
@@ -315,3 +271,6 @@ void scatter_momentum(const int nnodes, vec_t* initial_momentum,
 int test_prism_overlap(const int nnodes_by_face, const int* faces_to_nodes,
                        const double* nodes_x, const double* nodes_y,
                        const double* nodes_z);
+
+// Performs an Eulerian rezone of the mesh
+void eulerian_rezone(UnstructuredMesh* umesh, HaleData* hale_data);

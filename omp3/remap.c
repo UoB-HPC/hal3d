@@ -5,34 +5,24 @@
 #include <math.h>
 
 // Performs a remap and some scattering of the subcell values
-void remap_phase(
-    const int ncells, const int* cells_offsets, const double* nodes_x,
-    const double* nodes_y, const double* nodes_z, const double* rezoned_nodes_x,
-    const double* rezoned_nodes_y, const double* rezoned_nodes_z,
-    const double* subcell_momentum_x, const double* subcell_momentum_y,
-    const double* subcell_momentum_z, const int* cells_to_nodes,
-    const int* faces_to_nodes_offsets, const int* faces_to_nodes,
-    const int* faces_cclockwise_cell, const int* subcells_to_faces_offsets,
-    const int* subcells_to_faces, const int* subcells_to_subcells_offsets,
-    const int* subcells_to_subcells, const int* faces_to_cells0,
-    const int* faces_to_cells1, double* subcell_momentum_flux_x,
-    double* subcell_momentum_flux_y, double* subcell_momentum_flux_z,
-    const double* subcell_centroids_x, const double* subcell_centroids_y,
-    const double* subcell_centroids_z, double* subcell_volume,
-    double* subcell_mass, double* subcell_mass_flux, double* subcell_ie_mass,
-    double* subcell_ie_mass_flux) {
+void remap_phase(UnstructuredMesh* umesh, HaleData* hale_data) {
 
   // Advects mass and energy through the subcell faces using swept edge approx
   perform_advection(
-      ncells, cells_offsets, nodes_x, nodes_y, nodes_z, rezoned_nodes_x,
-      rezoned_nodes_y, rezoned_nodes_z, cells_to_nodes, faces_to_nodes_offsets,
-      faces_to_nodes, faces_cclockwise_cell, subcells_to_faces_offsets,
-      subcells_to_faces, subcells_to_subcells_offsets, subcells_to_subcells,
-      subcell_centroids_x, subcell_centroids_y, subcell_centroids_z,
-      faces_to_cells0, faces_to_cells1, subcell_volume, subcell_momentum_flux_x,
-      subcell_momentum_flux_y, subcell_momentum_flux_z, subcell_momentum_x,
-      subcell_momentum_y, subcell_momentum_z, subcell_mass, subcell_mass_flux,
-      subcell_ie_mass, subcell_ie_mass_flux);
+      umesh->ncells, umesh->cells_offsets, umesh->nodes_x0, umesh->nodes_y0,
+      umesh->nodes_z0, hale_data->rezoned_nodes_x, hale_data->rezoned_nodes_y,
+      hale_data->rezoned_nodes_z, umesh->cells_to_nodes,
+      umesh->faces_to_nodes_offsets, umesh->faces_to_nodes,
+      umesh->faces_cclockwise_cell, hale_data->subcells_to_faces_offsets,
+      hale_data->subcells_to_faces, hale_data->subcells_to_subcells_offsets,
+      hale_data->subcells_to_subcells, hale_data->subcell_centroids_x,
+      hale_data->subcell_centroids_y, hale_data->subcell_centroids_z,
+      umesh->faces_to_cells0, umesh->faces_to_cells1, hale_data->subcell_volume,
+      hale_data->subcell_momentum_flux_x, hale_data->subcell_momentum_flux_y,
+      hale_data->subcell_momentum_flux_z, hale_data->subcell_momentum_x,
+      hale_data->subcell_momentum_y, hale_data->subcell_momentum_z,
+      hale_data->subcell_mass, hale_data->subcell_mass_flux,
+      hale_data->subcell_ie_mass, hale_data->subcell_ie_mass_flux);
 }
 
 // Advects mass and energy through the subcell faces using swept edge approx
@@ -355,6 +345,34 @@ void contribute_mass_and_energy_flux(
   const int sweep_subcell_index =
       (is_outflux ? subcell_index : subcell_neighbour_index);
 
+  if (subcell_index == 50728) { // || subcell_index == 50731) {
+#if 0
+    printf("cell_c %.12e %.12e %.12e\n", swept_edge_c.x, swept_edge_c.y,
+           swept_edge_c.z);
+    printf("face_c %.12e %.12e %.12e\n", face_c.x, face_c.y, face_c.z);
+#endif // if 0
+#if 0
+    printf("double nodes_x[]={");
+    for (int nn = 0; nn < 2 * NNODES_BY_SUBCELL_FACE; ++nn) {
+      printf("%.16e,", se_nodes_x[nn]);
+    }
+    printf("};\n");
+    printf("double nodes_y[]={");
+    for (int nn = 0; nn < 2 * NNODES_BY_SUBCELL_FACE; ++nn) {
+      printf("%.16e,", se_nodes_y[nn]);
+    }
+    printf("};\n");
+    printf("double nodes_z[]={");
+    for (int nn = 0; nn < 2 * NNODES_BY_SUBCELL_FACE; ++nn) {
+      printf("%.16e,", se_nodes_z[nn]);
+    }
+    printf("};\n");
+#endif // if 0
+    printf("subcell_index %d\n", subcell_index);
+    printf("swept_edge_vol %.15e\n", swept_edge_vol);
+    printf("flowing %s\n", is_outflux ? "out" : "in");
+  }
+
   // Get the cell center of the sweep cell
   vec_t sweep_cell_c;
   if (is_outflux) {
@@ -576,6 +594,7 @@ void contribute_mass_and_energy_flux(
                         grad_ie.y * (swept_edge_c.y - sweep_subcell_c.y) +
                         grad_ie.z * (swept_edge_c.z - sweep_subcell_c.z));
 
+#if 0
   if (local_mass_flux < 0.0 || local_energy_flux < 0.0) {
     printf("Encountered negative swept edge region flux in subcell %d: mass "
            "%.12e energy %.12e.\n",
@@ -583,6 +602,7 @@ void contribute_mass_and_energy_flux(
     printf("swept_edge_vol %.12e mass %.12e energy %.12e\n", swept_edge_vol,
            subcell_mass[(sweep_subcell_index)], sweep_subcell_ie_density);
   }
+#endif // if 0
 
   // Mass and energy are either flowing into or out of the subcell
   if (is_outflux) {
@@ -592,6 +612,22 @@ void contribute_mass_and_energy_flux(
     subcell_mass_flux[(subcell_index)] -= local_mass_flux;
     subcell_ie_mass_flux[(subcell_index)] -= local_energy_flux;
   }
+
+#if 0
+  if (subcell_mass[(subcell_index)] - subcell_mass_flux[(subcell_index)] <
+      0.0) {
+
+    printf("Subcell mass going negative %d: mass %.12e energy %.12e.\n",
+           subcell_index, local_mass_flux, local_energy_flux);
+    printf("swept_edge_vol %.12e mass %.12e energy %.12e\n", swept_edge_vol,
+           subcell_mass[(sweep_subcell_index)], sweep_subcell_ie_density);
+    printf("swept_edge_c %.12e %.12e %.12e\n", swept_edge_c.x, swept_edge_c.y,
+           swept_edge_c.z);
+    printf("subcell_c %.12e %.12e %.12e\n", subcell_c->x, subcell_c->y,
+           subcell_c->z);
+    printf("face_c %.12e %.12e %.12e\n", face_c.x, face_c.y, face_c.z);
+  }
+#endif // if 0
 }
 
 // Contributes the local mass and energy flux for a given subcell face

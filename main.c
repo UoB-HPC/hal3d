@@ -52,8 +52,8 @@ int main(int argc, char** argv) {
   size_t allocated = 0;
 
   // Fetch the size of the unstructured mesh
-  UnstructuredMesh umesh = {0};
-  HaleData hale_data = {0};
+  HaleData hale_data;
+  UnstructuredMesh umesh;
 
   if (read_umesh) {
     umesh.node_filename = get_parameter("node_file", hale_params);
@@ -74,6 +74,13 @@ int main(int argc, char** argv) {
     hale_data.density0 = shared_data.rho;
     hale_data.energy0 = shared_data.e;
   }
+
+#if 0
+  for (int cc = 0; cc < umesh.ncells; ++cc) {
+    hale_data.density0[(cc)] = 2.0 + cc % mesh.local_nx;
+    hale_data.energy0[(cc)] = 2.0 + cc % mesh.local_nx;
+  }
+#endif // if 0
 
   // Initialise the hale-specific data arrays
   hale_data.visc_coeff1 = get_double_parameter("visc_coeff1", hale_params);

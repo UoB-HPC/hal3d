@@ -30,12 +30,21 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
       hale_data->velocity_z0, hale_data->velocity_x1, hale_data->velocity_y1,
       hale_data->velocity_z1, hale_data->subcell_force_x,
       hale_data->subcell_force_y, hale_data->subcell_force_z,
-      hale_data->cell_mass, hale_data->nodal_mass, hale_data->nodal_volumes,
-      hale_data->nodal_soundspeed, hale_data->limiter,
+      hale_data->cell_mass, hale_data->nodal_mass, hale_data->cell_volume,
+      hale_data->nodal_volumes, hale_data->nodal_soundspeed, hale_data->limiter,
       umesh->nodes_to_faces_offsets, umesh->nodes_to_faces,
       umesh->faces_to_nodes, umesh->faces_to_nodes_offsets,
       umesh->faces_to_cells0, umesh->faces_to_cells1,
       umesh->cells_to_faces_offsets, umesh->cells_to_faces);
+
+#if 0
+  init_subcell_data_structures(mesh, hale_data, umesh);
+  write_unstructured_to_visit_3d(
+      hale_data->nsubcell_nodes, umesh->ncells * hale_data->nsubcells_by_cell,
+      timestep * 2, hale_data->subcell_nodes_x, hale_data->subcell_nodes_y,
+      hale_data->subcell_nodes_z, hale_data->subcells_to_nodes,
+      hale_data->subcell_mass, 0, 1);
+#endif // if 0
 
   if (hale_data->perform_remap) {
     printf("\nPerforming Gathering Phase\n");
@@ -45,86 +54,36 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
     vec_t initial_momentum = {0.0, 0.0, 0.0};
 
     // gathers all of the subcell quantities on the mesh
-    gather_subcell_quantities(
-        umesh->ncells, umesh->nnodes, hale_data->nnodes_by_subcell,
-        hale_data->nodal_volumes, hale_data->nodal_mass,
-        umesh->cell_centroids_x, umesh->cell_centroids_y,
-        umesh->cell_centroids_z, umesh->nodes_to_cells, umesh->nodes_x0,
-        umesh->nodes_y0, umesh->nodes_z0, hale_data->energy0,
-        hale_data->density0, hale_data->velocity_x0, hale_data->velocity_y0,
-        hale_data->velocity_z0, hale_data->cell_mass, hale_data->subcell_volume,
-        hale_data->subcell_ie_mass, hale_data->subcell_momentum_x,
-        hale_data->subcell_momentum_y, hale_data->subcell_momentum_z,
-        hale_data->subcell_centroids_x, hale_data->subcell_centroids_y,
-        hale_data->subcell_centroids_z, hale_data->cell_volume,
-        hale_data->subcells_to_faces_offsets, umesh->faces_to_nodes,
-        umesh->faces_to_nodes_offsets, umesh->faces_cclockwise_cell,
-        umesh->faces_to_cells0, umesh->faces_to_cells1,
-        umesh->cells_to_faces_offsets, umesh->cells_to_faces,
-        hale_data->subcells_to_faces, umesh->nodes_offsets,
-        umesh->cells_offsets, umesh->cells_to_nodes,
-        umesh->nodes_to_nodes_offsets, umesh->nodes_to_nodes, &initial_momentum,
-        &initial_mass, &initial_ie_mass);
+    gather_subcell_quantities(umesh, hale_data, &initial_momentum,
+                              &initial_mass, &initial_ie_mass);
+
+    init_subcell_data_structures(mesh, hale_data, umesh);
+    write_unstructured_to_visit_3d(
+        hale_data->nsubcell_nodes, umesh->ncells * hale_data->nsubcells_by_cell,
+        timestep * 2, hale_data->subcell_nodes_x, hale_data->subcell_nodes_y,
+        hale_data->subcell_nodes_z, hale_data->subcells_to_nodes,
+        hale_data->subcell_mass, 0, 1);
 
     printf("\nPerforming Remap Phase\n");
 
     // Performs a remap and some scattering of the subcell values
-    remap_phase(
-        umesh->ncells, umesh->cells_offsets, umesh->nodes_x0, umesh->nodes_y0,
-        umesh->nodes_z0, hale_data->rezoned_nodes_x, hale_data->rezoned_nodes_y,
-        hale_data->rezoned_nodes_z, hale_data->subcell_momentum_x,
-        hale_data->subcell_momentum_y, hale_data->subcell_momentum_z,
-        umesh->cells_to_nodes, umesh->faces_to_nodes_offsets,
-        umesh->faces_to_nodes, umesh->faces_cclockwise_cell,
-        hale_data->subcells_to_faces_offsets, hale_data->subcells_to_faces,
-        hale_data->subcells_to_subcells_offsets,
-        hale_data->subcells_to_subcells, umesh->faces_to_cells0,
-        umesh->faces_to_cells1, hale_data->subcell_momentum_flux_x,
-        hale_data->subcell_momentum_flux_y, hale_data->subcell_momentum_flux_z,
-        hale_data->subcell_centroids_x, hale_data->subcell_centroids_y,
-        hale_data->subcell_centroids_z, hale_data->subcell_volume,
-        hale_data->subcell_mass, hale_data->subcell_mass_flux,
-        hale_data->subcell_ie_mass, hale_data->subcell_ie_mass_flux);
+    remap_phase(umesh, hale_data);
 
     printf("\nEulerian Mesh Rezone\n");
 
-    // Finalise the mesh rezone
-    apply_mesh_rezoning(umesh->nnodes, hale_data->rezoned_nodes_x,
-                        hale_data->rezoned_nodes_y, hale_data->rezoned_nodes_z,
-                        umesh->nodes_x0, umesh->nodes_y0, umesh->nodes_z0);
-
-    // Determine the new cell centroids
-    init_cell_centroids(umesh->ncells, umesh->cells_offsets,
-                        umesh->cells_to_nodes, umesh->nodes_x0, umesh->nodes_y0,
-                        umesh->nodes_z0, umesh->cell_centroids_x,
-                        umesh->cell_centroids_y, umesh->cell_centroids_z);
+    eulerian_rezone(umesh, hale_data);
 
     printf("\nPerforming the Scattering Phase\n");
 
     // Perform the scatter step of the ALE remapping algorithm
-    scatter_phase(
-        umesh->ncells, umesh->nnodes, &initial_momentum, umesh->nodes_x0,
-        umesh->nodes_y0, umesh->nodes_z0, hale_data->cell_volume,
-        hale_data->energy0, hale_data->density0, hale_data->velocity_x0,
-        hale_data->velocity_y0, hale_data->velocity_z0, hale_data->cell_mass,
-        hale_data->nodal_mass, hale_data->subcell_ie_mass,
-        hale_data->subcell_mass, hale_data->subcell_ie_mass_flux,
-        hale_data->subcell_mass_flux, hale_data->subcell_momentum_x,
-        hale_data->subcell_momentum_y, hale_data->subcell_momentum_z,
-        hale_data->subcell_momentum_flux_x, hale_data->subcell_momentum_flux_y,
-        hale_data->subcell_momentum_flux_z, umesh->faces_to_nodes,
-        umesh->faces_to_nodes_offsets, umesh->cells_to_faces_offsets,
-        umesh->cells_to_faces, umesh->nodes_offsets, umesh->nodes_to_cells,
-        umesh->cells_offsets, umesh->cells_to_nodes, initial_mass,
-        initial_ie_mass);
+    scatter_phase(umesh, hale_data, &initial_momentum, initial_mass,
+                  initial_ie_mass);
 
-#if 0
     init_subcell_data_structures(mesh, hale_data, umesh);
     write_unstructured_to_visit_3d(
         hale_data->nsubcell_nodes, umesh->ncells * hale_data->nsubcells_by_cell,
         timestep * 2 + 1, hale_data->subcell_nodes_x,
         hale_data->subcell_nodes_y, hale_data->subcell_nodes_z,
         hale_data->subcells_to_nodes, hale_data->subcell_mass, 0, 1);
-#endif // if 0
   }
 }

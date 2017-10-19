@@ -18,11 +18,11 @@ void lagrangian_phase(
     double* velocity_x0, double* velocity_y0, double* velocity_z0,
     double* velocity_x1, double* velocity_y1, double* velocity_z1,
     double* subcell_force_x, double* subcell_force_y, double* subcell_force_z,
-    double* cell_mass, double* nodal_mass, double* nodal_volumes,
-    double* nodal_soundspeed, double* limiter, int* nodes_to_faces_offsets,
-    int* nodes_to_faces, int* faces_to_nodes, int* faces_to_nodes_offsets,
-    int* faces_to_cells0, int* faces_to_cells1, int* cells_to_faces_offsets,
-    int* cells_to_faces) {
+    double* cell_mass, double* nodal_mass, double* cell_volume,
+    double* nodal_volumes, double* nodal_soundspeed, double* limiter,
+    int* nodes_to_faces_offsets, int* nodes_to_faces, int* faces_to_nodes,
+    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
+    int* cells_to_faces_offsets, int* cells_to_faces) {
 
   /*
    *    PREDICTOR
@@ -751,7 +751,7 @@ void lagrangian_phase(
     const int nfaces_by_cell =
         cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
 
-    double cell_volume = 0.0;
+    cell_volume[(cc)] = 0.0;
 
     // Look at all of the faces attached to the cell
     for (int ff = 0; ff < nfaces_by_cell; ++ff) {
@@ -801,7 +801,7 @@ void lagrangian_phase(
         // TODO: WE MULTIPLY BY 2 HERE BECAUSE WE ARE ADDING THE VOLUME TO
         // BOTH THE CURRENT AND NEXT NODE, OTHERWISE WE ONLY ACCOUNT FOR HALF OF
         // THE 'HALF' TETRAHEDRONS
-        cell_volume +=
+        cell_volume[(cc)] +=
             fabs(2.0 * ((half_edge.x - nodes_x0[(current_node)]) * S.x +
                         (half_edge.y - nodes_y0[(current_node)]) * S.y +
                         (half_edge.z - nodes_z0[(current_node)]) * S.z) /
@@ -810,7 +810,7 @@ void lagrangian_phase(
     }
 
     // Update the density using the new volume
-    density0[(cc)] = cell_mass[(cc)] / cell_volume;
+    density0[(cc)] = cell_mass[(cc)] / cell_volume[(cc)];
   }
   STOP_PROFILING(&compute_profile, "calc_new_density");
 }
