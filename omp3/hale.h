@@ -289,11 +289,11 @@ void scatter_phase(const int ncells, const int nnodes, vec_t* initial_momentum,
 
 // Scatter the subcell energy and mass quantities back to the cell centers
 void scatter_energy_and_mass(
-    const int ncells, const double* rezoned_nodes_x,
-    const double* rezoned_nodes_y, const double* rezoned_nodes_z,
-    double* cell_volume, double* energy, double* density, double* cell_mass,
-    double* subcell_ie_mass, double* subcell_mass, double* subcell_ie_mass_flux,
-    double* subcell_mass_flux, int* faces_to_nodes, int* faces_to_nodes_offsets,
+    const int ncells, const double* nodes_x, const double* nodes_y,
+    const double* nodes_z, double* cell_volume, double* energy, double* density,
+    double* cell_mass, double* subcell_ie_mass, double* subcell_mass,
+    double* subcell_ie_mass_flux, double* subcell_mass_flux,
+    int* faces_to_nodes, int* faces_to_nodes_offsets,
     int* cells_to_faces_offsets, int* cells_to_faces, int* cells_offsets,
     int* cells_to_nodes, double initial_mass, double initial_ie_mass);
 

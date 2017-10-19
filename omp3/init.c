@@ -28,6 +28,9 @@ void init_mesh_mass(const int ncells, const int nnodes,
       subcell_centroids_y, subcell_centroids_z, subcell_volume, cell_volume,
       nodal_volumes, nodes_offsets, nodes_to_cells);
 
+  double total_mass_in_cells = 0.0;
+  double total_mass_in_subcells = 0.0;
+
   // Calculate the predicted energy
   START_PROFILING(&compute_profile);
 #if 0
@@ -37,17 +40,26 @@ void init_mesh_mass(const int ncells, const int nnodes,
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
 
-    cell_mass[(cc)] = 0.0;
-
     // looping over corner subcells here
+    double total_mass = 0.0;
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int subcell_index = cell_to_nodes_off + nn;
       subcell_mass[(subcell_index)] =
           density[(cc)] * subcell_volume[(subcell_index)];
-      cell_mass[(cc)] += subcell_mass[(subcell_index)];
+
+      total_mass += subcell_mass[(subcell_index)];
+      total_mass_in_subcells += subcell_mass[(subcell_index)];
     }
+
+    cell_mass[(cc)] = total_mass;
+    total_mass_in_cells += cell_mass[(cc)];
   }
   STOP_PROFILING(&compute_profile, __func__);
+
+  printf("Total Mass in Cells    %.12f\n", total_mass_in_cells);
+  printf("Total Mass in Subcells %.12f\n", total_mass_in_subcells);
+  printf("Difference             %.12f\n\n",
+         total_mass_in_subcells - total_mass_in_cells);
 
 #if 0
 #pragma omp parallel for
@@ -102,11 +114,10 @@ void calc_volumes_centroids(
     const int nfaces_by_cell =
         cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
 
+    // Calculates the weighted volume dist for a provided cell along x-y-z
     vec_t cell_c = {0.0, 0.0, 0.0};
     calc_centroid(nnodes_by_cell, nodes_x, nodes_y, nodes_z, cells_to_nodes,
                   cell_to_nodes_off, &cell_c);
-
-    // Calculates the weighted volume dist for a provided cell along x-y-z
     calc_volume(cell_to_faces_off, nfaces_by_cell, cells_to_faces,
                 faces_to_nodes, faces_to_nodes_offsets, nodes_x, nodes_y,
                 nodes_z, &cell_c, &cell_volume[(cc)]);
