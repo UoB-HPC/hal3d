@@ -28,14 +28,6 @@ void lagrangian_phase(
    *    PREDICTOR
    */
 
-  START_PROFILING(&compute_profile);
-#pragma omp parallel for
-  for (int nn = 0; nn < nnodes; ++nn) {
-    nodal_volumes[(nn)] = 0.0;
-    nodal_soundspeed[(nn)] = 0.0;
-  }
-  STOP_PROFILING(&compute_profile, "zero_node_data");
-
   // Equation of state, ideal gas law
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
@@ -52,6 +44,9 @@ void lagrangian_phase(
     const int node_to_faces_off = nodes_to_faces_offsets[(nn)];
     const int nfaces_by_node =
         nodes_to_faces_offsets[(nn + 1)] - node_to_faces_off;
+
+    nodal_volumes[(nn)] = 0.0;
+    nodal_soundspeed[(nn)] = 0.0;
 
     vec_t node_c = {nodes_x0[(nn)], nodes_y0[(nn)], nodes_z0[(nn)]};
 

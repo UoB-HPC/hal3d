@@ -320,7 +320,7 @@ void contribute_mass_and_energy_flux(
               &swept_edge_vol);
 
   // Ignore the special case of an empty swept edge region
-  if (swept_edge_vol <= 0.0) {
+  if (swept_edge_vol < EPS) {
     if (swept_edge_vol < -EPS) {
       printf("Negative swept edge volume %d %.12f\n", cc, swept_edge_vol);
     }
@@ -633,7 +633,7 @@ void contribute_momentum_flux(
               &swept_edge_vol);
 
   // Ignore the special case of an empty swept edge region
-  if (swept_edge_vol <= 0.0) {
+  if (swept_edge_vol < EPS) {
     if (swept_edge_vol < -EPS) {
       printf("Negative swept edge volume %d %.12f\n", cc, swept_edge_vol);
     }

@@ -41,7 +41,7 @@ void calc_artificial_viscosity(
     double* corner_force_y, double* corner_force_z, int* faces_to_nodes_offsets,
     int* faces_to_nodes, int* cells_to_faces_offsets, int* cells_to_faces);
 
-// gathers all of the subcell quantities on the mesh
+// Gathers all of the subcell quantities on the mesh
 void gather_subcell_quantities(
     const int ncells, const int nnodes, const int nnodes_by_subcell,
     double* nodal_volumes, const double* nodal_mass, double* cell_centroids_x,
@@ -58,7 +58,8 @@ void gather_subcell_quantities(
     int* faces_to_cells0, int* faces_to_cells1, int* cells_to_faces_offsets,
     int* cells_to_faces, int* subcells_to_faces, int* nodes_to_cells_offsets,
     int* cells_to_nodes_offsets, int* cells_to_nodes,
-    int* nodes_to_nodes_offsets, int* nodes_to_nodes, vec_t* initial_momentum);
+    int* nodes_to_nodes_offsets, int* nodes_to_nodes, vec_t* initial_momentum,
+    double* initial_mass, double* initial_ie_mass);
 
 // Gathers the momentum into the subcells
 void gather_subcell_momentum(
@@ -73,15 +74,16 @@ void gather_subcell_momentum(
     int* nodes_to_nodes_offsets, int* nodes_to_nodes, vec_t* initial_momentum);
 
 // Gathers all of the subcell quantities on the mesh
-void gather_subcell_energy(
+void gather_subcell_mass_and_energy(
     const int ncells, double* cell_centroids_x, double* cell_centroids_y,
-    double* cell_centroids_z, int* cells_offsets, const double* nodes_x,
-    const double* nodes_y, const double* nodes_z, const double* cell_volume,
-    double* energy, double* density, double* cell_mass, double* subcell_volume,
-    double* subcell_ie_mass, double* subcell_centroids_x,
-    double* subcell_centroids_y, double* subcell_centroids_z,
-    int* faces_to_cells0, int* faces_to_cells1, int* cells_to_faces_offsets,
-    int* cells_to_faces, int* cells_to_nodes);
+    double* cell_centroids_z, int* cells_to_nodes_offsets,
+    const double* nodes_x, const double* nodes_y, const double* nodes_z,
+    const double* cell_volume, double* energy, double* density,
+    double* cell_mass, double* subcell_volume, double* subcell_ie_mass,
+    double* subcell_centroids_x, double* subcell_centroids_y,
+    double* subcell_centroids_z, int* faces_to_cells0, int* faces_to_cells1,
+    int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes,
+    double* initial_mass, double* initial_ie_mass);
 
 // Performs a remap and some scattering of the subcell values
 void remap_phase(
@@ -282,7 +284,8 @@ void scatter_phase(const int ncells, const int nnodes, vec_t* initial_momentum,
                    int* faces_to_nodes_offsets, int* cells_to_faces_offsets,
                    int* cells_to_faces, int* nodes_to_cells_offsets,
                    int* nodes_to_cells, int* cells_to_nodes_offsets,
-                   int* cells_to_nodes, double* total_mass, double* total_ie);
+                   int* cells_to_nodes, double initial_mass,
+                   double initial_ie_mass);
 
 // Scatter the subcell energy and mass quantities back to the cell centers
 void scatter_energy_and_mass(
@@ -292,7 +295,7 @@ void scatter_energy_and_mass(
     double* subcell_ie_mass, double* subcell_mass, double* subcell_ie_mass_flux,
     double* subcell_mass_flux, int* faces_to_nodes, int* faces_to_nodes_offsets,
     int* cells_to_faces_offsets, int* cells_to_faces, int* cells_offsets,
-    int* cells_to_nodes, double* total_mass, double* total_ie);
+    int* cells_to_nodes, double initial_mass, double initial_ie_mass);
 
 // Scatter the subcell momentum to the node centered velocities
 void scatter_momentum(const int nnodes, vec_t* initial_momentum,

@@ -20,7 +20,8 @@ void scatter_phase(const int ncells, const int nnodes, vec_t* initial_momentum,
                    int* faces_to_nodes_offsets, int* cells_to_faces_offsets,
                    int* cells_to_faces, int* nodes_to_cells_offsets,
                    int* nodes_to_cells, int* cells_to_nodes_offsets,
-                   int* cells_to_nodes, double* total_mass, double* total_ie) {
+                   int* cells_to_nodes, double initial_mass,
+                   double initial_ie_mass) {
 
   // Scatter the subcell energy and mass quantities back to the cell centers
   scatter_energy_and_mass(
@@ -28,8 +29,9 @@ void scatter_phase(const int ncells, const int nnodes, vec_t* initial_momentum,
       energy, density, cell_mass, subcell_ie_mass, subcell_mass,
       subcell_ie_mass_flux, subcell_mass_flux, faces_to_nodes,
       faces_to_nodes_offsets, cells_to_faces_offsets, cells_to_faces,
-      cells_to_nodes_offsets, cells_to_nodes, total_mass, total_ie);
+      cells_to_nodes_offsets, cells_to_nodes, initial_mass, initial_ie_mass);
 
+#if 0
   // Scatter the subcell momentum to the node centered velocities
   scatter_momentum(nnodes, initial_momentum, nodes_to_cells_offsets,
                    nodes_to_cells, cells_to_nodes_offsets, cells_to_nodes,
@@ -37,6 +39,7 @@ void scatter_phase(const int ncells, const int nnodes, vec_t* initial_momentum,
                    subcell_momentum_x, subcell_momentum_y, subcell_momentum_z,
                    subcell_momentum_flux_x, subcell_momentum_flux_y,
                    subcell_momentum_flux_z);
+#endif // if 0
 }
 
 // Scatter the subcell energy and mass quantities back to the cell centers
@@ -47,7 +50,7 @@ void scatter_energy_and_mass(
     double* subcell_ie_mass, double* subcell_mass, double* subcell_ie_mass_flux,
     double* subcell_mass_flux, int* faces_to_nodes, int* faces_to_nodes_offsets,
     int* cells_to_faces_offsets, int* cells_to_faces, int* cells_offsets,
-    int* cells_to_nodes, double* total_mass, double* total_ie) {
+    int* cells_to_nodes, double initial_mass, double initial_ie_mass) {
 
   // Scatter energy and density, and print the conservation of mass
   double rz_total_ie = 0.0;
@@ -103,16 +106,14 @@ void scatter_energy_and_mass(
     rz_total_ie += total_ie_mass;
   }
 
-  *total_mass = initial_total_mass;
-  *total_ie = initial_total_ie;
-
   printf("Rezoned Total Mass %.12f\n", rz_total_mass);
-  printf("Initial Total Mass %.12f\n", *total_mass);
-  printf("Difference         %.12f\n\n", rz_total_mass - *total_mass);
+  printf("Initial Total Mass %.12f\n", initial_mass);
+  printf("Difference         %.12f\n\n", rz_total_mass - initial_mass);
 
   printf("Rezoned Total Internal Energy %.12f\n", rz_total_ie);
-  printf("Initial Total Energy          %.12f\n", *total_ie);
-  printf("Difference                    %.12f\n\n", rz_total_ie - *total_ie);
+  printf("Initial Total Energy          %.12f\n", initial_ie_mass);
+  printf("Difference                    %.12f\n\n",
+         rz_total_ie - initial_ie_mass);
 }
 
 // Scatter the subcell momentum to the node centered velocities

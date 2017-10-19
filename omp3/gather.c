@@ -21,7 +21,8 @@ void gather_subcell_quantities(
     int* faces_to_cells0, int* faces_to_cells1, int* cells_to_faces_offsets,
     int* cells_to_faces, int* subcells_to_faces, int* nodes_to_cells_offsets,
     int* cells_to_nodes_offsets, int* cells_to_nodes,
-    int* nodes_to_nodes_offsets, int* nodes_to_nodes, vec_t* initial_momentum) {
+    int* nodes_to_nodes_offsets, int* nodes_to_nodes, vec_t* initial_momentum,
+    double* initial_mass, double* initial_ie_mass) {
 
   /*
   *      GATHERING STAGE OF THE REMAP
@@ -37,12 +38,13 @@ void gather_subcell_quantities(
       nodal_volumes, nodes_to_cells_offsets, nodes_to_cells);
 
   // Gathers all of the subcell quantities on the mesh
-  gather_subcell_energy(
+  gather_subcell_mass_and_energy(
       ncells, cell_centroids_x, cell_centroids_y, cell_centroids_z,
       cells_to_nodes_offsets, nodes_x, nodes_y, nodes_z, cell_volume, energy,
       density, cell_mass, subcell_volume, subcell_ie_mass, subcell_centroids_x,
       subcell_centroids_y, subcell_centroids_z, faces_to_cells0,
-      faces_to_cells1, cells_to_faces_offsets, cells_to_faces, cells_to_nodes);
+      faces_to_cells1, cells_to_faces_offsets, cells_to_faces, cells_to_nodes,
+      initial_mass, initial_ie_mass);
 
   // Gathers the momentum  the subcells
   gather_subcell_momentum(
@@ -55,7 +57,7 @@ void gather_subcell_quantities(
 }
 
 // Gathers all of the subcell quantities on the mesh
-void gather_subcell_energy(
+void gather_subcell_mass_and_energy(
     const int ncells, double* cell_centroids_x, double* cell_centroids_y,
     double* cell_centroids_z, int* cells_to_nodes_offsets,
     const double* nodes_x, const double* nodes_y, const double* nodes_z,
@@ -63,9 +65,11 @@ void gather_subcell_energy(
     double* cell_mass, double* subcell_volume, double* subcell_ie_mass,
     double* subcell_centroids_x, double* subcell_centroids_y,
     double* subcell_centroids_z, int* faces_to_cells0, int* faces_to_cells1,
-    int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes) {
+    int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes,
+    double* initial_mass, double* initial_ie_mass) {
 
-  double total_ie = 0.0;
+  double total_mass = 0.0;
+  double total_ie_mass = 0.0;
   double total_ie_in_subcells = 0.0;
 
 // Calculate the sub-cell internal energies
@@ -89,7 +93,8 @@ void gather_subcell_energy(
     vec_t rhs = {0.0, 0.0, 0.0};
     vec_t coeff[3] = {{0.0, 0.0, 0.0}};
 
-    total_ie += cell_mass[(cc)] * energy[(cc)];
+    total_mass += cell_mass[(cc)];
+    total_ie_mass += cell_mass[(cc)] * energy[(cc)];
 
     // Determine the weighted volume dist for neighbouring cells
     double gmax = -DBL_MAX;
@@ -171,9 +176,13 @@ void gather_subcell_energy(
     }
   }
 
-  printf("Total Energy in Cells    %.12f\n", total_ie);
+  *initial_mass = total_mass;
+  *initial_ie_mass = total_ie_mass;
+
+  printf("Total Energy in Cells    %.12f\n", total_ie_mass);
   printf("Total Energy in Subcells %.12f\n", total_ie_in_subcells);
-  printf("Difference               %.12f\n\n", total_ie - total_ie_in_subcells);
+  printf("Difference               %.12f\n\n",
+         total_ie_mass - total_ie_in_subcells);
 }
 
 // Gathers the momentum into the subcells

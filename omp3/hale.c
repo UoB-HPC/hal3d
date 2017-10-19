@@ -40,8 +40,8 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
   if (hale_data->perform_remap) {
     printf("\nPerforming Gathering Phase\n");
 
-    double total_ie = 0.0;
-    double total_mass = 0.0;
+    double initial_ie_mass = 0.0;
+    double initial_mass = 0.0;
     vec_t initial_momentum = {0.0, 0.0, 0.0};
 
     // gathers all of the subcell quantities on the mesh
@@ -63,8 +63,8 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
         umesh->cells_to_faces_offsets, umesh->cells_to_faces,
         hale_data->subcells_to_faces, umesh->nodes_offsets,
         umesh->cells_offsets, umesh->cells_to_nodes,
-        umesh->nodes_to_nodes_offsets, umesh->nodes_to_nodes,
-        &initial_momentum);
+        umesh->nodes_to_nodes_offsets, umesh->nodes_to_nodes, &initial_momentum,
+        &initial_mass, &initial_ie_mass);
 
     printf("\nPerforming Remap Phase\n");
 
@@ -116,13 +116,15 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
         umesh->faces_to_nodes, umesh->faces_to_nodes_offsets,
         umesh->cells_to_faces_offsets, umesh->cells_to_faces,
         umesh->nodes_offsets, umesh->nodes_to_cells, umesh->cells_offsets,
-        umesh->cells_to_nodes, &total_mass, &total_ie);
+        umesh->cells_to_nodes, initial_mass, initial_ie_mass);
 
+#if 0
     init_subcell_data_structures(mesh, hale_data, umesh);
     write_unstructured_to_visit_3d(
         hale_data->nsubcell_nodes, umesh->ncells * hale_data->nsubcells_by_cell,
         timestep * 2 + 1, hale_data->subcell_nodes_x,
         hale_data->subcell_nodes_y, hale_data->subcell_nodes_z,
         hale_data->subcells_to_nodes, hale_data->subcell_mass, 0, 1);
+#endif // if 0
   }
 }
