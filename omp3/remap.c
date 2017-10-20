@@ -750,7 +750,7 @@ void contribute_momentum_flux(
       (is_outflux ? subcell_index : subcell_neighbour_index);
 
   // Get the cell center of the sweep cell
-  vec_t sweep_cell_c;
+  vec_t sweep_cell_c = {0.0, 0.0, 0.0};
   if (is_outflux) {
     sweep_cell_c = *cell_c;
   } else {
@@ -1275,15 +1275,16 @@ double apply_node_limiter(const int ncells_by_node, const int node_to_cells_off,
 double calc_node_limiter(const double rho, const double gmax, const double gmin,
                          vec_t* grad, const double cell_x, const double cell_y,
                          const double cell_z, const vec_t* node) {
+
   double g_unlimited = rho + grad->x * (cell_x - node->x) +
                        grad->y * (cell_y - node->y) +
                        grad->z * (cell_z - node->z);
 
   double limiter = 1.0;
   if (g_unlimited - rho > 0.0) {
-    limiter = min(1.0, ((gmax - rho) / (g_unlimited - rho)));
+    limiter = min(limiter, ((gmax - rho) / (g_unlimited - rho)));
   } else if (g_unlimited - rho < 0.0) {
-    limiter = min(1.0, ((gmin - rho) / (g_unlimited - rho)));
+    limiter = min(limiter, ((gmin - rho) / (g_unlimited - rho)));
   }
   return limiter;
 }

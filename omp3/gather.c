@@ -4,6 +4,32 @@
 #include <math.h>
 #include <stdio.h>
 
+// Gathers all of the subcell quantities on the mesh
+void gather_subcell_mass_and_energy(
+    const int ncells, double* cell_centroids_x, double* cell_centroids_y,
+    double* cell_centroids_z, int* cells_to_nodes_offsets,
+    const double* nodes_x, const double* nodes_y, const double* nodes_z,
+    const double* cell_volume, double* energy, double* density,
+    double* cell_mass, double* subcell_volume, double* subcell_ie_mass,
+    double* subcell_centroids_x, double* subcell_centroids_y,
+    double* subcell_centroids_z, int* faces_to_cells0, int* faces_to_cells1,
+    int* cells_to_faces_offsets, int* cells_to_faces, int* cells_to_nodes,
+    double* initial_mass, double* initial_ie_mass);
+
+// Gathers the momentum into the subcells
+void gather_subcell_momentum(
+    const int nnodes, const double* nodal_volumes, const double* nodal_mass,
+    int* nodes_to_cells, const double* nodes_x, const double* nodes_y,
+    const double* nodes_z, double* velocity_x, double* velocity_y,
+    double* velocity_z, double* subcell_volume, double* cell_centroids_x,
+    double* cell_centroids_y, double* cell_centroids_z,
+    double* subcell_momentum_x, double* subcell_momentum_y,
+    double* subcell_momentum_z, double* subcell_centroids_x,
+    double* subcell_centroids_y, double* subcell_centroids_z,
+    int* nodes_to_cells_offsets, int* cells_to_nodes_offsets,
+    int* cells_to_nodes, int* nodes_to_nodes_offsets, int* nodes_to_nodes,
+    vec_t* initial_momentum);
+
 // gathers all of the subcell quantities on the mesh
 void gather_subcell_quantities(UnstructuredMesh* umesh, HaleData* hale_data,
                                vec_t* initial_momentum, double* initial_mass,
@@ -44,11 +70,12 @@ void gather_subcell_quantities(UnstructuredMesh* umesh, HaleData* hale_data,
       umesh->nnodes, hale_data->nodal_volumes, hale_data->nodal_mass,
       umesh->nodes_to_cells, umesh->nodes_x0, umesh->nodes_y0, umesh->nodes_z0,
       hale_data->velocity_x0, hale_data->velocity_y0, hale_data->velocity_z0,
-      hale_data->subcell_volume, hale_data->subcell_momentum_x,
-      hale_data->subcell_momentum_y, hale_data->subcell_momentum_z,
-      hale_data->subcell_centroids_x, hale_data->subcell_centroids_y,
-      hale_data->subcell_centroids_z, umesh->nodes_offsets,
-      umesh->cells_offsets, umesh->cells_to_nodes,
+      hale_data->subcell_volume, umesh->cell_centroids_x,
+      umesh->cell_centroids_y, umesh->cell_centroids_z,
+      hale_data->subcell_momentum_x, hale_data->subcell_momentum_y,
+      hale_data->subcell_momentum_z, hale_data->subcell_centroids_x,
+      hale_data->subcell_centroids_y, hale_data->subcell_centroids_z,
+      umesh->nodes_offsets, umesh->cells_offsets, umesh->cells_to_nodes,
       umesh->nodes_to_nodes_offsets, umesh->nodes_to_nodes, initial_momentum);
 }
 
@@ -186,12 +213,14 @@ void gather_subcell_momentum(
     const int nnodes, const double* nodal_volumes, const double* nodal_mass,
     int* nodes_to_cells, const double* nodes_x, const double* nodes_y,
     const double* nodes_z, double* velocity_x, double* velocity_y,
-    double* velocity_z, double* subcell_volume, double* subcell_momentum_x,
-    double* subcell_momentum_y, double* subcell_momentum_z,
-    double* subcell_centroids_x, double* subcell_centroids_y,
-    double* subcell_centroids_z, int* nodes_to_cells_offsets,
-    int* cells_to_nodes_offsets, int* cells_to_nodes,
-    int* nodes_to_nodes_offsets, int* nodes_to_nodes, vec_t* initial_momentum) {
+    double* velocity_z, double* subcell_volume, double* cell_centroids_x,
+    double* cell_centroids_y, double* cell_centroids_z,
+    double* subcell_momentum_x, double* subcell_momentum_y,
+    double* subcell_momentum_z, double* subcell_centroids_x,
+    double* subcell_centroids_y, double* subcell_centroids_z,
+    int* nodes_to_cells_offsets, int* cells_to_nodes_offsets,
+    int* cells_to_nodes, int* nodes_to_nodes_offsets, int* nodes_to_nodes,
+    vec_t* initial_momentum) {
 
   double initial_momentum_x = 0.0;
   double initial_momentum_y = 0.0;
@@ -211,9 +240,9 @@ void gather_subcell_momentum(
     vec_t rhsx = {0.0, 0.0, 0.0};
     vec_t rhsy = {0.0, 0.0, 0.0};
     vec_t rhsz = {0.0, 0.0, 0.0};
+    vec_t coeff[3] = {{0.0, 0.0, 0.0}};
     vec_t gmin = {DBL_MAX, DBL_MAX, DBL_MAX};
     vec_t gmax = {-DBL_MAX, -DBL_MAX, -DBL_MAX};
-    vec_t coeff[3] = {{0.0, 0.0, 0.0}};
 
     const double nodal_density = nodal_mass[(nn)] / nodal_volumes[(nn)];
     vec_t node_mom_density = {nodal_density * velocity_x[(nn)],
@@ -301,27 +330,49 @@ void gather_subcell_momentum(
                      inv[1].x * rhsz.x + inv[1].y * rhsz.y + inv[1].z * rhsz.z,
                      inv[2].x * rhsz.x + inv[2].y * rhsz.y + inv[2].z * rhsz.z};
 
+    vec_t node = {nodes_x[(nn)], nodes_y[(nn)], nodes_z[(nn)]};
+
     // Limit the gradients
     const int node_to_cells_off = nodes_to_cells_offsets[(nn)];
     const int ncells_by_node =
         nodes_to_cells_offsets[(nn + 1)] - node_to_cells_off;
 
-#if 0
-    // ALTHOUGH I THINK WE WANT THIS TO BE INCLUDED ULTIMATELY, THE VELOCITY
-    // PROFILE SHOULD BE RELATIVELY SMOOTH, MEANING THAT WE CAN GET AWAY WITH
-    // IGNORING IT FOR THE MOMENT
-    vec_t node = {nodes_x[(nn)], nodes_y[(nn)], nodes_z[(nn)]};
+    double vx_limiter = 1.0;
+    double vy_limiter = 1.0;
+    double vz_limiter = 1.0;
 
-    apply_node_limiter(ncells_by_node, node_to_cells_off, nodes_to_cells,
-                       &grad_vx, &node, nodes_x, nodes_y, nodes_z,
-                       node_mom_density.x, gmax.x, gmin.x);
-    apply_node_limiter(ncells_by_node, node_to_cells_off, nodes_to_cells,
-                       &grad_vy, &node, nodes_x, nodes_y, nodes_z,
-                       node_mom_density.y, gmax.y, gmin.y);
-    apply_node_limiter(ncells_by_node, node_to_cells_off, nodes_to_cells,
-                       &grad_vz, &node, nodes_x, nodes_y, nodes_z,
-                       node_mom_density.z, gmax.z, gmin.z);
-#endif // if 0
+    for (int cc = 0; cc < ncells_by_node; ++cc) {
+      const int cell_index = nodes_to_cells[(node_to_cells_off + cc)];
+
+      vx_limiter =
+          min(vx_limiter,
+              calc_node_limiter(node_mom_density.x, gmax.x, gmin.x, &grad_vx,
+                                cell_centroids_x[(cell_index)],
+                                cell_centroids_y[(cell_index)],
+                                cell_centroids_z[(cell_index)], &node));
+      vy_limiter =
+          min(vy_limiter,
+              calc_node_limiter(node_mom_density.y, gmax.y, gmin.y, &grad_vy,
+                                cell_centroids_x[(cell_index)],
+                                cell_centroids_y[(cell_index)],
+                                cell_centroids_z[(cell_index)], &node));
+      vz_limiter =
+          min(vz_limiter,
+              calc_node_limiter(node_mom_density.z, gmax.z, gmin.z, &grad_vz,
+                                cell_centroids_x[(cell_index)],
+                                cell_centroids_y[(cell_index)],
+                                cell_centroids_z[(cell_index)], &node));
+    }
+
+    grad_vx.x *= vx_limiter;
+    grad_vx.y *= vx_limiter;
+    grad_vx.z *= vx_limiter;
+    grad_vy.x *= vy_limiter;
+    grad_vy.y *= vy_limiter;
+    grad_vy.z *= vy_limiter;
+    grad_vz.x *= vz_limiter;
+    grad_vz.y *= vz_limiter;
+    grad_vz.z *= vz_limiter;
 
     for (int cc = 0; cc < ncells_by_node; ++cc) {
       const int cell_index = nodes_to_cells[(node_to_cells_off + cc)];
