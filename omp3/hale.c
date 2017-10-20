@@ -37,15 +37,6 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
       umesh->faces_to_cells0, umesh->faces_to_cells1,
       umesh->cells_to_faces_offsets, umesh->cells_to_faces);
 
-#if 0
-  init_subcell_data_structures(mesh, hale_data, umesh);
-  write_unstructured_to_visit_3d(
-      hale_data->nsubcell_nodes, umesh->ncells * hale_data->nsubcells_by_cell,
-      timestep * 2, hale_data->subcell_nodes_x, hale_data->subcell_nodes_y,
-      hale_data->subcell_nodes_z, hale_data->subcells_to_nodes,
-      hale_data->subcell_mass, 0, 1);
-#endif // if 0
-
   if (hale_data->perform_remap) {
     printf("\nPerforming Gathering Phase\n");
 
@@ -56,6 +47,8 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
     // gathers all of the subcell quantities on the mesh
     gather_subcell_quantities(umesh, hale_data, &initial_momentum,
                               &initial_mass, &initial_ie_mass);
+
+    repair_phase(umesh, hale_data);
 
     init_subcell_data_structures(mesh, hale_data, umesh);
     write_unstructured_to_visit_3d(
@@ -78,6 +71,23 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
     // Perform the scatter step of the ALE remapping algorithm
     scatter_phase(umesh, hale_data, &initial_momentum, initial_mass,
                   initial_ie_mass);
+
+    printf("\nPerforming the Repair Phase\n");
+
+    repair_phase(umesh, hale_data);
+
+    // Calculates the cell volume, subcell volume and the subcell centroids
+    calc_volumes_centroids(
+        umesh->ncells, umesh->nnodes, hale_data->nnodes_by_subcell,
+        umesh->cells_offsets, umesh->cells_to_nodes,
+        umesh->cells_to_faces_offsets, umesh->cells_to_faces,
+        hale_data->subcells_to_faces_offsets, hale_data->subcells_to_faces,
+        umesh->faces_to_nodes, umesh->faces_to_nodes_offsets,
+        umesh->faces_cclockwise_cell, umesh->nodes_x0, umesh->nodes_y0,
+        umesh->nodes_z0, hale_data->subcell_centroids_x,
+        hale_data->subcell_centroids_y, hale_data->subcell_centroids_z,
+        hale_data->subcell_volume, hale_data->cell_volume,
+        hale_data->nodal_volumes, umesh->nodes_offsets, umesh->nodes_to_cells);
 
     init_subcell_data_structures(mesh, hale_data, umesh);
     write_unstructured_to_visit_3d(

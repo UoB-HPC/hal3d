@@ -47,8 +47,8 @@ void gather_subcell_quantities(UnstructuredMesh* umesh, HaleData* hale_data,
       hale_data->subcell_volume, hale_data->subcell_momentum_x,
       hale_data->subcell_momentum_y, hale_data->subcell_momentum_z,
       hale_data->subcell_centroids_x, hale_data->subcell_centroids_y,
-      hale_data->subcell_centroids_z, umesh->cells_offsets,
-      umesh->nodes_offsets, umesh->cells_to_nodes,
+      hale_data->subcell_centroids_z, umesh->nodes_offsets,
+      umesh->cells_offsets, umesh->cells_to_nodes,
       umesh->nodes_to_nodes_offsets, umesh->nodes_to_nodes, initial_momentum);
 }
 

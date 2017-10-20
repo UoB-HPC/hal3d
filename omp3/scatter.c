@@ -20,6 +20,7 @@ void scatter_phase(UnstructuredMesh* umesh, HaleData* hale_data,
       umesh->cells_offsets, umesh->cells_to_nodes, initial_mass,
       initial_ie_mass);
 
+#if 0
   // Scatter the subcell momentum to the node centered velocities
   scatter_momentum(
       umesh->nnodes, initial_momentum, umesh->nodes_offsets,
@@ -29,6 +30,7 @@ void scatter_phase(UnstructuredMesh* umesh, HaleData* hale_data,
       hale_data->subcell_momentum_x, hale_data->subcell_momentum_y,
       hale_data->subcell_momentum_z, hale_data->subcell_momentum_flux_x,
       hale_data->subcell_momentum_flux_y, hale_data->subcell_momentum_flux_z);
+#endif // if 0
 }
 
 // Scatter the subcell energy and mass quantities back to the cell centers
