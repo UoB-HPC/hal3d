@@ -48,8 +48,6 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
     gather_subcell_quantities(umesh, hale_data, &initial_momentum,
                               &initial_mass, &initial_ie_mass);
 
-    repair_phase(umesh, hale_data);
-
     init_subcell_data_structures(mesh, hale_data, umesh);
     write_unstructured_to_visit_3d(
         hale_data->nsubcell_nodes, umesh->ncells * hale_data->nsubcells_by_cell,
