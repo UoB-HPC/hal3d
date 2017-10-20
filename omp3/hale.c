@@ -37,6 +37,11 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
       umesh->faces_to_cells0, umesh->faces_to_cells1,
       umesh->cells_to_faces_offsets, umesh->cells_to_faces);
 
+#if 0
+  write_unstructured_to_visit_3d(
+      umesh->nnodes, umesh->ncells, timestep, umesh->nodes_x0, umesh->nodes_y0,
+      umesh->nodes_z0, umesh->cells_to_nodes, hale_data->density0, 0, 1);
+#endif // if 0
   if (hale_data->perform_remap) {
     printf("\nPerforming Gathering Phase\n");
 

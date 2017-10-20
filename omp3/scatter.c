@@ -142,9 +142,9 @@ void scatter_momentum(const int nnodes, vec_t* initial_momentum,
         nodes_to_cells_offsets[(nn + 1)] - node_to_cells_off;
 
     double mass_at_node = 0.0;
-    double cell_momentum_x = 0.0;
-    double cell_momentum_y = 0.0;
-    double cell_momentum_z = 0.0;
+    double node_momentum_x = 0.0;
+    double node_momentum_y = 0.0;
+    double node_momentum_z = 0.0;
 
     for (int cc = 0; cc < ncells_by_node; ++cc) {
       const int cell_index = nodes_to_cells[(node_to_cells_off + cc)];
@@ -161,11 +161,11 @@ void scatter_momentum(const int nnodes, vec_t* initial_momentum,
       }
 
       const int subcell_index = cell_to_nodes_off + nn2;
-      cell_momentum_x += subcell_momentum_x[(subcell_index)] -
+      node_momentum_x += subcell_momentum_x[(subcell_index)] -
                          subcell_momentum_flux_x[(subcell_index)];
-      cell_momentum_y += subcell_momentum_y[(subcell_index)] -
+      node_momentum_y += subcell_momentum_y[(subcell_index)] -
                          subcell_momentum_flux_y[(subcell_index)];
-      cell_momentum_z += subcell_momentum_z[(subcell_index)] -
+      node_momentum_z += subcell_momentum_z[(subcell_index)] -
                          subcell_momentum_flux_z[(subcell_index)];
       mass_at_node += subcell_mass[(subcell_index)];
 
@@ -175,13 +175,15 @@ void scatter_momentum(const int nnodes, vec_t* initial_momentum,
       subcell_momentum_flux_z[(subcell_index)] = 0.0;
     }
 
-    total_momentum_x += cell_momentum_x;
-    total_momentum_y += cell_momentum_y;
-    total_momentum_z += cell_momentum_z;
+    nodal_mass[(nn)] = mass_at_node;
 
-    velocity_x[(nn)] = cell_momentum_x / nodal_mass[(nn)];
-    velocity_y[(nn)] = cell_momentum_y / nodal_mass[(nn)];
-    velocity_z[(nn)] = cell_momentum_z / nodal_mass[(nn)];
+    total_momentum_x += node_momentum_x;
+    total_momentum_y += node_momentum_y;
+    total_momentum_z += node_momentum_z;
+
+    velocity_x[(nn)] = node_momentum_x / nodal_mass[(nn)];
+    velocity_y[(nn)] = node_momentum_y / nodal_mass[(nn)];
+    velocity_z[(nn)] = node_momentum_z / nodal_mass[(nn)];
   }
 
   printf("Initial total momentum %.12f %.12f %.12f\n", initial_momentum->x,

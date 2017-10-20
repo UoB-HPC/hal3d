@@ -255,12 +255,3 @@ void eulerian_rezone(UnstructuredMesh* umesh, HaleData* hale_data);
 
 // Performs a conservative repair of the mesh
 void repair_phase(UnstructuredMesh* umesh, HaleData* hale_data);
-
-// Advects mass and energy through the subcell faces using swept edge approx
-void repair_extrema(const int ncells, const int* cells_offsets,
-                    const int* subcells_to_subcells_offsets,
-                    const int* subcells_to_subcells, double* subcell_volume,
-                    const double* subcell_momentum_x,
-                    const double* subcell_momentum_y,
-                    const double* subcell_momentum_z, double* subcell_mass,
-                    double* subcell_ie_mass);
