@@ -73,35 +73,6 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
 
     printf("\nPerforming the Scattering Phase\n");
 
-    for (int cc = 0; cc < umesh->ncells; ++cc) {
-      const int cell_to_nodes_off = umesh->cells_offsets[(cc)];
-      const int nnodes_by_cell =
-          umesh->cells_offsets[(cc + 1)] - cell_to_nodes_off;
-
-      for (int nn = 0; nn < nnodes_by_cell; ++nn) {
-        const int subcell_index = cell_to_nodes_off + nn;
-
-        // Calculate the changes due to flux
-        hale_data->subcell_mass[(subcell_index)] -=
-            hale_data->subcell_mass_flux[(subcell_index)];
-        hale_data->subcell_ie_mass[(subcell_index)] -=
-            hale_data->subcell_ie_mass_flux[(subcell_index)];
-        hale_data->subcell_momentum_x[(subcell_index)] -=
-            hale_data->subcell_momentum_flux_x[(subcell_index)];
-        hale_data->subcell_momentum_y[(subcell_index)] -=
-            hale_data->subcell_momentum_flux_y[(subcell_index)];
-        hale_data->subcell_momentum_z[(subcell_index)] -=
-            hale_data->subcell_momentum_flux_z[(subcell_index)];
-
-        // Clear the array that we will be reducing into during next timestep
-        hale_data->subcell_mass_flux[(subcell_index)] = 0.0;
-        hale_data->subcell_ie_mass_flux[(subcell_index)] = 0.0;
-        hale_data->subcell_momentum_flux_x[(subcell_index)] = 0.0;
-        hale_data->subcell_momentum_flux_y[(subcell_index)] = 0.0;
-        hale_data->subcell_momentum_flux_z[(subcell_index)] = 0.0;
-      }
-    }
-
     repair_phase(umesh, hale_data);
 
     // Perform the scatter step of the ALE remapping algorithm
