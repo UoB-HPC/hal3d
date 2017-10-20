@@ -359,11 +359,19 @@ void contribute_mass_and_energy_flux(
 
   /* CALCULATE THE SWEEP SUBCELL GRADIENTS FOR MASS AND ENERGY */
 
-  // The 3x3 gradient coefficient matrix, and inverse
   vec_t inv[3] = {{0.0, 0.0, 0.0}};
   vec_t coeff[3] = {{0.0, 0.0, 0.0}};
   vec_t m_rhs = {0.0, 0.0, 0.0};
   vec_t ie_rhs = {0.0, 0.0, 0.0};
+
+  double gmax_m = -DBL_MAX;
+  double gmin_m = DBL_MAX;
+  double gmax_ie = -DBL_MAX;
+  double gmin_ie = DBL_MAX;
+
+  vec_t sweep_subcell_c = {subcell_centroids_x[(sweep_subcell_index)],
+                           subcell_centroids_y[(sweep_subcell_index)],
+                           subcell_centroids_z[(sweep_subcell_index)]};
 
   const double sweep_subcell_density = subcell_mass[(sweep_subcell_index)] /
                                        subcell_volume[(sweep_subcell_index)];
@@ -371,20 +379,11 @@ void contribute_mass_and_energy_flux(
       subcell_ie_mass[(sweep_subcell_index)] /
       subcell_volume[(sweep_subcell_index)];
 
-  vec_t sweep_subcell_c = {subcell_centroids_x[(sweep_subcell_index)],
-                           subcell_centroids_y[(sweep_subcell_index)],
-                           subcell_centroids_z[(sweep_subcell_index)]};
-
   const int sweep_subcell_to_subcells_off =
       subcells_to_subcells_offsets[(sweep_subcell_index)];
   const int nsubcell_neighbours =
       subcells_to_subcells_offsets[(sweep_subcell_index + 1)] -
       sweep_subcell_to_subcells_off;
-
-  double gmax_m = -DBL_MAX;
-  double gmin_m = DBL_MAX;
-  double gmax_ie = -DBL_MAX;
-  double gmin_ie = DBL_MAX;
 
   for (int ss = 0; ss < nsubcell_neighbours; ++ss) {
     const int sweep_neighbour_index =
@@ -426,6 +425,7 @@ void contribute_mass_and_energy_flux(
         subcell_mass[(sweep_neighbour_index)] / neighbour_vol;
     const double dneighbour_m_density =
         neighbour_m_density - sweep_subcell_density;
+
     m_rhs.x += 2.0 * dneighbour_m_density * i.x / neighbour_vol;
     m_rhs.y += 2.0 * dneighbour_m_density * i.y / neighbour_vol;
     m_rhs.z += 2.0 * dneighbour_m_density * i.z / neighbour_vol;
@@ -435,6 +435,7 @@ void contribute_mass_and_energy_flux(
         subcell_ie_mass[(sweep_neighbour_index)] / neighbour_vol;
     const double dneighbour_ie_density =
         neighbour_ie_density - sweep_subcell_ie_density;
+
     ie_rhs.x += 2.0 * dneighbour_ie_density * i.x / neighbour_vol;
     ie_rhs.y += 2.0 * dneighbour_ie_density * i.y / neighbour_vol;
     ie_rhs.z += 2.0 * dneighbour_ie_density * i.z / neighbour_vol;
@@ -464,25 +465,16 @@ void contribute_mass_and_energy_flux(
   // Performing the limiting actually requires the sweep subcell's nodes
   double m_limiter = 1.0;
   double ie_limiter = 1.0;
+
   m_limiter =
       min(m_limiter,
           calc_cell_limiter(sweep_subcell_density, gmax_m, gmin_m, &grad_m,
                             nodes_x[(node_index)], nodes_y[(node_index)],
                             nodes_z[(node_index)], &sweep_subcell_c));
-#if 0
-  if (subcell_index == 50728) {
-    printf("limiter %.12e\n", m_limiter);
-  }
-#endif // if 0
   m_limiter =
       min(m_limiter, calc_cell_limiter(sweep_subcell_density, gmax_m, gmin_m,
                                        &grad_m, sweep_cell_c.x, sweep_cell_c.y,
                                        sweep_cell_c.z, &sweep_subcell_c));
-#if 0
-  if (subcell_index == 50728) {
-    printf("limiter %.12e\n", m_limiter);
-  }
-#endif // if 0
   ie_limiter = min(ie_limiter,
                    calc_cell_limiter(sweep_subcell_ie_density, gmax_ie, gmin_ie,
                                      &grad_ie, nodes_x[(node_index)],
@@ -800,6 +792,7 @@ void contribute_momentum_flux(
   const int nsubcell_neighbours =
       subcells_to_subcells_offsets[(sweep_subcell_index + 1)] -
       sweep_subcell_to_subcells_off;
+
   for (int ss = 0; ss < nsubcell_neighbours; ++ss) {
     const int sweep_neighbour_index =
         subcells_to_subcells[(sweep_subcell_to_subcells_off + ss)];
@@ -809,51 +802,54 @@ void contribute_momentum_flux(
       continue;
     }
 
-    double vol = subcell_volume[(sweep_neighbour_index)];
-    vec_t i = {subcell_centroids_x[(sweep_neighbour_index)] * vol -
-                   sweep_subcell_c.x * vol,
-               subcell_centroids_y[(sweep_neighbour_index)] * vol -
-                   sweep_subcell_c.y * vol,
-               subcell_centroids_z[(sweep_neighbour_index)] * vol -
-                   sweep_subcell_c.z * vol};
+    double neighbour_vol = subcell_volume[(sweep_neighbour_index)];
+    vec_t i = {subcell_centroids_x[(sweep_neighbour_index)] * neighbour_vol -
+                   sweep_subcell_c.x * neighbour_vol,
+               subcell_centroids_y[(sweep_neighbour_index)] * neighbour_vol -
+                   sweep_subcell_c.y * neighbour_vol,
+               subcell_centroids_z[(sweep_neighbour_index)] * neighbour_vol -
+                   sweep_subcell_c.z * neighbour_vol};
 
     // Store the neighbouring cell's contribution to the coefficients
-    coeff[0].x += 2.0 * (i.x * i.x) / (vol * vol);
-    coeff[0].y += 2.0 * (i.x * i.y) / (vol * vol);
-    coeff[0].z += 2.0 * (i.x * i.z) / (vol * vol);
-    coeff[1].x += 2.0 * (i.y * i.x) / (vol * vol);
-    coeff[1].y += 2.0 * (i.y * i.y) / (vol * vol);
-    coeff[1].z += 2.0 * (i.y * i.z) / (vol * vol);
-    coeff[2].x += 2.0 * (i.z * i.x) / (vol * vol);
-    coeff[2].y += 2.0 * (i.z * i.y) / (vol * vol);
-    coeff[2].z += 2.0 * (i.z * i.z) / (vol * vol);
+    coeff[0].x += 2.0 * (i.x * i.x) / (neighbour_vol * neighbour_vol);
+    coeff[0].y += 2.0 * (i.x * i.y) / (neighbour_vol * neighbour_vol);
+    coeff[0].z += 2.0 * (i.x * i.z) / (neighbour_vol * neighbour_vol);
+    coeff[1].x += 2.0 * (i.y * i.x) / (neighbour_vol * neighbour_vol);
+    coeff[1].y += 2.0 * (i.y * i.y) / (neighbour_vol * neighbour_vol);
+    coeff[1].z += 2.0 * (i.y * i.z) / (neighbour_vol * neighbour_vol);
+    coeff[2].x += 2.0 * (i.z * i.x) / (neighbour_vol * neighbour_vol);
+    coeff[2].y += 2.0 * (i.z * i.y) / (neighbour_vol * neighbour_vol);
+    coeff[2].z += 2.0 * (i.z * i.z) / (neighbour_vol * neighbour_vol);
 
     // Prepare differential
-    const double dphi_vx =
-        (subcell_momentum_x[(sweep_neighbour_index)] / vol - subcell_vx);
-    const double dphi_vy =
-        (subcell_momentum_y[(sweep_neighbour_index)] / vol - subcell_vy);
-    const double dphi_vz =
-        (subcell_momentum_z[(sweep_neighbour_index)] / vol - subcell_vz);
+    const double dneighbour_vx =
+        (subcell_momentum_x[(sweep_neighbour_index)] / neighbour_vol -
+         subcell_vx);
+    const double dneighbour_vy =
+        (subcell_momentum_y[(sweep_neighbour_index)] / neighbour_vol -
+         subcell_vy);
+    const double dneighbour_vz =
+        (subcell_momentum_z[(sweep_neighbour_index)] / neighbour_vol -
+         subcell_vz);
 
-    vx_rhs.x += dphi_vx * (i.x);
-    vx_rhs.y += dphi_vx * (i.y);
-    vx_rhs.z += dphi_vx * (i.z);
+    vx_rhs.x += 2.0 * dneighbour_vx * i.x / neighbour_vol;
+    vx_rhs.y += 2.0 * dneighbour_vx * i.y / neighbour_vol;
+    vx_rhs.z += 2.0 * dneighbour_vx * i.z / neighbour_vol;
 
-    vy_rhs.x += dphi_vy * (i.x);
-    vy_rhs.y += dphi_vy * (i.y);
-    vy_rhs.z += dphi_vy * (i.z);
+    vy_rhs.x += 2.0 * dneighbour_vy * i.x / neighbour_vol;
+    vy_rhs.y += 2.0 * dneighbour_vy * i.y / neighbour_vol;
+    vy_rhs.z += 2.0 * dneighbour_vy * i.z / neighbour_vol;
 
-    vz_rhs.x += dphi_vz * (i.x);
-    vz_rhs.y += dphi_vz * (i.y);
-    vz_rhs.z += dphi_vz * (i.z);
+    vz_rhs.x += 2.0 * dneighbour_vz * i.x / neighbour_vol;
+    vz_rhs.y += 2.0 * dneighbour_vz * i.y / neighbour_vol;
+    vz_rhs.z += 2.0 * dneighbour_vz * i.z / neighbour_vol;
 
-    gmax_vx = max(gmax_vx, dphi_vx);
-    gmin_vx = min(gmin_vx, dphi_vx);
-    gmax_vy = max(gmax_vy, dphi_vy);
-    gmin_vy = min(gmin_vy, dphi_vy);
-    gmax_vz = max(gmax_vz, dphi_vz);
-    gmin_vz = min(gmin_vz, dphi_vz);
+    gmax_vx = max(gmax_vx, dneighbour_vx);
+    gmin_vx = min(gmin_vx, dneighbour_vx);
+    gmax_vy = max(gmax_vy, dneighbour_vy);
+    gmin_vy = min(gmin_vy, dneighbour_vy);
+    gmax_vz = max(gmax_vz, dneighbour_vz);
+    gmin_vz = min(gmin_vz, dneighbour_vz);
   }
 
   calc_3x3_inverse(&coeff, &inv);

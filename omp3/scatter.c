@@ -4,6 +4,29 @@
 #include <float.h>
 #include <stdio.h>
 
+// Scatter the subcell energy and mass quantities back to the cell centers
+void scatter_energy_and_mass(const int ncells, const double* nodes_x,
+                             const double* nodes_y, const double* nodes_z,
+                             double* cell_volume, double* energy,
+                             double* density, double* cell_mass,
+                             double* subcell_ie_mass, double* subcell_mass,
+                             int* faces_to_nodes, int* faces_to_nodes_offsets,
+                             int* cells_to_faces_offsets, int* cells_to_faces,
+                             int* cells_offsets, int* cells_to_nodes,
+                             double initial_mass, double initial_ie_mass);
+
+// Scatter the subcell momentum to the node centered velocities
+void scatter_momentum(const int nnodes, vec_t* initial_momentum,
+                      int* nodes_to_cells_offsets, int* nodes_to_cells,
+                      int* cells_to_nodes_offsets, int* cells_to_nodes,
+                      double* velocity_x, double* velocity_y,
+                      double* velocity_z, double* nodal_mass,
+                      double* subcell_mass, double* subcell_momentum_x,
+                      double* subcell_momentum_y, double* subcell_momentum_z,
+                      double* subcell_momentum_flux_x,
+                      double* subcell_momentum_flux_y,
+                      double* subcell_momentum_flux_z);
+
 // Perform the scatter step of the ALE remapping algorithm
 void scatter_phase(UnstructuredMesh* umesh, HaleData* hale_data,
                    vec_t* initial_momentum, double initial_mass,
@@ -14,7 +37,6 @@ void scatter_phase(UnstructuredMesh* umesh, HaleData* hale_data,
       umesh->ncells, umesh->nodes_x0, umesh->nodes_y0, umesh->nodes_z0,
       hale_data->cell_volume, hale_data->energy0, hale_data->density0,
       hale_data->cell_mass, hale_data->subcell_ie_mass, hale_data->subcell_mass,
-      hale_data->subcell_ie_mass_flux, hale_data->subcell_mass_flux,
       umesh->faces_to_nodes, umesh->faces_to_nodes_offsets,
       umesh->cells_to_faces_offsets, umesh->cells_to_faces,
       umesh->cells_offsets, umesh->cells_to_nodes, initial_mass,
@@ -32,14 +54,15 @@ void scatter_phase(UnstructuredMesh* umesh, HaleData* hale_data,
 }
 
 // Scatter the subcell energy and mass quantities back to the cell centers
-void scatter_energy_and_mass(
-    const int ncells, const double* nodes_x, const double* nodes_y,
-    const double* nodes_z, double* cell_volume, double* energy, double* density,
-    double* cell_mass, double* subcell_ie_mass, double* subcell_mass,
-    double* subcell_ie_mass_flux, double* subcell_mass_flux,
-    int* faces_to_nodes, int* faces_to_nodes_offsets,
-    int* cells_to_faces_offsets, int* cells_to_faces, int* cells_offsets,
-    int* cells_to_nodes, double initial_mass, double initial_ie_mass) {
+void scatter_energy_and_mass(const int ncells, const double* nodes_x,
+                             const double* nodes_y, const double* nodes_z,
+                             double* cell_volume, double* energy,
+                             double* density, double* cell_mass,
+                             double* subcell_ie_mass, double* subcell_mass,
+                             int* faces_to_nodes, int* faces_to_nodes_offsets,
+                             int* cells_to_faces_offsets, int* cells_to_faces,
+                             int* cells_offsets, int* cells_to_nodes,
+                             double initial_mass, double initial_ie_mass) {
 
   // Scatter energy and density, and print the conservation of mass
   double rz_total_ie_mass = 0.0;
