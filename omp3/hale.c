@@ -48,12 +48,14 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
     gather_subcell_quantities(umesh, hale_data, &initial_momentum,
                               &initial_mass, &initial_ie_mass);
 
+#if 0
     init_subcell_data_structures(mesh, hale_data, umesh);
     write_unstructured_to_visit_3d(
         hale_data->nsubcell_nodes, umesh->ncells * hale_data->nsubcells_by_cell,
         timestep * 2, hale_data->subcell_nodes_x, hale_data->subcell_nodes_y,
         hale_data->subcell_nodes_z, hale_data->subcells_to_nodes,
         hale_data->subcell_mass, 0, 1);
+#endif // if 0
 
     printf("\nPerforming Remap Phase\n");
 
@@ -66,13 +68,31 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
 
     printf("\nPerforming the Scattering Phase\n");
 
+    for (int cc = 0; cc < umesh->ncells; ++cc) {
+      const int cell_to_nodes_off = umesh->cells_offsets[(cc)];
+      const int nnodes_by_cell =
+          umesh->cells_offsets[(cc + 1)] - cell_to_nodes_off;
+
+      for (int nn = 0; nn < nnodes_by_cell; ++nn) {
+        const int subcell_index = cell_to_nodes_off + nn;
+
+        // Scatter the subcell mass data back to the cell
+        hale_data->subcell_mass[(subcell_index)] -=
+            hale_data->subcell_mass_flux[(subcell_index)];
+        hale_data->subcell_ie_mass[(subcell_index)] -=
+            hale_data->subcell_ie_mass_flux[(subcell_index)];
+        hale_data->subcell_mass_flux[(subcell_index)] = 0.0;
+        hale_data->subcell_ie_mass_flux[(subcell_index)] = 0.0;
+      }
+    }
+
+    repair_phase(umesh, hale_data);
+
     // Perform the scatter step of the ALE remapping algorithm
     scatter_phase(umesh, hale_data, &initial_momentum, initial_mass,
                   initial_ie_mass);
 
     printf("\nPerforming the Repair Phase\n");
-
-    repair_phase(umesh, hale_data);
 
     // Calculates the cell volume, subcell volume and the subcell centroids
     calc_volumes_centroids(

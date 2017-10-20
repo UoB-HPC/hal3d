@@ -403,10 +403,12 @@ void contribute_mass_and_energy_flux(
                subcell_centroids_z[(sweep_neighbour_index)] * neighbour_vol -
                    sweep_subcell_c.z * neighbour_vol};
 
+#if 0
     if (subcell_index == 50728) {
       printf("i %.12e %.12e %.12e\n", i.x / neighbour_vol, i.y / neighbour_vol,
              i.z / neighbour_vol);
     }
+#endif // if 0
 
     // Store the neighbouring cell's contribution to the coefficients
     coeff[0].x += 2.0 * (i.x * i.x) / (neighbour_vol * neighbour_vol);
@@ -467,16 +469,20 @@ void contribute_mass_and_energy_flux(
           calc_cell_limiter(sweep_subcell_density, gmax_m, gmin_m, &grad_m,
                             nodes_x[(node_index)], nodes_y[(node_index)],
                             nodes_z[(node_index)], &sweep_subcell_c));
+#if 0
   if (subcell_index == 50728) {
     printf("limiter %.12e\n", m_limiter);
   }
+#endif // if 0
   m_limiter =
       min(m_limiter, calc_cell_limiter(sweep_subcell_density, gmax_m, gmin_m,
                                        &grad_m, sweep_cell_c.x, sweep_cell_c.y,
                                        sweep_cell_c.z, &sweep_subcell_c));
+#if 0
   if (subcell_index == 50728) {
     printf("limiter %.12e\n", m_limiter);
   }
+#endif // if 0
   ie_limiter = min(ie_limiter,
                    calc_cell_limiter(sweep_subcell_ie_density, gmax_ie, gmin_ie,
                                      &grad_ie, nodes_x[(node_index)],
@@ -529,23 +535,29 @@ void contribute_mass_and_energy_flux(
         min(m_limiter,
             calc_cell_limiter(sweep_subcell_density, gmax_m, gmin_m, &grad_m,
                               face_c.x, face_c.y, face_c.z, &sweep_subcell_c));
+#if 0
     if (subcell_index == 50728) {
       printf("limiter %.12e\n", m_limiter);
     }
+#endif // if 0
     m_limiter =
         min(m_limiter, calc_cell_limiter(sweep_subcell_density, gmax_m, gmin_m,
                                          &grad_m, r_half_edge.x, r_half_edge.y,
                                          r_half_edge.z, &sweep_subcell_c));
+#if 0
     if (subcell_index == 50728) {
       printf("limiter %.12e\n", m_limiter);
     }
+#endif // if 0
     m_limiter =
         min(m_limiter, calc_cell_limiter(sweep_subcell_density, gmax_m, gmin_m,
                                          &grad_m, l_half_edge.x, l_half_edge.y,
                                          l_half_edge.z, &sweep_subcell_c));
+#if 0
     if (subcell_index == 50728) {
       printf("limiter %.12e\n", m_limiter);
     }
+#endif // if 0
 
     ie_limiter =
         min(ie_limiter, calc_cell_limiter(sweep_subcell_ie_density, gmax_ie,
@@ -574,10 +586,12 @@ void contribute_mass_and_energy_flux(
   grad_ie.y *= ie_limiter;
   grad_ie.z *= ie_limiter;
 
+#if 0
   if (subcell_index == 50728) {
     printf("grad_m limited %.12e %.12e %.12e limiter %.12e\n", grad_m.x,
            grad_m.y, grad_m.z, m_limiter);
   }
+#endif // if 0
 
   // Calculate the flux for the mass
   const double local_mass_flux =
@@ -593,6 +607,7 @@ void contribute_mass_and_energy_flux(
                         grad_ie.y * (swept_edge_c.y - sweep_subcell_c.y) +
                         grad_ie.z * (swept_edge_c.z - sweep_subcell_c.z));
 
+#if 0
   if (subcell_index == 50728) { // || subcell_index == 50731) {
 #if 0
     printf("cell_c %.12e %.12e %.12e\n", swept_edge_c.x, swept_edge_c.y,
@@ -638,6 +653,7 @@ void contribute_mass_and_energy_flux(
     printf("swept_edge_vol %.12e mass %.12e energy %.12e\n", swept_edge_vol,
            subcell_mass[(sweep_subcell_index)], sweep_subcell_ie_density);
   }
+#endif // if 0
 #endif // if 0
 
   // Mass and energy are either flowing into or out of the subcell

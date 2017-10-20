@@ -20,7 +20,6 @@ void scatter_phase(UnstructuredMesh* umesh, HaleData* hale_data,
       umesh->cells_offsets, umesh->cells_to_nodes, initial_mass,
       initial_ie_mass);
 
-#if 0
   // Scatter the subcell momentum to the node centered velocities
   scatter_momentum(
       umesh->nnodes, initial_momentum, umesh->nodes_offsets,
@@ -30,7 +29,6 @@ void scatter_phase(UnstructuredMesh* umesh, HaleData* hale_data,
       hale_data->subcell_momentum_x, hale_data->subcell_momentum_y,
       hale_data->subcell_momentum_z, hale_data->subcell_momentum_flux_x,
       hale_data->subcell_momentum_flux_y, hale_data->subcell_momentum_flux_z);
-#endif // if 0
 }
 
 // Scatter the subcell energy and mass quantities back to the cell centers
@@ -51,6 +49,7 @@ void scatter_energy_and_mass(
 #pragma omp parallel for reduction(+ : rz_total_mass, rz_total_ie_mass,        \
                                    initial_total_mass, initial_total_ie)
 #endif // if 0
+
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
@@ -58,19 +57,12 @@ void scatter_energy_and_mass(
     const int nfaces_by_cell =
         cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
 
-    double total_mass = 0.0;
-    double total_ie_mass = 0.0;
+    double total_cell_mass = 0.0;
+    double total_cell_ie_mass = 0.0;
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int subcell_index = cell_to_nodes_off + nn;
-
-      // Scatter the subcell mass data back to the cell
-      subcell_mass[(subcell_index)] -= subcell_mass_flux[(subcell_index)];
-      total_mass += subcell_mass[(subcell_index)];
-      total_ie_mass += (subcell_ie_mass[(subcell_index)] -
-                        subcell_ie_mass_flux[(subcell_index)]);
-
-      subcell_mass_flux[(subcell_index)] = 0.0;
-      subcell_ie_mass_flux[(subcell_index)] = 0.0;
+      total_cell_mass += subcell_mass[(subcell_index)];
+      total_cell_ie_mass += subcell_ie_mass[(subcell_index)];
     }
 
     // Update the volume of the cell to the new rezoned mesh
@@ -82,15 +74,13 @@ void scatter_energy_and_mass(
                 nodes_z, &cell_c, &cell_volume[(cc)]);
 
     // Scatter the energy and density
-    cell_mass[(cc)] = total_mass;
+    cell_mass[(cc)] = total_cell_mass;
     density[(cc)] = cell_mass[(cc)] / cell_volume[(cc)];
-#if 0
-    energy[(cc)] = total_ie_mass / cell_mass[(cc)];
-#endif // if 0
+    energy[(cc)] = total_cell_ie_mass / cell_mass[(cc)];
 
     // Calculate the conservation data
-    rz_total_mass += total_mass;
-    rz_total_ie_mass += total_ie_mass;
+    rz_total_mass += total_cell_mass;
+    rz_total_ie_mass += total_cell_ie_mass;
   }
 
   printf("Initial Total Mass %.12f\n", initial_mass);
