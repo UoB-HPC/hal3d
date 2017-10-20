@@ -168,11 +168,6 @@ void scatter_momentum(const int nnodes, vec_t* initial_momentum,
       node_momentum_z += subcell_momentum_z[(subcell_index)] -
                          subcell_momentum_flux_z[(subcell_index)];
       mass_at_node += subcell_mass[(subcell_index)];
-
-      // Clear the array that we will be reducing into during next timestep
-      subcell_momentum_flux_x[(subcell_index)] = 0.0;
-      subcell_momentum_flux_y[(subcell_index)] = 0.0;
-      subcell_momentum_flux_z[(subcell_index)] = 0.0;
     }
 
     nodal_mass[(nn)] = mass_at_node;

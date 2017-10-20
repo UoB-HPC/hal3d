@@ -73,6 +73,13 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
 
     printf("\nPerforming the Scattering Phase\n");
 
+    init_subcell_data_structures(mesh, hale_data, umesh);
+    write_unstructured_to_visit_3d(
+        hale_data->nsubcell_nodes, umesh->ncells * hale_data->nsubcells_by_cell,
+        timestep * 2 + 1, hale_data->subcell_nodes_x,
+        hale_data->subcell_nodes_y, hale_data->subcell_nodes_z,
+        hale_data->subcells_to_nodes, hale_data->subcell_momentum_flux_x, 0, 1);
+
     for (int cc = 0; cc < umesh->ncells; ++cc) {
       const int cell_to_nodes_off = umesh->cells_offsets[(cc)];
       const int nnodes_by_cell =
@@ -81,13 +88,24 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
       for (int nn = 0; nn < nnodes_by_cell; ++nn) {
         const int subcell_index = cell_to_nodes_off + nn;
 
-        // Scatter the subcell mass data back to the cell
+        // Calculate the changes due to flux
         hale_data->subcell_mass[(subcell_index)] -=
             hale_data->subcell_mass_flux[(subcell_index)];
         hale_data->subcell_ie_mass[(subcell_index)] -=
             hale_data->subcell_ie_mass_flux[(subcell_index)];
+        hale_data->subcell_momentum_x[(subcell_index)] -=
+            hale_data->subcell_momentum_flux_x[(subcell_index)];
+        hale_data->subcell_momentum_y[(subcell_index)] -=
+            hale_data->subcell_momentum_flux_y[(subcell_index)];
+        hale_data->subcell_momentum_z[(subcell_index)] -=
+            hale_data->subcell_momentum_flux_z[(subcell_index)];
+
+        // Clear the array that we will be reducing into during next timestep
         hale_data->subcell_mass_flux[(subcell_index)] = 0.0;
         hale_data->subcell_ie_mass_flux[(subcell_index)] = 0.0;
+        hale_data->subcell_momentum_flux_x[(subcell_index)] = 0.0;
+        hale_data->subcell_momentum_flux_y[(subcell_index)] = 0.0;
+        hale_data->subcell_momentum_flux_z[(subcell_index)] = 0.0;
       }
     }
 
@@ -98,25 +116,5 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
                   initial_ie_mass);
 
     printf("\nPerforming the Repair Phase\n");
-
-    // Calculates the cell volume, subcell volume and the subcell centroids
-    calc_volumes_centroids(
-        umesh->ncells, umesh->nnodes, hale_data->nnodes_by_subcell,
-        umesh->cells_offsets, umesh->cells_to_nodes,
-        umesh->cells_to_faces_offsets, umesh->cells_to_faces,
-        hale_data->subcells_to_faces_offsets, hale_data->subcells_to_faces,
-        umesh->faces_to_nodes, umesh->faces_to_nodes_offsets,
-        umesh->faces_cclockwise_cell, umesh->nodes_x0, umesh->nodes_y0,
-        umesh->nodes_z0, hale_data->subcell_centroids_x,
-        hale_data->subcell_centroids_y, hale_data->subcell_centroids_z,
-        hale_data->subcell_volume, hale_data->cell_volume,
-        hale_data->nodal_volumes, umesh->nodes_offsets, umesh->nodes_to_cells);
-
-    init_subcell_data_structures(mesh, hale_data, umesh);
-    write_unstructured_to_visit_3d(
-        hale_data->nsubcell_nodes, umesh->ncells * hale_data->nsubcells_by_cell,
-        timestep * 2 + 1, hale_data->subcell_nodes_x,
-        hale_data->subcell_nodes_y, hale_data->subcell_nodes_z,
-        hale_data->subcells_to_nodes, hale_data->subcell_mass, 0, 1);
   }
 }
