@@ -163,10 +163,12 @@ void scatter_momentum(const int nnodes, vec_t* initial_momentum,
       const int subcell_index = cell_to_nodes_off + nn2;
       node_momentum_x += subcell_momentum_x[(subcell_index)] -
                          subcell_momentum_flux_x[(subcell_index)];
+#if 0
       node_momentum_y += subcell_momentum_y[(subcell_index)] -
                          subcell_momentum_flux_y[(subcell_index)];
       node_momentum_z += subcell_momentum_z[(subcell_index)] -
                          subcell_momentum_flux_z[(subcell_index)];
+#endif // if 0
       mass_at_node += subcell_mass[(subcell_index)];
     }
 
@@ -177,8 +179,10 @@ void scatter_momentum(const int nnodes, vec_t* initial_momentum,
     total_momentum_z += node_momentum_z;
 
     velocity_x[(nn)] = node_momentum_x / nodal_mass[(nn)];
+#if 0
     velocity_y[(nn)] = node_momentum_y / nodal_mass[(nn)];
     velocity_z[(nn)] = node_momentum_z / nodal_mass[(nn)];
+#endif // if 0
   }
 
   printf("Initial total momentum %.12f %.12f %.12f\n", initial_momentum->x,

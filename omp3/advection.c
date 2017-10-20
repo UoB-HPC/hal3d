@@ -5,7 +5,7 @@
 #include <math.h>
 
 // Performs a remap and some scattering of the subcell values
-void remap_phase(UnstructuredMesh* umesh, HaleData* hale_data) {
+void advection_phase(UnstructuredMesh* umesh, HaleData* hale_data) {
 
   // Advects mass and energy through the subcell faces using swept edge approx
   perform_advection(

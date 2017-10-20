@@ -192,7 +192,6 @@ void repair_extrema(const int ncells, const int* cells_offsets,
             max((neighbour_ie_density - neighbour_gmin_ie) * vol, 0.0);
         die_avail_receive_local[(ss)] =
             max((neighbour_gmax_ie - neighbour_ie_density) * vol, 0.0);
-
         dvx_avail_donate_local[(ss)] =
             max((neighbour_vx_density - neighbour_gmin_vx) * vol, 0.0);
         dvx_avail_receive_local[(ss)] =
@@ -222,7 +221,6 @@ void repair_extrema(const int ncells, const int* cells_offsets,
         gmin_m = min(gmin_m, neighbour_m_density);
         gmax_ie = max(gmax_ie, neighbour_ie_density);
         gmin_ie = min(gmin_ie, neighbour_ie_density);
-
         gmax_vx = max(gmax_vx, neighbour_vx_density);
         gmin_vx = min(gmin_vx, neighbour_vx_density);
         gmax_vy = max(gmax_vy, neighbour_vy_density);
@@ -235,7 +233,6 @@ void repair_extrema(const int ncells, const int* cells_offsets,
       const double dm_need_donate = (subcell_m_density - gmax_m) * vol;
       const double die_need_receive = (gmin_ie - subcell_ie_density) * vol;
       const double die_need_donate = (subcell_ie_density - gmax_ie) * vol;
-
       const double dvx_need_receive = (gmin_vx - subcell_vx_density) * vol;
       const double dvx_need_donate = (subcell_vx_density - gmax_vx) * vol;
       const double dvy_need_receive = (gmin_vy - subcell_vy_density) * vol;
@@ -283,26 +280,26 @@ void repair_extrema(const int ncells, const int* cells_offsets,
       }
 
       if (dvy_need_receive > 0.0) {
-        redistribute_mass(subcell_momentum_x, subcell_index,
+        redistribute_mass(subcell_momentum_y, subcell_index,
                           nsubcell_neighbours, subcells_to_subcells,
                           subcell_to_subcells_off, dvy_avail_donate_local,
                           dvy_avail_donate, dvy_need_receive, gmin_vy, vol, 1);
 
       } else if (dvy_need_donate > 0.0) {
-        redistribute_mass(subcell_momentum_x, subcell_index,
+        redistribute_mass(subcell_momentum_y, subcell_index,
                           nsubcell_neighbours, subcells_to_subcells,
                           subcell_to_subcells_off, dvy_avail_receive_local,
                           dvy_avail_receive, dvy_need_donate, gmax_vy, vol, 0);
       }
 
       if (dvz_need_receive > 0.0) {
-        redistribute_mass(subcell_momentum_x, subcell_index,
+        redistribute_mass(subcell_momentum_z, subcell_index,
                           nsubcell_neighbours, subcells_to_subcells,
                           subcell_to_subcells_off, dvz_avail_donate_local,
                           dvz_avail_donate, dvz_need_receive, gmin_vz, vol, 1);
 
       } else if (dvz_need_donate > 0.0) {
-        redistribute_mass(subcell_momentum_x, subcell_index,
+        redistribute_mass(subcell_momentum_z, subcell_index,
                           nsubcell_neighbours, subcells_to_subcells,
                           subcell_to_subcells_off, dvz_avail_receive_local,
                           dvz_avail_receive, dvz_need_donate, gmax_vz, vol, 0);

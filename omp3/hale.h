@@ -47,7 +47,7 @@ void gather_subcell_quantities(UnstructuredMesh* umesh, HaleData* hale_data,
                                double* initial_ie_mass);
 
 // Performs a remap and some scattering of the subcell values
-void remap_phase(UnstructuredMesh* umesh, HaleData* hale_data);
+void advection_phase(UnstructuredMesh* umesh, HaleData* hale_data);
 
 // Calculate the normal vector from the provided nodes
 void calc_unit_normal(const int n0, const int n1, const int n2,
@@ -149,23 +149,33 @@ void contribute_face_volume(const int nnodes_by_face, const int* faces_to_nodes,
                             const double* nodes_z, const vec_t* cell_centroid,
                             double* vol);
 
-// Contributes the local mass and energy flux for a given subcell face
-void contribute_mass_and_energy_flux(
-    const int cc, const int neighbour_cc, const int ff, const int node_index,
-    const int subcell_index, vec_t* subcell_c, vec_t* cell_c,
-    const double* se_nodes_x, const double* se_nodes_y,
-    const double* se_nodes_z, const double* subcell_mass,
-    double* subcell_mass_flux, const double* subcell_ie_mass,
-    double* subcell_ie_mass_flux, const double* subcell_volume,
-    const int* swept_edge_faces_to_nodes, const double* subcell_centroids_x,
-    const double* subcell_centroids_y, const double* subcell_centroids_z,
-    const int* swept_edge_to_faces,
-    const int* swept_edge_faces_to_nodes_offsets,
-    const int* subcells_to_subcells_offsets, const int* subcells_to_subcells,
-    const int* subcells_to_faces_offsets, const int* subcells_to_faces,
-    const int* faces_to_nodes_offsets, const int* faces_to_nodes,
-    const int* cells_offsets, const int* cells_to_nodes, const double* nodes_x,
-    const double* nodes_y, const double* nodes_z, const int internal);
+// Calculates the local limiter for a node
+double calc_cell_limiter(const double rho, const double gmax, const double gmin,
+                         vec_t* grad, const double node_x, const double node_y,
+                         const double node_z, const vec_t* cell_c);
+
+// Calculates the local limiter for a node
+double calc_node_limiter(const double rho, const double gmax, const double gmin,
+                         vec_t* grad, const double cell_x, const double cell_y,
+                         const double cell_z, const vec_t* node);
+
+// Perform the scatter step of the ALE remapping algorithm
+void scatter_phase(UnstructuredMesh* umesh, HaleData* hale_data,
+                   vec_t* initial_momentum, double initial_mass,
+                   double initial_ie_mass);
+
+// The construction of the swept edge prisms can result in tangled or coplanar
+// faces between the original and rezoned mesh. This must be recognised and
+// handled correctly in order to stop the calculations breaking down.
+int test_prism_overlap(const int nnodes_by_face, const int* faces_to_nodes,
+                       const double* nodes_x, const double* nodes_y,
+                       const double* nodes_z);
+
+// Performs an Eulerian rezone of the mesh
+void eulerian_rezone(UnstructuredMesh* umesh, HaleData* hale_data);
+
+// Performs a conservative repair of the mesh
+void repair_phase(UnstructuredMesh* umesh, HaleData* hale_data);
 
 // Advects mass and energy through the subcell faces using swept edge approx
 void perform_advection(
@@ -185,15 +195,23 @@ void perform_advection(
     double* subcell_mass, double* subcell_mass_flux, double* subcell_ie_mass,
     double* subcell_ie_mass_flux);
 
-// Calculates the local limiter for a node
-double calc_cell_limiter(const double rho, const double gmax, const double gmin,
-                         vec_t* grad, const double node_x, const double node_y,
-                         const double node_z, const vec_t* cell_c);
-
-// Calculates the local limiter for a node
-double calc_node_limiter(const double rho, const double gmax, const double gmin,
-                         vec_t* grad, const double cell_x, const double cell_y,
-                         const double cell_z, const vec_t* node);
+// Contributes the local mass and energy flux for a given subcell face
+void contribute_mass_and_energy_flux(
+    const int cc, const int neighbour_cc, const int ff, const int node_index,
+    const int subcell_index, vec_t* subcell_c, vec_t* cell_c,
+    const double* se_nodes_x, const double* se_nodes_y,
+    const double* se_nodes_z, const double* subcell_mass,
+    double* subcell_mass_flux, const double* subcell_ie_mass,
+    double* subcell_ie_mass_flux, const double* subcell_volume,
+    const int* swept_edge_faces_to_nodes, const double* subcell_centroids_x,
+    const double* subcell_centroids_y, const double* subcell_centroids_z,
+    const int* swept_edge_to_faces,
+    const int* swept_edge_faces_to_nodes_offsets,
+    const int* subcells_to_subcells_offsets, const int* subcells_to_subcells,
+    const int* subcells_to_faces_offsets, const int* subcells_to_faces,
+    const int* faces_to_nodes_offsets, const int* faces_to_nodes,
+    const int* cells_offsets, const int* cells_to_nodes, const double* nodes_x,
+    const double* nodes_y, const double* nodes_z, const int internal);
 
 // Contributes the local mass and energy flux for a given subcell face
 void contribute_momentum_flux(
@@ -213,21 +231,3 @@ void contribute_momentum_flux(
     const int* faces_to_nodes_offsets, const int* faces_to_nodes,
     const int* cells_offsets, const int* cells_to_nodes, const double* nodes_x,
     const double* nodes_y, const double* nodes_z, const int internal);
-
-// Perform the scatter step of the ALE remapping algorithm
-void scatter_phase(UnstructuredMesh* umesh, HaleData* hale_data,
-                   vec_t* initial_momentum, double initial_mass,
-                   double initial_ie_mass);
-
-// The construction of the swept edge prisms can result in tangled or coplanar
-// faces between the original and rezoned mesh. This must be recognised and
-// handled correctly in order to stop the calculations breaking down.
-int test_prism_overlap(const int nnodes_by_face, const int* faces_to_nodes,
-                       const double* nodes_x, const double* nodes_y,
-                       const double* nodes_z);
-
-// Performs an Eulerian rezone of the mesh
-void eulerian_rezone(UnstructuredMesh* umesh, HaleData* hale_data);
-
-// Performs a conservative repair of the mesh
-void repair_phase(UnstructuredMesh* umesh, HaleData* hale_data);
