@@ -1,3 +1,4 @@
+#include "../../shared.h"
 #include "hale.h"
 
 // Correct the subcell data by the determined fluxes
@@ -44,6 +45,12 @@ void correct_for_fluxes(const int ncells, const int* cells_offsets,
                         double* subcell_momentum_flux_y,
                         double* subcell_momentum_flux_z) {
 
+  double dm = 0.0;
+  double die = 0.0;
+  double dmom_x = 0.0;
+  double dmom_y = 0.0;
+  double dmom_z = 0.0;
+
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
@@ -61,6 +68,19 @@ void correct_for_fluxes(const int ncells, const int* cells_offsets,
       subcell_momentum_z[(subcell_index)] -=
           subcell_momentum_flux_z[(subcell_index)];
 
+      dm += subcell_mass_flux[(subcell_index)];
+      die += subcell_ie_mass_flux[(subcell_index)];
+      dmom_x += subcell_momentum_flux_x[(subcell_index)];
+      dmom_y += subcell_momentum_flux_y[(subcell_index)];
+      dmom_z += subcell_momentum_flux_z[(subcell_index)];
+
+      if (subcell_mass[(subcell_index)] < 0.0) {
+        printf("Subcell Mass has turned negative.\n");
+      }
+      if (subcell_ie_mass[(subcell_index)] < 0.0) {
+        printf("Subcell Energy has turned negative.\n");
+      }
+
       // Clear the array that we will be reducing into during next timestep
       subcell_mass_flux[(subcell_index)] = 0.0;
       subcell_ie_mass_flux[(subcell_index)] = 0.0;
@@ -69,4 +89,6 @@ void correct_for_fluxes(const int ncells, const int* cells_offsets,
       subcell_momentum_flux_z[(subcell_index)] = 0.0;
     }
   }
+
+  printf("*%.12e %.12e %.12e %.12e %.12e\n", dm, die, dmom_x, dmom_y, dmom_z);
 }

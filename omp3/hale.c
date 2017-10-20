@@ -80,5 +80,12 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
                   initial_ie_mass);
 
     printf("\nPerforming the Repair Phase\n");
+
+    init_subcell_data_structures(mesh, hale_data, umesh);
+    write_unstructured_to_visit_3d(
+        hale_data->nsubcell_nodes, umesh->ncells * hale_data->nsubcells_by_cell,
+        timestep * 2, hale_data->subcell_nodes_x, hale_data->subcell_nodes_y,
+        hale_data->subcell_nodes_z, hale_data->subcells_to_nodes,
+        hale_data->subcell_ie_mass_flux, 0, 1);
   }
 }
