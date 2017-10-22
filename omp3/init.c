@@ -8,8 +8,7 @@ void init_mesh_mass(const int ncells, const int nnodes,
                     const int nnodes_by_subcell, const double* density,
                     const double* nodes_x, const double* nodes_y,
                     const double* nodes_z, double* subcell_mass,
-                    double* nodal_mass, int* cells_to_faces_offsets,
-                    int* cells_to_faces, int* faces_to_nodes_offsets,
+                    double* nodal_mass, int* faces_to_nodes_offsets,
                     int* faces_to_nodes, int* faces_cclockwise_cell,
                     int* cells_offsets, int* cells_to_nodes,
                     int* subcells_to_faces_offsets, int* subcells_to_faces,
@@ -22,11 +21,11 @@ void init_mesh_mass(const int ncells, const int nnodes,
   // Calculates the cell volume, subcell volume and the subcell centroids
   calc_volumes_centroids(
       ncells, nnodes, nnodes_by_subcell, cells_offsets, cells_to_nodes,
-      cells_to_faces_offsets, cells_to_faces, subcells_to_faces_offsets,
-      subcells_to_faces, faces_to_nodes, faces_to_nodes_offsets,
-      faces_cclockwise_cell, nodes_x, nodes_y, nodes_z, subcell_centroids_x,
-      subcell_centroids_y, subcell_centroids_z, subcell_volume, cell_volume,
-      nodal_volumes, nodes_offsets, nodes_to_cells);
+      subcells_to_faces_offsets, subcells_to_faces, faces_to_nodes,
+      faces_to_nodes_offsets, faces_cclockwise_cell, nodes_x, nodes_y, nodes_z,
+      subcell_centroids_x, subcell_centroids_y, subcell_centroids_z,
+      subcell_volume, cell_volume, nodal_volumes, nodes_offsets,
+      nodes_to_cells);
 
   double total_mass_in_cells = 0.0;
   double total_mass_in_subcells = 0.0;
@@ -93,7 +92,6 @@ void init_mesh_mass(const int ncells, const int nnodes,
 void calc_volumes_centroids(
     const int ncells, const int nnodes, const int nnodes_by_subcell,
     const int* cells_offsets, const int* cells_to_nodes,
-    const int* cells_to_faces_offsets, const int* cells_to_faces,
     const int* subcells_to_faces_offsets, const int* subcells_to_faces,
     const int* faces_to_nodes, const int* faces_to_nodes_offsets,
     const int* faces_cclockwise_cell, const double* nodes_x,
@@ -110,9 +108,6 @@ void calc_volumes_centroids(
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
-    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
-    const int nfaces_by_cell =
-        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
 
     // Calculates the weighted volume dist for a provided cell along x-y-z
     vec_t cell_c = {0.0, 0.0, 0.0};
@@ -558,8 +553,6 @@ void init_subcells_to_subcells(
       for (int ff = 0; ff < nfaces_by_subcell; ++ff) {
         const int face_index = subcells_to_faces[(subcell_to_faces_off + ff)];
         const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-        const int nnodes_by_face =
-            faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
         const int neighbour_cell_index = (faces_to_cells0[(face_index)] == cc)
                                              ? faces_to_cells1[(face_index)]
                                              : faces_to_cells0[(face_index)];
@@ -569,28 +562,33 @@ void init_subcells_to_subcells(
 
         /* INTERNAL NEIGHBOUR */
 
-        vec_t face_c = {0.0, 0.0, 0.0};
-        calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes,
-                      face_to_nodes_off, &face_c);
+        // The internal neighbour can be sought be looking at the next face and
+        // the right node of that face...
 
-        const int face_clockwise = (faces_cclockwise_cell[(face_index)] != cc);
+        const int next_face = (ff == nfaces_by_subcell - 1) ? 0 : ff + 1;
+        const int r_face_index =
+            subcells_to_faces[(subcell_to_faces_off + next_face)];
+        const int r_face_clockwise =
+            (faces_cclockwise_cell[(r_face_index)] != cc);
+        const int r_face_to_nodes_off = faces_to_nodes_offsets[(r_face_index)];
+        const int nnodes_by_r_face =
+            faces_to_nodes_offsets[(r_face_index + 1)] - r_face_to_nodes_off;
 
         // We have to find our position on the face
-        // The nodes will mostly be in cache anyway so should be cheap
-        int rnode_index;
-        for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
-          if (faces_to_nodes[(face_to_nodes_off + nn2)] == node_index) {
-            const int next_node = (nn2 == nnodes_by_face - 1) ? 0 : nn2 + 1;
-            const int prev_node = (nn2 == 0) ? nnodes_by_face - 1 : nn2 - 1;
-            const int rnode_off = (face_clockwise) ? prev_node : next_node;
-            rnode_index = faces_to_nodes[(face_to_nodes_off + rnode_off)];
+        int r_node_index;
+        for (int nn2 = 0; nn2 < nnodes_by_r_face; ++nn2) {
+          if (faces_to_nodes[(r_face_to_nodes_off + nn2)] == node_index) {
+            const int next_node = (nn2 == nnodes_by_r_face - 1) ? 0 : nn2 + 1;
+            const int prev_node = (nn2 == 0) ? nnodes_by_r_face - 1 : nn2 - 1;
+            const int r_node_off = (r_face_clockwise) ? prev_node : next_node;
+            r_node_index = faces_to_nodes[(r_face_to_nodes_off + r_node_off)];
             break;
           }
         }
 
         // Now we have to work back to find our location in the cell
         for (int nn2 = 0; nn2 < nnodes_by_cell; ++nn2) {
-          if (cells_to_nodes[(cell_to_nodes_off + nn2)] == rnode_index) {
+          if (cells_to_nodes[(cell_to_nodes_off + nn2)] == r_node_index) {
             subcells_to_subcells[(subcell_to_subcells_off + ff * 2)] =
                 cell_to_nodes_off + nn2;
             break;

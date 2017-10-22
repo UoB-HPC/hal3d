@@ -345,18 +345,6 @@ void contribute_mass_and_energy_flux(
   const int sweep_subcell_index =
       (is_outflux ? subcell_index : subcell_neighbour_index);
 
-  // Get the cell center of the sweep cell
-  vec_t sweep_cell_c = {0.0, 0.0, 0.0};
-  if (is_outflux) {
-    sweep_cell_c = *cell_c;
-  } else {
-    const int cell_to_nodes_off = cells_offsets[(neighbour_cc)];
-    const int nnodes_by_cell =
-        cells_offsets[(neighbour_cc + 1)] - cell_to_nodes_off;
-    calc_centroid(nnodes_by_cell, nodes_x, nodes_y, nodes_z, cells_to_nodes,
-                  cell_to_nodes_off, &sweep_cell_c);
-  }
-
   /* CALCULATE THE SWEEP SUBCELL GRADIENTS FOR MASS AND ENERGY */
 
   vec_t inv[3] = {{0.0, 0.0, 0.0}};
@@ -459,93 +447,18 @@ void contribute_mass_and_energy_flux(
   double m_limiter = 1.0;
   double ie_limiter = 1.0;
 
-  m_limiter =
-      min(m_limiter,
-          calc_cell_limiter(sweep_subcell_density, gmax_m, gmin_m, &grad_m,
-                            nodes_x[(node_index)], nodes_y[(node_index)],
-                            nodes_z[(node_index)], &sweep_subcell_c));
-  m_limiter =
-      min(m_limiter, calc_cell_limiter(sweep_subcell_density, gmax_m, gmin_m,
-                                       &grad_m, sweep_cell_c.x, sweep_cell_c.y,
-                                       sweep_cell_c.z, &sweep_subcell_c));
-  ie_limiter = min(ie_limiter,
-                   calc_cell_limiter(sweep_subcell_ie_density, gmax_ie, gmin_ie,
-                                     &grad_ie, nodes_x[(node_index)],
-                                     nodes_y[(node_index)],
-                                     nodes_z[(node_index)], &sweep_subcell_c));
-  ie_limiter = min(ie_limiter,
-                   calc_cell_limiter(sweep_subcell_ie_density, gmax_ie, gmin_ie,
-                                     &grad_ie, sweep_cell_c.x, sweep_cell_c.y,
-                                     sweep_cell_c.z, &sweep_subcell_c));
-
-  // Consider all faces attached to node
-  const int subcell_to_faces_off =
-      subcells_to_faces_offsets[(sweep_subcell_index)];
-  const int nfaces_by_subcell =
-      subcells_to_faces_offsets[(sweep_subcell_index + 1)] -
-      subcell_to_faces_off;
-  for (int ff2 = 0; ff2 < nfaces_by_subcell; ++ff2) {
-    const int face_index = subcells_to_faces[(subcell_to_faces_off + ff2)];
-    const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-    const int nnodes_by_face =
-        faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-
-    vec_t face_c = {0.0, 0.0, 0.0};
-    calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes,
-                  face_to_nodes_off, &face_c);
-
-    // Determine the position of the node in the face list of nodes
-    int nn2;
-    for (nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
-      if (faces_to_nodes[(face_to_nodes_off + nn2)] == node_index) {
-        break;
-      }
-    }
-
-    const int next_node = (nn2 == nnodes_by_face - 1) ? 0 : nn2 + 1;
-    const int prev_node = (nn2 == 0) ? nnodes_by_face - 1 : nn2 - 1;
-    const int rnode_index = faces_to_nodes[(face_to_nodes_off + next_node)];
-    const int lnode_index = faces_to_nodes[(face_to_nodes_off + prev_node)];
-
-    vec_t r_half_edge = {0.5 * (nodes_x[(rnode_index)] + nodes_x[(node_index)]),
-                         0.5 * (nodes_y[(rnode_index)] + nodes_y[(node_index)]),
-                         0.5 *
-                             (nodes_z[(rnode_index)] + nodes_z[(node_index)])};
-    vec_t l_half_edge = {0.5 * (nodes_x[(lnode_index)] + nodes_x[(node_index)]),
-                         0.5 * (nodes_y[(lnode_index)] + nodes_y[(node_index)]),
-                         0.5 *
-                             (nodes_z[(lnode_index)] + nodes_z[(node_index)])};
-
+  // The sweep subcell always includes the nodes of the sweep face
+  for (int nn = 0; nn < NNODES_BY_SUBCELL_FACE; ++nn) {
     m_limiter =
         min(m_limiter,
             calc_cell_limiter(sweep_subcell_density, gmax_m, gmin_m, &grad_m,
-                              face_c.x, face_c.y, face_c.z, &sweep_subcell_c));
-    m_limiter =
-        min(m_limiter, calc_cell_limiter(sweep_subcell_density, gmax_m, gmin_m,
-                                         &grad_m, r_half_edge.x, r_half_edge.y,
-                                         r_half_edge.z, &sweep_subcell_c));
-    m_limiter =
-        min(m_limiter, calc_cell_limiter(sweep_subcell_density, gmax_m, gmin_m,
-                                         &grad_m, l_half_edge.x, l_half_edge.y,
-                                         l_half_edge.z, &sweep_subcell_c));
-    ie_limiter =
-        min(ie_limiter, calc_cell_limiter(sweep_subcell_ie_density, gmax_ie,
-                                          gmin_ie, &grad_ie, face_c.x, face_c.y,
-                                          face_c.z, &sweep_subcell_c));
+                              se_nodes_x[(nn)], se_nodes_y[(nn)],
+                              se_nodes_z[(nn)], &sweep_subcell_c));
     ie_limiter =
         min(ie_limiter,
             calc_cell_limiter(sweep_subcell_ie_density, gmax_ie, gmin_ie,
-                              &grad_ie, r_half_edge.x, r_half_edge.y,
-                              r_half_edge.z, &sweep_subcell_c));
-    ie_limiter =
-        min(ie_limiter,
-            calc_cell_limiter(sweep_subcell_ie_density, gmax_ie, gmin_ie,
-                              &grad_ie, l_half_edge.x, l_half_edge.y,
-                              l_half_edge.z, &sweep_subcell_c));
-
-    // OPTION: CALCULATE THE ORIENTATION OF EVERY FACE AND REDUCE THE NUMBER OF
-    // TIMES THAT YOU HAVE TO CALC THE CELL LIMITER... AS SOME OF THE WORK IS
-    // REDUNDANT. I FEEL WE SHOULD JUST KEEP REAPPLYING FOR PERFORMANCE.
+                              &grad_ie, se_nodes_x[(nn)], se_nodes_y[(nn)],
+                              se_nodes_z[(nn)], &sweep_subcell_c));
   }
 
   grad_m.x *= m_limiter;
@@ -554,13 +467,6 @@ void contribute_mass_and_energy_flux(
   grad_ie.x *= ie_limiter;
   grad_ie.y *= ie_limiter;
   grad_ie.z *= ie_limiter;
-
-#if 0
-  if (subcell_index == 50728) {
-    printf("grad_m limited %.12e %.12e %.12e limiter %.12e\n", grad_m.x,
-           grad_m.y, grad_m.z, m_limiter);
-  }
-#endif // if 0
 
   // Calculate the flux for the mass
   const double local_mass_flux =
@@ -576,55 +482,6 @@ void contribute_mass_and_energy_flux(
                         grad_ie.y * (swept_edge_c.y - sweep_subcell_c.y) +
                         grad_ie.z * (swept_edge_c.z - sweep_subcell_c.z));
 
-#if 0
-  if (subcell_index == 50728) { // || subcell_index == 50731) {
-#if 0
-    printf("cell_c %.12e %.12e %.12e\n", swept_edge_c.x, swept_edge_c.y,
-           swept_edge_c.z);
-    printf("face_c %.12e %.12e %.12e\n", face_c.x, face_c.y, face_c.z);
-#endif // if 0
-#if 0
-    printf("double nodes_x[]={");
-    for (int nn = 0; nn < 2 * NNODES_BY_SUBCELL_FACE; ++nn) {
-      printf("%.16e,", se_nodes_x[nn]);
-    }
-    printf("};\n");
-    printf("double nodes_y[]={");
-    for (int nn = 0; nn < 2 * NNODES_BY_SUBCELL_FACE; ++nn) {
-      printf("%.16e,", se_nodes_y[nn]);
-    }
-    printf("};\n");
-    printf("double nodes_z[]={");
-    for (int nn = 0; nn < 2 * NNODES_BY_SUBCELL_FACE; ++nn) {
-      printf("%.16e,", se_nodes_z[nn]);
-    }
-    printf("};\n");
-#endif // if 0
-    printf("subcell_index %d\n", subcell_index);
-    printf("swept_edge_vol %.15e\n", swept_edge_vol);
-    printf("neighbour_cc %d\n", neighbour_cc);
-    printf("sweep_subcell %d\n", sweep_subcell_index);
-    printf("%.12e flowing %s\n", local_mass_flux, is_outflux ? "out" : "in");
-    double res = (sweep_subcell_density +
-                  grad_m.x * (swept_edge_c.x - sweep_subcell_c.x) +
-                  grad_m.y * (swept_edge_c.y - sweep_subcell_c.y) +
-                  grad_m.z * (swept_edge_c.z - sweep_subcell_c.z));
-    printf("dist %.12e %.12e %.12e\n", (swept_edge_c.x - sweep_subcell_c.x),
-           (swept_edge_c.y - sweep_subcell_c.y),
-           (swept_edge_c.z - sweep_subcell_c.z));
-    printf("%.12e %.12e %.12e\n\n", res, gmax_m, gmin_m);
-  }
-#if 0
-  if (local_mass_flux < 0.0 || local_energy_flux < 0.0) {
-    printf("Encountered negative swept edge region flux in subcell %d: mass "
-           "%.12e energy %.12e.\n",
-           subcell_index, local_mass_flux, local_energy_flux);
-    printf("swept_edge_vol %.12e mass %.12e energy %.12e\n", swept_edge_vol,
-           subcell_mass[(sweep_subcell_index)], sweep_subcell_ie_density);
-  }
-#endif // if 0
-#endif // if 0
-
   // Mass and energy are either flowing into or out of the subcell
   if (is_outflux) {
     subcell_mass_flux[(subcell_index)] += local_mass_flux;
@@ -633,22 +490,6 @@ void contribute_mass_and_energy_flux(
     subcell_mass_flux[(subcell_index)] -= local_mass_flux;
     subcell_ie_mass_flux[(subcell_index)] -= local_energy_flux;
   }
-
-#if 0
-  if (subcell_mass[(subcell_index)] - subcell_mass_flux[(subcell_index)] <
-      0.0) {
-
-    printf("Subcell mass going negative %d: mass %.12e energy %.12e.\n",
-           subcell_index, local_mass_flux, local_energy_flux);
-    printf("swept_edge_vol %.12e mass %.12e energy %.12e\n", swept_edge_vol,
-           subcell_mass[(sweep_subcell_index)], sweep_subcell_ie_density);
-    printf("swept_edge_c %.12e %.12e %.12e\n", swept_edge_c.x, swept_edge_c.y,
-           swept_edge_c.z);
-    printf("subcell_c %.12e %.12e %.12e\n", subcell_c->x, subcell_c->y,
-           subcell_c->z);
-    printf("face_c %.12e %.12e %.12e\n", face_c.x, face_c.y, face_c.z);
-  }
-#endif // if 0
 }
 
 // Contributes the local mass and energy flux for a given subcell face

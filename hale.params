@@ -15,12 +15,12 @@ problem_1 density=1.0 energy=2.5 xpos=0.0 ypos=0.0 zpos=0.0 width=0.5 height=1.0
 dt            1.0e-4
 visc_coeff1   0.5
 visc_coeff2   0.5
-iterations    1
+iterations    10
 visit_dump    1
 perform_remap 1
-nx            10
-ny            10
-nz            10
+nx            32
+ny            32
+nz            32
 
 # READING UMESH IS NOT YET SUPPORTED IN 3D
 node_file     problems/tri.1.node

@@ -43,7 +43,6 @@ void gather_subcell_quantities(UnstructuredMesh* umesh, HaleData* hale_data,
   calc_volumes_centroids(
       umesh->ncells, umesh->nnodes, hale_data->nnodes_by_subcell,
       umesh->cells_offsets, umesh->cells_to_nodes,
-      umesh->cells_to_faces_offsets, umesh->cells_to_faces,
       hale_data->subcells_to_faces_offsets, hale_data->subcells_to_faces,
       umesh->faces_to_nodes, umesh->faces_to_nodes_offsets,
       umesh->faces_cclockwise_cell, umesh->nodes_x0, umesh->nodes_y0,

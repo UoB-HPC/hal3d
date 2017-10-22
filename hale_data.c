@@ -108,7 +108,6 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
       umesh->ncells, umesh->nnodes, hale_data->nnodes_by_subcell,
       hale_data->density0, umesh->nodes_x0, umesh->nodes_y0, umesh->nodes_z0,
       hale_data->subcell_mass, hale_data->nodal_mass,
-      umesh->cells_to_faces_offsets, umesh->cells_to_faces,
       umesh->faces_to_nodes_offsets, umesh->faces_to_nodes,
       umesh->faces_cclockwise_cell, umesh->cells_offsets, umesh->cells_to_nodes,
       hale_data->subcells_to_faces_offsets, hale_data->subcells_to_faces,

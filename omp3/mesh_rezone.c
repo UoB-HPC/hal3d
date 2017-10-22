@@ -89,6 +89,4 @@ void correct_for_fluxes(const int ncells, const int* cells_offsets,
       subcell_momentum_flux_z[(subcell_index)] = 0.0;
     }
   }
-
-  printf("*%.12e %.12e %.12e %.12e %.12e\n", dm, die, dmom_x, dmom_y, dmom_z);
 }
