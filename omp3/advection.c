@@ -692,112 +692,20 @@ void contribute_momentum_flux(
   double vy_limiter = 1.0;
   double vz_limiter = 1.0;
 
-  // Performing the limiting actually requires the sweep subcell's nodes
-  vx_limiter =
-      min(vx_limiter,
-          calc_cell_limiter(subcell_vx, gmax_vx, gmin_vx, &grad_vx,
-                            nodes_x[(node_index)], nodes_y[(node_index)],
-                            nodes_z[(node_index)], &sweep_subcell_c));
-  vx_limiter =
-      min(vx_limiter, calc_cell_limiter(subcell_vx, gmax_vx, gmin_vx, &grad_vx,
-                                        sweep_cell_c.x, sweep_cell_c.y,
-                                        sweep_cell_c.z, &sweep_subcell_c));
-  vy_limiter =
-      min(vy_limiter,
-          calc_cell_limiter(subcell_vy, gmax_vy, gmin_vy, &grad_vy,
-                            nodes_x[(node_index)], nodes_y[(node_index)],
-                            nodes_z[(node_index)], &sweep_subcell_c));
-  vy_limiter =
-      min(vy_limiter, calc_cell_limiter(subcell_vy, gmax_vy, gmin_vy, &grad_vy,
-                                        sweep_cell_c.x, sweep_cell_c.y,
-                                        sweep_cell_c.z, &sweep_subcell_c));
-  vz_limiter =
-      min(vz_limiter,
-          calc_cell_limiter(subcell_vz, gmax_vz, gmin_vz, &grad_vz,
-                            nodes_x[(node_index)], nodes_y[(node_index)],
-                            nodes_z[(node_index)], &sweep_subcell_c));
-  vz_limiter =
-      min(vz_limiter, calc_cell_limiter(subcell_vz, gmax_vz, gmin_vz, &grad_vz,
-                                        sweep_cell_c.x, sweep_cell_c.y,
-                                        sweep_cell_c.z, &sweep_subcell_c));
-
-  // Consider all faces attached to node
-  const int subcell_to_faces_off =
-      subcells_to_faces_offsets[(sweep_subcell_index)];
-  const int nfaces_by_subcell =
-      subcells_to_faces_offsets[(sweep_subcell_index + 1)] -
-      subcell_to_faces_off;
-  for (int ff2 = 0; ff2 < nfaces_by_subcell; ++ff2) {
-    const int face_index = subcells_to_faces[(subcell_to_faces_off + ff2)];
-    const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-    const int nnodes_by_face =
-        faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-
-    vec_t face_c = {0.0, 0.0, 0.0};
-    calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes,
-                  face_to_nodes_off, &face_c);
-
-    // Determine the position of the node in the face list of nodes
-    int nn2;
-    for (nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
-      if (faces_to_nodes[(face_to_nodes_off + nn2)] == node_index) {
-        break;
-      }
-    }
-
-    const int next_node = (nn2 == nnodes_by_face - 1) ? 0 : nn2 + 1;
-    const int prev_node = (nn2 == 0) ? nnodes_by_face - 1 : nn2 - 1;
-    const int rnode_index = faces_to_nodes[(face_to_nodes_off + next_node)];
-    const int lnode_index = faces_to_nodes[(face_to_nodes_off + prev_node)];
-
-    vec_t r_half_edge = {0.5 * (nodes_x[(rnode_index)] + nodes_x[(node_index)]),
-                         0.5 * (nodes_y[(rnode_index)] + nodes_y[(node_index)]),
-                         0.5 *
-                             (nodes_z[(rnode_index)] + nodes_z[(node_index)])};
-    vec_t l_half_edge = {0.5 * (nodes_x[(lnode_index)] + nodes_x[(node_index)]),
-                         0.5 * (nodes_y[(lnode_index)] + nodes_y[(node_index)]),
-                         0.5 *
-                             (nodes_z[(lnode_index)] + nodes_z[(node_index)])};
-
-    vx_limiter = min(vx_limiter, calc_cell_limiter(subcell_vx, gmax_vx, gmin_vx,
-                                                   &grad_vx, face_c.x, face_c.y,
-                                                   face_c.z, &sweep_subcell_c));
+  // The sweep subcell always includes the nodes of the sweep face
+  for (int nn = 0; nn < NNODES_BY_SUBCELL_FACE; ++nn) {
     vx_limiter = min(vx_limiter,
                      calc_cell_limiter(subcell_vx, gmax_vx, gmin_vx, &grad_vx,
-                                       r_half_edge.x, r_half_edge.y,
-                                       r_half_edge.z, &sweep_subcell_c));
-    vx_limiter = min(vx_limiter,
-                     calc_cell_limiter(subcell_vx, gmax_vx, gmin_vx, &grad_vx,
-                                       l_half_edge.x, l_half_edge.y,
-                                       l_half_edge.z, &sweep_subcell_c));
-
-    vy_limiter = min(vy_limiter, calc_cell_limiter(subcell_vy, gmax_vy, gmin_vy,
-                                                   &grad_vy, face_c.x, face_c.y,
-                                                   face_c.z, &sweep_subcell_c));
+                                       se_nodes_x[(nn)], se_nodes_y[(nn)],
+                                       se_nodes_z[(nn)], &sweep_subcell_c));
     vy_limiter = min(vy_limiter,
                      calc_cell_limiter(subcell_vy, gmax_vy, gmin_vy, &grad_vy,
-                                       r_half_edge.x, r_half_edge.y,
-                                       r_half_edge.z, &sweep_subcell_c));
-    vy_limiter = min(vy_limiter,
-                     calc_cell_limiter(subcell_vy, gmax_vy, gmin_vy, &grad_vy,
-                                       l_half_edge.x, l_half_edge.y,
-                                       l_half_edge.z, &sweep_subcell_c));
-
-    vz_limiter = min(vz_limiter, calc_cell_limiter(subcell_vz, gmax_vz, gmin_vz,
-                                                   &grad_vz, face_c.x, face_c.y,
-                                                   face_c.z, &sweep_subcell_c));
+                                       se_nodes_x[(nn)], se_nodes_y[(nn)],
+                                       se_nodes_z[(nn)], &sweep_subcell_c));
     vz_limiter = min(vz_limiter,
                      calc_cell_limiter(subcell_vz, gmax_vz, gmin_vz, &grad_vz,
-                                       r_half_edge.x, r_half_edge.y,
-                                       r_half_edge.z, &sweep_subcell_c));
-    vz_limiter = min(vz_limiter,
-                     calc_cell_limiter(subcell_vz, gmax_vz, gmin_vz, &grad_vz,
-                                       l_half_edge.x, l_half_edge.y,
-                                       l_half_edge.z, &sweep_subcell_c));
-
-    // OPTION: CALCULATE THE ORIENTATION OF EVERY FACE AND REDUCE THE NUMBER OF
-    // TIMES THAT YOU HAVE TO CALC THE CELL LIMITER... AS SOME OF THE WORK IS
-    // REDUNDANT. I FEEL WE SHOULD JUST KEEP REAPPLYING FOR PERFORMANCE.
+                                       se_nodes_x[(nn)], se_nodes_y[(nn)],
+                                       se_nodes_z[(nn)], &sweep_subcell_c));
   }
 
   grad_vx.x *= vx_limiter;

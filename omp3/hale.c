@@ -37,13 +37,6 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
       umesh->faces_to_cells0, umesh->faces_to_cells1,
       umesh->cells_to_faces_offsets, umesh->cells_to_faces);
 
-#if 0
-  write_unstructured_to_visit_3d(umesh->nnodes, umesh->ncells, timestep * 2,
-                                 umesh->nodes_x0, umesh->nodes_y0,
-                                 umesh->nodes_z0, umesh->cells_to_nodes,
-                                 hale_data->velocity_x0, 1, 1);
-#endif // if 0
-
   if (hale_data->perform_remap) {
     printf("\nPerforming Gathering Phase\n");
 
@@ -60,17 +53,6 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
     // Performs a remap and some scattering of the subcell values
     advection_phase(umesh, hale_data);
 
-    for (int ss = 0; ss < umesh->ncells * 8; ++ss) {
-      hale_data->subcell_ie_mass[ss] /= hale_data->subcell_volume[ss];
-    }
-
-    init_subcell_data_structures(mesh, hale_data, umesh);
-    write_unstructured_to_visit_3d(
-        hale_data->nsubcell_nodes, umesh->ncells * hale_data->nsubcells_by_cell,
-        timestep * 2, hale_data->subcell_nodes_x, hale_data->subcell_nodes_y,
-        hale_data->subcell_nodes_z, hale_data->subcells_to_nodes,
-        hale_data->subcell_ie_mass, 0, 1);
-
     printf("\nEulerian Mesh Rezone\n");
 
     eulerian_rezone(umesh, hale_data);
@@ -84,5 +66,10 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
                   initial_ie_mass);
 
     printf("\nPerforming the Repair Phase\n");
+
+    write_unstructured_to_visit_3d(umesh->nnodes, umesh->ncells, timestep * 2,
+                                   umesh->nodes_x0, umesh->nodes_y0,
+                                   umesh->nodes_z0, umesh->cells_to_nodes,
+                                   hale_data->density0, 0, 1);
   }
 }
