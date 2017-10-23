@@ -1,4 +1,5 @@
 #include "hale.h"
+#include "../../comms.h"
 #include "../../shared.h"
 #include "../hale_data.h"
 #include "../hale_interface.h"
@@ -16,6 +17,7 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
 
   // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
   // due to the pressure (ideal gas) and artificial viscous forces
+  START_PROFILING(&compute_profile);
   lagrangian_phase(
       mesh, umesh->ncells, umesh->nnodes, hale_data->visc_coeff1,
       hale_data->visc_coeff2, umesh->cell_centroids_x, umesh->cell_centroids_y,
@@ -36,40 +38,57 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
       umesh->faces_to_nodes, umesh->faces_to_nodes_offsets,
       umesh->faces_to_cells0, umesh->faces_to_cells1,
       umesh->cells_to_faces_offsets, umesh->cells_to_faces);
+  STOP_PROFILING(&compute_profile, "Lagrangian phase");
 
-  write_unstructured_to_visit_3d(umesh->nnodes, umesh->ncells, timestep * 2,
-                                 umesh->nodes_x0, umesh->nodes_y0,
-                                 umesh->nodes_z0, umesh->cells_to_nodes,
-                                 hale_data->energy0, 0, 1);
+  if (hale_data->visit_dump) {
+    write_unstructured_to_visit_3d(umesh->nnodes, umesh->ncells, timestep * 2,
+                                   umesh->nodes_x0, umesh->nodes_y0,
+                                   umesh->nodes_z0, umesh->cells_to_nodes,
+                                   hale_data->density0, 0, 1);
+  }
 
   if (hale_data->perform_remap) {
     printf("\nPerforming Gathering Phase\n");
 
     double initial_mass = 0.0;
     double initial_ie_mass = 0.0;
+    double initial_ke_mass = 0.0;
     vec_t initial_momentum = {0.0, 0.0, 0.0};
 
     // gathers all of the subcell quantities on the mesh
+    START_PROFILING(&compute_profile);
     gather_subcell_quantities(umesh, hale_data, &initial_momentum,
-                              &initial_mass, &initial_ie_mass);
+                              &initial_mass, &initial_ie_mass,
+                              &initial_ke_mass);
+    STOP_PROFILING(&compute_profile, "Gather phase");
 
-    printf("\nPerforming Remap Phase\n");
+    printf("\nPerforming Advection Phase\n");
 
     // Performs a remap and some scattering of the subcell values
+    START_PROFILING(&compute_profile);
     advection_phase(umesh, hale_data);
+    STOP_PROFILING(&compute_profile, "Advection phase");
 
-    printf("\nEulerian Mesh Rezone\n");
+    printf("\nPerforming Eulerian Mesh Rezone\n");
 
+    // Performs an Eulerian rezone, returning the mesh and reconciling fluxes
+    START_PROFILING(&compute_profile);
     eulerian_rezone(umesh, hale_data);
+    STOP_PROFILING(&compute_profile, "Rezone phase");
+
+    printf("\nPerforming Repair Phase\n");
+
+    // Fixes any extrema introduced by the advection
+    START_PROFILING(&compute_profile);
+    repair_phase(umesh, hale_data);
+    STOP_PROFILING(&compute_profile, "Repair phase");
 
     printf("\nPerforming the Scattering Phase\n");
 
-    repair_phase(umesh, hale_data);
-
     // Perform the scatter step of the ALE remapping algorithm
+    START_PROFILING(&compute_profile);
     scatter_phase(umesh, hale_data, &initial_momentum, initial_mass,
-                  initial_ie_mass);
-
-    printf("\nPerforming the Repair Phase\n");
+                  initial_ie_mass, initial_ke_mass);
+    STOP_PROFILING(&compute_profile, "Scatter phase");
   }
 }

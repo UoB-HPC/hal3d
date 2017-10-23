@@ -44,7 +44,8 @@ void calc_artificial_viscosity(
 // gathers all of the subcell quantities on the mesh
 void gather_subcell_quantities(UnstructuredMesh* umesh, HaleData* hale_data,
                                vec_t* initial_momentum, double* initial_mass,
-                               double* initial_ie_mass);
+                               double* initial_ie_mass,
+                               double* initial_ke_mass);
 
 // Performs a remap and some scattering of the subcell values
 void advection_phase(UnstructuredMesh* umesh, HaleData* hale_data);
@@ -161,7 +162,7 @@ double calc_node_limiter(const double rho, const double gmax, const double gmin,
 // Perform the scatter step of the ALE remapping algorithm
 void scatter_phase(UnstructuredMesh* umesh, HaleData* hale_data,
                    vec_t* initial_momentum, double initial_mass,
-                   double initial_ie_mass);
+                   double initial_ie_mass, double initial_ke_mass);
 
 // The construction of the swept edge prisms can result in tangled or coplanar
 // faces between the original and rezoned mesh. This must be recognised and
@@ -191,8 +192,9 @@ void perform_advection(
     double* subcell_momentum_flux_x, double* subcell_momentum_flux_y,
     double* subcell_momentum_flux_z, const double* subcell_momentum_x,
     const double* subcell_momentum_y, const double* subcell_momentum_z,
-    double* subcell_mass, double* subcell_mass_flux, double* subcell_ie_mass,
-    double* subcell_ie_mass_flux);
+    const double* subcell_mass, double* subcell_mass_flux,
+    const double* subcell_ie_mass, double* subcell_ie_mass_flux,
+    const double* subcell_ke_mass, double* subcell_ke_mass_flux);
 
 // Contributes the local mass and energy flux for a given subcell face
 void contribute_mass_and_energy_flux(
@@ -201,7 +203,8 @@ void contribute_mass_and_energy_flux(
     const double* se_nodes_x, const double* se_nodes_y,
     const double* se_nodes_z, const double* subcell_mass,
     double* subcell_mass_flux, const double* subcell_ie_mass,
-    double* subcell_ie_mass_flux, const double* subcell_volume,
+    double* subcell_ie_mass_flux, const double* subcell_ke_mass,
+    double* subcell_ke_mass_flux, const double* subcell_volume,
     const int* swept_edge_faces_to_nodes, const double* subcell_centroids_x,
     const double* subcell_centroids_y, const double* subcell_centroids_z,
     const int* swept_edge_to_faces,

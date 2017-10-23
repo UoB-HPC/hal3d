@@ -23,6 +23,7 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
   allocated += allocate_data(&hale_data->velocity_y1, umesh->nnodes);
   allocated += allocate_data(&hale_data->velocity_z1, umesh->nnodes);
   allocated += allocate_data(&hale_data->energy1, umesh->ncells);
+  allocated += allocate_data(&hale_data->kinetic_energy, umesh->ncells);
   allocated += allocate_data(&hale_data->density1, umesh->ncells);
   allocated += allocate_data(&hale_data->pressure1, umesh->ncells);
   allocated += allocate_data(&hale_data->cell_mass, umesh->ncells);
@@ -57,12 +58,15 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
   allocated +=
       allocate_data(&hale_data->subcell_momentum_flux_z, hale_data->nsubcells);
 
-  allocated += allocate_data(&hale_data->subcell_ie_mass, hale_data->nsubcells);
   allocated += allocate_data(&hale_data->subcell_mass, hale_data->nsubcells);
   allocated +=
-      allocate_data(&hale_data->subcell_ie_mass_flux, hale_data->nsubcells);
-  allocated +=
       allocate_data(&hale_data->subcell_mass_flux, hale_data->nsubcells);
+  allocated += allocate_data(&hale_data->subcell_ie_mass, hale_data->nsubcells);
+  allocated +=
+      allocate_data(&hale_data->subcell_ie_mass_flux, hale_data->nsubcells);
+  allocated += allocate_data(&hale_data->subcell_ke_mass, hale_data->nsubcells);
+  allocated +=
+      allocate_data(&hale_data->subcell_ke_mass_flux, hale_data->nsubcells);
   allocated += allocate_data(&hale_data->subcell_volume, hale_data->nsubcells);
   allocated += allocate_data(&hale_data->subcell_force_x, hale_data->nsubcells);
   allocated += allocate_data(&hale_data->subcell_force_y, hale_data->nsubcells);

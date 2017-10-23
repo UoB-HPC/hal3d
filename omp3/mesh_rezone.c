@@ -3,12 +3,14 @@
 
 // Correct the subcell data by the determined fluxes
 void correct_for_fluxes(const int ncells, const int* cells_offsets,
-                        double* subcell_mass, double* subcell_ie_mass,
-                        double* subcell_mass_flux, double* subcell_ie_mass_flux,
-                        double* subcell_momentum_x, double* subcell_momentum_y,
-                        double* subcell_momentum_z,
+                        double* subcell_mass, double* subcell_mass_flux,
+                        double* subcell_ie_mass, double* subcell_ie_mass_flux,
+                        double* subcell_ke_mass, double* subcell_ke_mass_flux,
+                        double* subcell_momentum_x,
                         double* subcell_momentum_flux_x,
+                        double* subcell_momentum_y,
                         double* subcell_momentum_flux_y,
+                        double* subcell_momentum_z,
                         double* subcell_momentum_flux_z);
 
 // Performs an Eulerian rezone of the mesh
@@ -17,10 +19,11 @@ void eulerian_rezone(UnstructuredMesh* umesh, HaleData* hale_data) {
   // Correct the subcell data by the determined fluxes
   correct_for_fluxes(
       umesh->ncells, umesh->cells_offsets, hale_data->subcell_mass,
-      hale_data->subcell_ie_mass, hale_data->subcell_mass_flux,
-      hale_data->subcell_ie_mass_flux, hale_data->subcell_momentum_x,
-      hale_data->subcell_momentum_y, hale_data->subcell_momentum_z,
-      hale_data->subcell_momentum_flux_x, hale_data->subcell_momentum_flux_y,
+      hale_data->subcell_mass_flux, hale_data->subcell_ie_mass,
+      hale_data->subcell_ie_mass_flux, hale_data->subcell_ke_mass,
+      hale_data->subcell_ke_mass_flux, hale_data->subcell_momentum_x,
+      hale_data->subcell_momentum_flux_x, hale_data->subcell_momentum_y,
+      hale_data->subcell_momentum_flux_y, hale_data->subcell_momentum_z,
       hale_data->subcell_momentum_flux_z);
 
   // Finalise the mesh rezone
@@ -37,16 +40,19 @@ void eulerian_rezone(UnstructuredMesh* umesh, HaleData* hale_data) {
 
 // Correct the subcell data by the determined fluxes
 void correct_for_fluxes(const int ncells, const int* cells_offsets,
-                        double* subcell_mass, double* subcell_ie_mass,
-                        double* subcell_mass_flux, double* subcell_ie_mass_flux,
-                        double* subcell_momentum_x, double* subcell_momentum_y,
-                        double* subcell_momentum_z,
+                        double* subcell_mass, double* subcell_mass_flux,
+                        double* subcell_ie_mass, double* subcell_ie_mass_flux,
+                        double* subcell_ke_mass, double* subcell_ke_mass_flux,
+                        double* subcell_momentum_x,
                         double* subcell_momentum_flux_x,
+                        double* subcell_momentum_y,
                         double* subcell_momentum_flux_y,
+                        double* subcell_momentum_z,
                         double* subcell_momentum_flux_z) {
 
   double dm = 0.0;
   double die = 0.0;
+  double dke = 0.0;
   double dmom_x = 0.0;
   double dmom_y = 0.0;
   double dmom_z = 0.0;
@@ -62,6 +68,7 @@ void correct_for_fluxes(const int ncells, const int* cells_offsets,
       // Calculate the changes due to flux
       subcell_mass[(subcell_index)] -= subcell_mass_flux[(subcell_index)];
       subcell_ie_mass[(subcell_index)] -= subcell_ie_mass_flux[(subcell_index)];
+      subcell_ke_mass[(subcell_index)] -= subcell_ke_mass_flux[(subcell_index)];
       subcell_momentum_x[(subcell_index)] -=
           subcell_momentum_flux_x[(subcell_index)];
       subcell_momentum_y[(subcell_index)] -=
@@ -71,6 +78,7 @@ void correct_for_fluxes(const int ncells, const int* cells_offsets,
 
       dm += subcell_mass_flux[(subcell_index)];
       die += subcell_ie_mass_flux[(subcell_index)];
+      dke += subcell_ke_mass_flux[(subcell_index)];
       dmom_x += subcell_momentum_flux_x[(subcell_index)];
       dmom_y += subcell_momentum_flux_y[(subcell_index)];
       dmom_z += subcell_momentum_flux_z[(subcell_index)];
@@ -85,6 +93,7 @@ void correct_for_fluxes(const int ncells, const int* cells_offsets,
       // Clear the array that we will be reducing into during next timestep
       subcell_mass_flux[(subcell_index)] = 0.0;
       subcell_ie_mass_flux[(subcell_index)] = 0.0;
+      subcell_ke_mass_flux[(subcell_index)] = 0.0;
       subcell_momentum_flux_x[(subcell_index)] = 0.0;
       subcell_momentum_flux_y[(subcell_index)] = 0.0;
       subcell_momentum_flux_z[(subcell_index)] = 0.0;

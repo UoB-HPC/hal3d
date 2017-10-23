@@ -3,7 +3,7 @@ KERNELS          	 = omp3
 COMPILER         	 = INTEL
 MPI              	 = no
 DECOMP					 	 = TILES
-OPTIONS          	 = -I/Applications/VisIt.app//Contents/Resources/2.10.2/darwin-x86_64/include/silo/include/ #-DENABLE_PROFILING  
+OPTIONS          	 = -I/Applications/VisIt.app//Contents/Resources/2.10.2/darwin-x86_64/include/silo/include/ -DENABLE_PROFILING  
 ARCH_COMPILER_CC   = icc
 ARCH_COMPILER_CPP  = icpc
 

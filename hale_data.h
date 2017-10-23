@@ -31,6 +31,7 @@ typedef struct {
 typedef struct {
   double* energy0;
   double* energy1;
+  double* kinetic_energy;
   double* density0;
   double* density1;
   double* pressure0;
@@ -57,6 +58,8 @@ typedef struct {
 
   double* subcell_ie_mass;
   double* subcell_ie_mass_flux;
+  double* subcell_ke_mass;
+  double* subcell_ke_mass_flux;
   double* subcell_mass;
   double* subcell_mass_flux;
   double* subcell_momentum_x;
@@ -71,7 +74,6 @@ typedef struct {
   double* subcell_force_x;
   double* subcell_force_y;
   double* subcell_force_z;
-  double* subcell_kinetic_energy;
   double* rezoned_nodes_x;
   double* rezoned_nodes_y;
   double* rezoned_nodes_z;
