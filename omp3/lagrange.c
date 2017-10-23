@@ -432,8 +432,6 @@ void lagrangian_phase(
     nodes_x1[(nn)] = 0.5 * (nodes_x1[(nn)] + nodes_x0[(nn)]);
     nodes_y1[(nn)] = 0.5 * (nodes_y1[(nn)] + nodes_y0[(nn)]);
     nodes_z1[(nn)] = 0.5 * (nodes_z1[(nn)] + nodes_z0[(nn)]);
-    nodal_volumes[(nn)] = 0.0;
-    nodal_soundspeed[(nn)] = 0.0;
   }
   STOP_PROFILING(&compute_profile, "move_nodes2");
 
@@ -464,6 +462,9 @@ void lagrangian_phase(
     node_c.x = nodes_x1[(nn)];
     node_c.y = nodes_y1[(nn)];
     node_c.z = nodes_z1[(nn)];
+
+    nodal_volumes[(nn)] = 0.0;
+    nodal_soundspeed[(nn)] = 0.0;
 
     // Consider all faces attached to node
     for (int ff = 0; ff < nfaces_by_node; ++ff) {

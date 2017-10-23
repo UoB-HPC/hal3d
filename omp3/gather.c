@@ -329,12 +329,13 @@ void gather_subcell_momentum(
                      inv[1].x * rhsz.x + inv[1].y * rhsz.y + inv[1].z * rhsz.z,
                      inv[2].x * rhsz.x + inv[2].y * rhsz.y + inv[2].z * rhsz.z};
 
-    vec_t node = {nodes_x[(nn)], nodes_y[(nn)], nodes_z[(nn)]};
-
     // Limit the gradients
     const int node_to_cells_off = nodes_to_cells_offsets[(nn)];
     const int ncells_by_node =
         nodes_to_cells_offsets[(nn + 1)] - node_to_cells_off;
+
+#if 0
+    vec_t node = {nodes_x[(nn)], nodes_y[(nn)], nodes_z[(nn)]};
 
     double vx_limiter = 1.0;
     double vy_limiter = 1.0;
@@ -372,6 +373,7 @@ void gather_subcell_momentum(
     grad_vz.x *= vz_limiter;
     grad_vz.y *= vz_limiter;
     grad_vz.z *= vz_limiter;
+#endif // if 0
 
     for (int cc = 0; cc < ncells_by_node; ++cc) {
       const int cell_index = nodes_to_cells[(node_to_cells_off + cc)];

@@ -447,7 +447,11 @@ void contribute_mass_and_energy_flux(
   double m_limiter = 1.0;
   double ie_limiter = 1.0;
 
+  // TODO: This limiter is one sided, and therefore does not enforce a valid
+  // symmetric advection in subcells
+
   // The sweep subcell always includes the nodes of the sweep face
+  //
   for (int nn = 0; nn < NNODES_BY_SUBCELL_FACE; ++nn) {
     m_limiter =
         min(m_limiter,
@@ -692,6 +696,10 @@ void contribute_momentum_flux(
   double vy_limiter = 1.0;
   double vz_limiter = 1.0;
 
+// TODO: This limiter is one sided, and therefore does not enforce a valid
+// symmetric advection in subcells
+
+#if 0
   // The sweep subcell always includes the nodes of the sweep face
   for (int nn = 0; nn < NNODES_BY_SUBCELL_FACE; ++nn) {
     vx_limiter = min(vx_limiter,
@@ -707,6 +715,7 @@ void contribute_momentum_flux(
                                        se_nodes_x[(nn)], se_nodes_y[(nn)],
                                        se_nodes_z[(nn)], &sweep_subcell_c));
   }
+#endif // if 0
 
   grad_vx.x *= vx_limiter;
   grad_vx.y *= vx_limiter;

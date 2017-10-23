@@ -311,7 +311,8 @@ void repair_extrema(const int ncells, const int* cells_offsets,
                "%.12e dm_need_donate %.12e\n",
                dm_avail_donate, dm_need_receive, dm_avail_receive,
                dm_need_donate);
-        TERMINATE("Repair stage needs additional level.\n");
+        printf("Repair stage needs additional level.\n");
+        continue;
       }
     }
   }
