@@ -68,11 +68,7 @@ void scatter_energy_and_mass(const int ncells, const double* nodes_x,
   double rz_total_ie_mass = 0.0;
   double rz_total_mass = 0.0;
 
-#if 0
-#pragma omp parallel for reduction(+ : rz_total_mass, rz_total_ie_mass,        \
-                                   initial_total_mass, initial_total_ie)
-#endif // if 0
-
+#pragma omp parallel for reduction(+ : rz_total_mass, rz_total_ie_mass)
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
@@ -132,10 +128,8 @@ void scatter_momentum(const int nnodes, vec_t* initial_momentum,
   double total_momentum_y = 0.0;
   double total_momentum_z = 0.0;
 
-#if 0
-#pragma omp parallel for reduction(                                            \
-    + : total_node_momentum_x, total_node_momentum_y, total_node_momentum_z)
-#endif // if 0
+#pragma omp parallel for reduction(+ : total_momentum_x, total_momentum_y,     \
+                                   total_momentum_z)
   for (int nn = 0; nn < nnodes; ++nn) {
     const int node_to_cells_off = nodes_to_cells_offsets[(nn)];
     const int ncells_by_node =

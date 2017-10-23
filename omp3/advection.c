@@ -43,9 +43,7 @@ void perform_advection(
     double* subcell_mass, double* subcell_mass_flux, double* subcell_ie_mass,
     double* subcell_ie_mass_flux) {
 
-#if 0
 #pragma omp parallel for
-#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
@@ -689,8 +687,9 @@ void contribute_momentum_flux(
       inv[1].x * vz_rhs.x + inv[1].y * vz_rhs.y + inv[1].z * vz_rhs.z,
       inv[2].x * vz_rhs.x + inv[2].y * vz_rhs.y + inv[2].z * vz_rhs.z};
 
-  /* LIMIT THE GRADIENT */
+/* LIMIT THE GRADIENT */
 
+#if 0
   // Performing the limiting actually requires the sweep subcell's nodes
   double vx_limiter = 1.0;
   double vy_limiter = 1.0;
@@ -699,7 +698,6 @@ void contribute_momentum_flux(
 // TODO: This limiter is one sided, and therefore does not enforce a valid
 // symmetric advection in subcells
 
-#if 0
   // The sweep subcell always includes the nodes of the sweep face
   for (int nn = 0; nn < NNODES_BY_SUBCELL_FACE; ++nn) {
     vx_limiter = min(vx_limiter,
@@ -715,7 +713,6 @@ void contribute_momentum_flux(
                                        se_nodes_x[(nn)], se_nodes_y[(nn)],
                                        se_nodes_z[(nn)], &sweep_subcell_c));
   }
-#endif // if 0
 
   grad_vx.x *= vx_limiter;
   grad_vx.y *= vx_limiter;
@@ -726,6 +723,7 @@ void contribute_momentum_flux(
   grad_vz.x *= vz_limiter;
   grad_vz.y *= vz_limiter;
   grad_vz.z *= vz_limiter;
+#endif // if 0
 
   // Calculate the flux for internal energy density in the subcell
   const double local_x_momentum_flux =

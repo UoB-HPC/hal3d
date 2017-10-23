@@ -51,6 +51,7 @@ void correct_for_fluxes(const int ncells, const int* cells_offsets,
   double dmom_y = 0.0;
   double dmom_z = 0.0;
 
+#pragma omp parallel for reduction(+ : dm, die, dmom_x, dmom_y, dmom_z)
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;

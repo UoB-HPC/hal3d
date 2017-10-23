@@ -40,6 +40,7 @@ void repair_extrema(const int ncells, const int* cells_offsets,
                     double* subcell_momentum_z, double* subcell_mass,
                     double* subcell_ie_mass) {
 
+#pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
@@ -329,7 +330,8 @@ void redistribute_mass(double* mass, const int subcell_index,
 
   mass[(subcell_index)] = g * vol;
 
-  // Loop over neighbours
+// Loop over neighbours
+#pragma omp parallel for
   for (int ss = 0; ss < nsubcell_neighbours; ++ss) {
     const int neighbour_index =
         subcells_to_subcells[(subcell_to_subcells_off + ss)];
