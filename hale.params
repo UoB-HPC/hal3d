@@ -19,8 +19,8 @@ iterations    1000
 visit_dump    1
 perform_remap 0
 nx            512
-ny            4
-nz            4
+ny            3
+nz            3
 
 # READING UMESH IS NOT YET SUPPORTED IN 3D
 node_file     problems/tri.1.node

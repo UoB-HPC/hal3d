@@ -27,14 +27,12 @@ void zero_subcell_forces(const int ncells, const int* cells_offsets,
                          double* subcell_force_x, double* subcell_force_y,
                          double* subcell_force_z);
 
-// Calculate the subcell force from pressure gradients
 void calc_subcell_force_from_pressure(
     const int ncells, const int* cells_to_faces_offsets,
     const int* cells_offsets, const int* cells_to_faces,
     const int* faces_to_nodes_offsets, const int* faces_to_nodes,
-    const int* cells_to_nodes, const double* nodes_x, const double* nodes_y,
-    const double* nodes_z, const double* cell_centroids_x,
-    const double* cell_centroids_y, const double* cell_centroids_z,
+    const int* cells_to_nodes, const int* face_cclockwise_cell,
+    const double* nodes_x, const double* nodes_y, const double* nodes_z,
     const double* pressure, double* subcell_force_x, double* subcell_force_y,
     double* subcell_force_z);
 
@@ -131,7 +129,8 @@ void calc_corrected_density(
 // Calculates the artificial viscous forces for momentum acceleration
 void calc_artificial_viscosity(
     const int ncells, const double visc_coeff1, const double visc_coeff2,
-    const int* cells_offsets, const int* cells_to_nodes, const double* nodes_x,
+    const int* cells_offsets, const int* cells_to_nodes,
+    const int* face_cclockwise_cell, const double* nodes_x,
     const double* nodes_y, const double* nodes_z,
     const double* cell_centroids_x, const double* cell_centroids_y,
     const double* cell_centroids_z, const double* velocity_x,
