@@ -2,24 +2,7 @@
 #include "../hale_data.h"
 
 // Performs the Lagrangian step of the hydro solve
-void lagrangian_phase(
-    Mesh* mesh, const int ncells, const int nnodes, const double visc_coeff1,
-    const double visc_coeff2, double* cell_centroids_x,
-    double* cell_centroids_y, double* cell_centroids_z, int* cells_to_nodes,
-    int* cells_offsets, int* nodes_to_cells, int* nodes_offsets,
-    double* nodes_x0, double* nodes_y0, double* nodes_z0, double* nodes_x1,
-    double* nodes_y1, double* nodes_z1, int* boundary_index, int* boundary_type,
-    double* boundary_normal_x, double* boundary_normal_y,
-    double* boundary_normal_z, double* energy0, double* energy1,
-    double* density0, double* density1, double* pressure0, double* pressure1,
-    double* velocity_x0, double* velocity_y0, double* velocity_z0,
-    double* velocity_x1, double* velocity_y1, double* velocity_z1,
-    double* subcell_force_x, double* subcell_force_y, double* subcell_force_z,
-    double* cell_mass, double* nodal_mass, double* cell_volume,
-    double* nodal_volumes, double* nodal_soundspeed, double* limiter,
-    int* nodes_to_faces_offsets, int* nodes_to_faces, int* faces_to_nodes,
-    int* faces_to_nodes_offsets, int* faces_to_cells0, int* faces_to_cells1,
-    int* cells_to_faces_offsets, int* cells_to_faces);
+void lagrangian_phase(Mesh* mesh, UnstructuredMesh* umesh, HaleData* hale_data);
 
 // Controls the timestep for the simulation
 void set_timestep(const int ncells, const double* nodes_x,
@@ -27,19 +10,6 @@ void set_timestep(const int ncells, const double* nodes_x,
                   const double* energy, double* dt, int* cells_to_faces_offsets,
                   int* cells_to_faces, int* faces_to_nodes_offsets,
                   int* faces_to_nodes);
-
-// Calculates the artificial viscous forces for momentum acceleration
-void calc_artificial_viscosity(
-    const int ncells, const double visc_coeff1, const double visc_coeff2,
-    const int* cells_offsets, const int* cells_to_nodes, const double* nodes_x,
-    const double* nodes_y, const double* nodes_z,
-    const double* cell_centroids_x, const double* cell_centroids_y,
-    const double* cell_centroids_z, const double* velocity_x,
-    const double* velocity_y, const double* velocity_z,
-    const double* nodal_soundspeed, const double* nodal_mass,
-    const double* nodal_volumes, const double* limiter, double* corner_force_x,
-    double* corner_force_y, double* corner_force_z, int* faces_to_nodes_offsets,
-    int* faces_to_nodes, int* cells_to_faces_offsets, int* cells_to_faces);
 
 // gathers all of the subcell quantities on the mesh
 void gather_subcell_quantities(UnstructuredMesh* umesh, HaleData* hale_data,

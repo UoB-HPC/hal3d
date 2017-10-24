@@ -476,7 +476,6 @@ void contribute_mass_and_energy_flux(
   // symmetric advection in subcells
 
   // The sweep subcell always includes the nodes of the sweep face
-  //
   for (int nn = 0; nn < NNODES_BY_SUBCELL_FACE; ++nn) {
     m_limiter =
         min(m_limiter,
@@ -739,8 +738,8 @@ void contribute_momentum_flux(
   double vy_limiter = 1.0;
   double vz_limiter = 1.0;
 
-// TODO: This limiter is one sided, and therefore does not enforce a valid
-// symmetric advection in subcells
+  // TODO: This limiter is one sided, and therefore does not enforce a valid
+  // symmetric advection in subcells
 
   // The sweep subcell always includes the nodes of the sweep face
   for (int nn = 0; nn < NNODES_BY_SUBCELL_FACE; ++nn) {
@@ -992,9 +991,27 @@ double calc_cell_limiter(const double rho, const double gmax, const double gmin,
 
   double limiter = 1.0;
   if (g_unlimited - rho > 0.0) {
-    limiter = min(limiter, ((gmax - rho) / (g_unlimited - rho)));
+    limiter = min(limiter, (gmax - rho) / (g_unlimited - rho));
   } else if (g_unlimited - rho < 0.0) {
-    limiter = min(limiter, ((gmin - rho) / (g_unlimited - rho)));
+    limiter = min(limiter, (gmin - rho) / (g_unlimited - rho));
+  }
+  return limiter;
+}
+
+// Calculates the local limiter for a node
+double calc_node_limiter(const double rho, const double gmax, const double gmin,
+                         vec_t* grad, const double cell_x, const double cell_y,
+                         const double cell_z, const vec_t* node) {
+
+  double g_unlimited = rho + grad->x * (cell_x - node->x) +
+                       grad->y * (cell_y - node->y) +
+                       grad->z * (cell_z - node->z);
+
+  double limiter = 1.0;
+  if (g_unlimited - rho > 0.0) {
+    limiter = min(limiter, (gmax - rho) / (g_unlimited - rho));
+  } else if (g_unlimited - rho < 0.0) {
+    limiter = min(limiter, (gmin - rho) / (g_unlimited - rho));
   }
   return limiter;
 }
@@ -1045,24 +1062,6 @@ double apply_node_limiter(const int ncells_by_node, const int node_to_cells_off,
   grad->y *= limiter;
   grad->z *= limiter;
 
-  return limiter;
-}
-
-// Calculates the local limiter for a node
-double calc_node_limiter(const double rho, const double gmax, const double gmin,
-                         vec_t* grad, const double cell_x, const double cell_y,
-                         const double cell_z, const vec_t* node) {
-
-  double g_unlimited = rho + grad->x * (cell_x - node->x) +
-                       grad->y * (cell_y - node->y) +
-                       grad->z * (cell_z - node->z);
-
-  double limiter = 1.0;
-  if (g_unlimited - rho > 0.0) {
-    limiter = min(limiter, ((gmax - rho) / (g_unlimited - rho)));
-  } else if (g_unlimited - rho < 0.0) {
-    limiter = min(limiter, ((gmin - rho) / (g_unlimited - rho)));
-  }
   return limiter;
 }
 

@@ -398,7 +398,6 @@ void gather_subcell_momentum(
 
 #if 0
     vec_t node = {nodes_x[(nn)], nodes_y[(nn)], nodes_z[(nn)]};
-
     double vx_limiter = 1.0;
     double vy_limiter = 1.0;
     double vz_limiter = 1.0;

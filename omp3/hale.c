@@ -18,26 +18,7 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
   // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
   // due to the pressure (ideal gas) and artificial viscous forces
   START_PROFILING(&compute_profile);
-  lagrangian_phase(
-      mesh, umesh->ncells, umesh->nnodes, hale_data->visc_coeff1,
-      hale_data->visc_coeff2, umesh->cell_centroids_x, umesh->cell_centroids_y,
-      umesh->cell_centroids_z, umesh->cells_to_nodes, umesh->cells_offsets,
-      umesh->nodes_to_cells, umesh->nodes_offsets, umesh->nodes_x0,
-      umesh->nodes_y0, umesh->nodes_z0, umesh->nodes_x1, umesh->nodes_y1,
-      umesh->nodes_z1, umesh->boundary_index, umesh->boundary_type,
-      umesh->boundary_normal_x, umesh->boundary_normal_y,
-      umesh->boundary_normal_z, hale_data->energy0, hale_data->energy1,
-      hale_data->density0, hale_data->density1, hale_data->pressure0,
-      hale_data->pressure1, hale_data->velocity_x0, hale_data->velocity_y0,
-      hale_data->velocity_z0, hale_data->velocity_x1, hale_data->velocity_y1,
-      hale_data->velocity_z1, hale_data->subcell_force_x,
-      hale_data->subcell_force_y, hale_data->subcell_force_z,
-      hale_data->cell_mass, hale_data->nodal_mass, hale_data->cell_volume,
-      hale_data->nodal_volumes, hale_data->nodal_soundspeed, hale_data->limiter,
-      umesh->nodes_to_faces_offsets, umesh->nodes_to_faces,
-      umesh->faces_to_nodes, umesh->faces_to_nodes_offsets,
-      umesh->faces_to_cells0, umesh->faces_to_cells1,
-      umesh->cells_to_faces_offsets, umesh->cells_to_faces);
+  lagrangian_phase(mesh, umesh, hale_data);
   STOP_PROFILING(&compute_profile, "Lagrangian phase");
 
   if (hale_data->visit_dump) {
