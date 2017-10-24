@@ -305,51 +305,54 @@ void calc_nodal_vol_and_c(const int nnodes, const int* nodes_to_faces_offsets,
       }
 
       // Fetch the nodes attached to our current node on the current face
-      int nodes[2];
-      nodes[0] = (node_in_face_c - 1 >= 0)
-                     ? faces_to_nodes[(face_to_nodes_off + node_in_face_c - 1)]
-                     : faces_to_nodes[(face_to_nodes_off + nnodes_by_face - 1)];
-      nodes[1] = (node_in_face_c + 1 < nnodes_by_face)
-                     ? faces_to_nodes[(face_to_nodes_off + node_in_face_c + 1)]
-                     : faces_to_nodes[(face_to_nodes_off)];
+      int local_nodes[2];
+      local_nodes[0] =
+          (node_in_face_c - 1 >= 0)
+              ? faces_to_nodes[(face_to_nodes_off + node_in_face_c - 1)]
+              : faces_to_nodes[(face_to_nodes_off + nnodes_by_face - 1)];
+      local_nodes[1] =
+          (node_in_face_c + 1 < nnodes_by_face)
+              ? faces_to_nodes[(face_to_nodes_off + node_in_face_c + 1)]
+              : faces_to_nodes[(face_to_nodes_off)];
 
       // Fetch the cells attached to our current face
-      int cells[2];
-      cells[0] = faces_to_cells0[(face_index)];
-      cells[1] = faces_to_cells1[(face_index)];
+      int local_cells[2];
+      local_cells[0] = faces_to_cells0[(face_index)];
+      local_cells[1] = faces_to_cells1[(face_index)];
 
       // Add contributions from all of the cells attached to the face
       for (int cc = 0; cc < 2; ++cc) {
-        if (cells[(cc)] == -1) {
+        if (local_cells[(cc)] == -1) {
           continue;
         }
 
         // Add contributions for both edges attached to our current node
         for (int nn2 = 0; nn2 < 2; ++nn2) {
           // Get the halfway point on the right edge
-          vec_t half_edge = {0.5 * (nodes_x[(nodes[(nn2)])] + nodes_x[(nn)]),
-                             0.5 * (nodes_y[(nodes[(nn2)])] + nodes_y[(nn)]),
-                             0.5 * (nodes_z[(nodes[(nn2)])] + nodes_z[(nn)])};
+          vec_t half_edge = {
+              0.5 * (nodes_x[(local_nodes[(nn2)])] + nodes_x[(nn)]),
+              0.5 * (nodes_y[(local_nodes[(nn2)])] + nodes_y[(nn)]),
+              0.5 * (nodes_z[(local_nodes[(nn2)])] + nodes_z[(nn)])};
 
           // Setup basis on plane of tetrahedron
           vec_t a = {(face_c.x - node_c.x), (face_c.y - node_c.y),
                      (face_c.z - node_c.z)};
           vec_t b = {(face_c.x - half_edge.x), (face_c.y - half_edge.y),
                      (face_c.z - half_edge.z)};
-          vec_t ab = {(cell_centroids_x[(cells[cc])] - face_c.x),
-                      (cell_centroids_y[(cells[cc])] - face_c.y),
-                      (cell_centroids_z[(cells[cc])] - face_c.z)};
+          vec_t ab = {(cell_centroids_x[(local_cells[cc])] - face_c.x),
+                      (cell_centroids_y[(local_cells[cc])] - face_c.y),
+                      (cell_centroids_z[(local_cells[cc])] - face_c.z)};
 
           // Calculate the area vector S using cross product
-          vec_t A = {0.5 * (a.y * b.z - a.z * b.y),
-                     -0.5 * (a.x * b.z - a.z * b.x),
-                     0.5 * (a.x * b.y - a.y * b.x)};
+          vec_t S = {(a.y * b.z - a.z * b.y), -(a.x * b.z - a.z * b.x),
+                     (a.x * b.y - a.y * b.x)};
 
           const double subcell_volume =
-              fabs((ab.x * A.x + ab.y * A.y + ab.z * A.z) / 3.0);
+              fabs((ab.x * S.x + ab.y * S.y + ab.z * S.z) / 3.0);
 
           nodal_soundspeed[(nn)] +=
-              sqrt(GAM * (GAM - 1.0) * energy[(cells[(cc)])]) * subcell_volume;
+              sqrt(GAM * (GAM - 1.0) * energy[(local_cells[(cc)])]) *
+              subcell_volume;
           nodal_volumes[(nn)] += subcell_volume;
         }
       }

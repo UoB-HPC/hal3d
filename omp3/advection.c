@@ -881,9 +881,6 @@ void contribute_face_volume(const int nnodes_by_face, const int* faces_to_nodes,
     S.y = -0.5 * (a.x * b.z - a.z * b.x);
     S.z = 0.5 * (a.x * b.y - a.y * b.x);
 
-    // TODO: WE MULTIPLY BY 2 HERE BECAUSE WE ARE ADDING THE VOLUME TO BOTH
-    // THE CURRENT AND NEXT NODE, OTHERWISE WE ONLY ACCOUNT FOR HALF OF THE
-    // 'HALF' TETRAHEDRONS
     local_vol += fabs(2.0 * ((half_edge.x - nodes_x[(current_node)]) * S.x +
                              (half_edge.y - nodes_y[(current_node)]) * S.y +
                              (half_edge.z - nodes_z[(current_node)]) * S.z) /
