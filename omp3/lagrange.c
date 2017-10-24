@@ -350,7 +350,7 @@ void calc_nodal_vol_and_c(const int nnodes, const int* nodes_to_faces_offsets,
 
           nodal_soundspeed[(nn)] +=
               sqrt(GAM * (GAM - 1.0) * energy[(cells[(cc)])]) * subcell_volume;
-          nodal_volumes[(nn)] += 0.5 * subcell_volume;
+          nodal_volumes[(nn)] += subcell_volume;
         }
       }
     }
