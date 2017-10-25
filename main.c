@@ -19,7 +19,7 @@ int main(int argc, char** argv) {
   }
 
   // Store some of the generic mesh meta data
-  Mesh mesh = {0};
+  Mesh mesh;
 
   const char* hale_params = argv[1];
   mesh.niters = get_int_parameter("iterations", hale_params);

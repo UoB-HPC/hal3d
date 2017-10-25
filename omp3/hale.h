@@ -203,3 +203,10 @@ void contribute_momentum_flux(
     const int* faces_to_nodes_offsets, const int* faces_to_nodes,
     const int* cells_offsets, const int* cells_to_nodes, const double* nodes_x,
     const double* nodes_y, const double* nodes_z, const int internal);
+
+// Controls the timestep for the simulation
+void set_timestep(const int ncells, const double* nodes_x,
+                  const double* nodes_y, const double* nodes_z,
+                  const double* energy, double* dt, int* cells_to_faces_offsets,
+                  int* cells_to_faces, int* faces_to_nodes_offsets,
+                  int* faces_to_nodes);
