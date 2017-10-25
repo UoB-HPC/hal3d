@@ -23,6 +23,12 @@ size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
   allocated += allocate_data(&hale_data->velocity_y1, umesh->nnodes);
   allocated += allocate_data(&hale_data->velocity_z1, umesh->nnodes);
   allocated += allocate_data(&hale_data->energy1, umesh->ncells);
+  allocated += allocate_data(&hale_data->ie_mass_flux, umesh->ncells);
+  allocated += allocate_data(&hale_data->ke_mass_flux, umesh->ncells);
+  allocated += allocate_data(&hale_data->mass_flux, umesh->ncells);
+  allocated += allocate_data(&hale_data->momentum_x_flux, umesh->ncells);
+  allocated += allocate_data(&hale_data->momentum_y_flux, umesh->ncells);
+  allocated += allocate_data(&hale_data->momentum_z_flux, umesh->ncells);
   allocated += allocate_data(&hale_data->kinetic_energy, umesh->ncells);
   allocated += allocate_data(&hale_data->density1, umesh->ncells);
   allocated += allocate_data(&hale_data->pressure1, umesh->ncells);

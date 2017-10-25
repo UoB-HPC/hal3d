@@ -56,6 +56,12 @@ typedef struct {
   double* nodal_soundspeed;
   double* limiter;
 
+  double* mass_flux;
+  double* ie_mass_flux;
+  double* ke_mass_flux;
+  double* momentum_x_flux;
+  double* momentum_y_flux;
+  double* momentum_z_flux;
   double* subcell_ie_mass;
   double* subcell_ie_mass_flux;
   double* subcell_ke_mass;

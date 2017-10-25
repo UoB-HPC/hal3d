@@ -72,12 +72,14 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
     eulerian_rezone(umesh, hale_data);
     STOP_PROFILING(&compute_profile, "Rezone phase");
 
+#if 0
     printf("\nPerforming Repair Phase\n");
 
     // Fixes any extrema introduced by the advection
     START_PROFILING(&compute_profile);
     repair_phase(umesh, hale_data);
     STOP_PROFILING(&compute_profile, "Repair phase");
+#endif // if 0
 
     printf("\nPerforming the Scattering Phase\n");
 

@@ -5,16 +5,11 @@
 #include <stdio.h>
 
 // Scatter the subcell energy and mass quantities back to the cell centers
-void scatter_energy_and_mass(
-    const int ncells, const double* nodes_x, const double* nodes_y,
-    const double* nodes_z, double* cell_volume, double* energy, double* density,
-    double* kinetic_energy, double* velocity_x, double* velocity_y,
-    double* velocity_z, double* cell_mass, double* subcell_mass,
-    double* subcell_ie_mass, double* subcell_ke_mass, int* faces_to_nodes,
-    int* faces_to_nodes_offsets, int* cells_to_faces_offsets,
-    int* cells_to_faces, int* cells_offsets, int* cells_to_nodes,
-    int* cells_to_nodes_offsets, double initial_mass, double initial_ie_mass,
-    double initial_ke_mass);
+void scatter_energy_and_mass(const int ncells, double* cell_mass,
+                             double* cell_volume, double* mass_flux,
+                             double* ie_mass_flux, double* density,
+                             double* energy, double initial_mass,
+                             double initial_ie_mass, double initial_ke_mass);
 
 // Scatter the subcell momentum to the node centered velocities
 void scatter_momentum(const int nnodes, vec_t* initial_momentum,
@@ -45,90 +40,31 @@ void scatter_phase(UnstructuredMesh* umesh, HaleData* hale_data,
 
   // Scatter the subcell energy and mass quantities back to the cell centers
   scatter_energy_and_mass(
-      umesh->ncells, umesh->nodes_x0, umesh->nodes_y0, umesh->nodes_z0,
-      hale_data->cell_volume, hale_data->energy0, hale_data->density0,
-      hale_data->kinetic_energy, hale_data->velocity_x0, hale_data->velocity_y0,
-      hale_data->velocity_z0, hale_data->cell_mass, hale_data->subcell_mass,
-      hale_data->subcell_ie_mass, hale_data->subcell_ke_mass,
-      umesh->faces_to_nodes, umesh->faces_to_nodes_offsets,
-      umesh->cells_to_faces_offsets, umesh->cells_to_faces,
-      umesh->cells_offsets, umesh->cells_to_nodes, umesh->cells_offsets,
-      initial_mass, initial_ie_mass, initial_ke_mass);
+      umesh->ncells, hale_data->cell_mass, hale_data->mass_flux,
+      hale_data->ie_mass_flux, hale_data->cell_volume, hale_data->density0,
+      hale_data->energy0, initial_mass, initial_ie_mass, initial_ke_mass);
 }
 
 // Scatter the subcell energy and mass quantities back to the cell centers
-void scatter_energy_and_mass(
-    const int ncells, const double* nodes_x, const double* nodes_y,
-    const double* nodes_z, double* cell_volume, double* energy, double* density,
-    double* kinetic_energy, double* velocity_x, double* velocity_y,
-    double* velocity_z, double* cell_mass, double* subcell_mass,
-    double* subcell_ie_mass, double* subcell_ke_mass, int* faces_to_nodes,
-    int* faces_to_nodes_offsets, int* cells_to_faces_offsets,
-    int* cells_to_faces, int* cells_offsets, int* cells_to_nodes,
-    int* cells_to_nodes_offsets, double initial_mass, double initial_ie_mass,
-    double initial_ke_mass) {
+void scatter_energy_and_mass(const int ncells, double* cell_mass,
+                             double* cell_volume, double* mass_flux,
+                             double* ie_mass_flux, double* density,
+                             double* energy, double initial_mass,
+                             double initial_ie_mass, double initial_ke_mass) {
 
+  double rz_total_mass = 0.0;
+  double rz_total_e_mass = 0.0;
 // We first have to determine the cell centered kinetic energy
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_to_nodes_offsets[(cc)];
-    const int nnodes_by_cell =
-        cells_to_nodes_offsets[(cc + 1)] - cell_to_nodes_off;
-
-    kinetic_energy[(cc)] = 0.0;
-
-    // Subcells are ordered with the nodes on a face
-    for (int nn = 0; nn < nnodes_by_cell; ++nn) {
-      const int node_index = cells_to_nodes[(cell_to_nodes_off + nn)];
-      const int subcell_index = cell_to_nodes_off + nn;
-      kinetic_energy[(cc)] +=
-          subcell_mass[(subcell_index)] *
-          (velocity_x[(node_index)] * velocity_x[(node_index)] +
-           velocity_y[(node_index)] * velocity_y[(node_index)] +
-           velocity_z[(node_index)] * velocity_z[(node_index)]);
-    }
-  }
-
-  // Scatter energy and density, and print the conservation of mass
-  double rz_total_mass = 0.0;
-  double rz_total_e_mass = 0.0;
-#pragma omp parallel for reduction(+ : rz_total_mass, rz_total_e_mass)
-  for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
-    const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
-    const int nfaces_by_cell =
-        cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
-
-    double total_mass = 0.0;
-    double total_ie_mass = 0.0;
-    double total_ke_mass = 0.0;
-    for (int nn = 0; nn < nnodes_by_cell; ++nn) {
-      const int subcell_index = cell_to_nodes_off + nn;
-      total_mass += subcell_mass[(subcell_index)];
-      total_ie_mass += subcell_ie_mass[(subcell_index)];
-      total_ke_mass += subcell_ke_mass[(subcell_index)];
-    }
-
-    // Update the volume of the cell to the new rezoned mesh
-    vec_t cell_c = {0.0, 0.0, 0.0};
-    calc_centroid(nnodes_by_cell, nodes_x, nodes_y, nodes_z, cells_to_nodes,
-                  cell_to_nodes_off, &cell_c);
-    calc_volume(cell_to_faces_off, nfaces_by_cell, cells_to_faces,
-                faces_to_nodes, faces_to_nodes_offsets, nodes_x, nodes_y,
-                nodes_z, &cell_c, &cell_volume[(cc)]);
-
-    // Scatter the energy and density
-    cell_mass[(cc)] = total_mass;
+    double new_ie_mass = energy[(cc)] * cell_mass[(cc)] - ie_mass_flux[(cc)];
+    cell_mass[(cc)] -= mass_flux[(cc)];
+    energy[(cc)] = new_ie_mass / cell_mass[(cc)];
     density[(cc)] = cell_mass[(cc)] / cell_volume[(cc)];
-
-    double total_e_mass =
-        total_ie_mass + (total_ke_mass - kinetic_energy[(cc)]);
-    energy[(cc)] = total_e_mass / cell_mass[(cc)];
-
-    // Calculate the conservation data
-    rz_total_mass += total_mass;
-    rz_total_e_mass += total_e_mass;
+    mass_flux[(cc)] = 0.0;
+    ie_mass_flux[(cc)] = 0.0;
+    rz_total_mass += cell_mass[(cc)];
+    rz_total_e_mass += new_ie_mass;
   }
 
   printf("Initial Total Mass %.12f\n", initial_mass);

@@ -210,3 +210,33 @@ void set_timestep(const int ncells, const double* nodes_x,
                   const double* energy, double* dt, int* cells_to_faces_offsets,
                   int* cells_to_faces, int* faces_to_nodes_offsets,
                   int* faces_to_nodes);
+
+// Advects mass and energy through the subcell faces using swept edge approx
+void perform_mass_advection(
+    const int ncells, const int* cells_offsets, const double* nodes_x,
+    const double* nodes_y, const double* nodes_z, const double* rezoned_nodes_x,
+    const double* rezoned_nodes_y, const double* rezoned_nodes_z,
+    const int* cells_to_nodes, const int* faces_to_nodes_offsets,
+    const int* faces_to_nodes, const int* cells_to_faces_offsets,
+    const int* cells_to_faces, const int* faces_to_cells0,
+    const int* faces_to_cells1, const double* cell_centroids_x,
+    const double* cell_centroids_y, const double* cell_centroids_z,
+    const double* cell_volume, const double* density, const double* energy,
+    const double* kinetic_energy, double* mass_flux, double* ie_mass_flux,
+    double* ke_mass_flux);
+
+// Advects mass and energy through the subcell faces using swept edge approx
+void perform_momentum_advection(
+    const int ncells, const int* cells_offsets, const double* nodes_x,
+    const double* nodes_y, const double* nodes_z, const double* rezoned_nodes_x,
+    const double* rezoned_nodes_y, const double* rezoned_nodes_z,
+    const int* cells_to_nodes, const int* faces_to_nodes_offsets,
+    const int* faces_to_nodes, const int* faces_cclockwise_cell,
+    const int* faces_to_cells0, const int* faces_to_cells1,
+    const int* subcells_to_faces_offsets, const int* subcells_to_faces,
+    const double* subcell_centroids_x, const double* subcell_centroids_y,
+    const double* subcell_centroids_z, const int* subcells_to_subcells_offsets,
+    const int* subcells_to_subcells, const double* subcell_volume,
+    double* subcell_momentum_flux_x, double* subcell_momentum_flux_y,
+    double* subcell_momentum_flux_z, const double* subcell_momentum_x,
+    const double* subcell_momentum_y, const double* subcell_momentum_z);
