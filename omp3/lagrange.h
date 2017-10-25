@@ -150,3 +150,12 @@ double calc_cell_volume(const int cc, const int nfaces_by_cell,
                         const double* cell_centroids_x,
                         const double* cell_centroids_y,
                         const double* cell_centroids_z);
+
+// Calculates the volume of a subsubcell
+double calc_subsubcell_volume(const int cc, const int next_node,
+                              const int current_node, vec_t face_c,
+                              const double* nodes_x, const double* nodes_y,
+                              const double* nodes_z,
+                              const double* cell_centroids_x,
+                              const double* cell_centroids_y,
+                              const double* cell_centroids_z);

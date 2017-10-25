@@ -12,6 +12,21 @@
 void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
                                  UnstructuredMesh* umesh, const int timestep) {
 
+  // On the first timestep we need to determine dt, and store the rezoned mesh
+  if (timestep == 0) {
+    printf("\nInitialising timestep and storing initial mesh.\n");
+
+    set_timestep(umesh->ncells, umesh->nodes_x0, umesh->nodes_y0,
+                 umesh->nodes_z0, hale_data->energy0, &mesh->dt,
+                 umesh->cells_to_faces_offsets, umesh->cells_to_faces,
+                 umesh->faces_to_nodes_offsets, umesh->faces_to_nodes);
+
+    // We are storing our original mesh to allow an Eulerian remap
+    store_rezoned_mesh(umesh->nnodes, umesh->nodes_x0, umesh->nodes_y0,
+                       umesh->nodes_z0, hale_data->rezoned_nodes_x,
+                       hale_data->rezoned_nodes_y, hale_data->rezoned_nodes_z);
+  }
+
   // Describe the subcell node layout
   printf("\nPerforming the Lagrangian Phase\n");
 

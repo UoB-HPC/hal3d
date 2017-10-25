@@ -75,13 +75,6 @@ int main(int argc, char** argv) {
     hale_data.energy0 = shared_data.e;
   }
 
-#if 0
-  for (int cc = 0; cc < umesh.ncells; ++cc) {
-    hale_data.density0[(cc)] = 2.0 + cc % mesh.local_nx;
-    hale_data.energy0[(cc)] = 2.0 + cc % mesh.local_nx;
-  }
-#endif // if 0
-
   // Initialise the hale-specific data arrays
   hale_data.visc_coeff1 = get_double_parameter("visc_coeff1", hale_params);
   hale_data.visc_coeff2 = get_double_parameter("visc_coeff2", hale_params);
@@ -104,16 +97,6 @@ int main(int argc, char** argv) {
   // Prepare for solve
   double wallclock = 0.0;
   double elapsed_sim_time = 0.0;
-
-  set_timestep(umesh.ncells, umesh.nodes_x0, umesh.nodes_y0, umesh.nodes_z0,
-               hale_data.energy0, &mesh.dt, umesh.cells_to_faces_offsets,
-               umesh.cells_to_faces, umesh.faces_to_nodes_offsets,
-               umesh.faces_to_nodes);
-
-  // We are storing our original mesh to allow an Eulerian remap
-  store_rezoned_mesh(umesh.nnodes, umesh.nodes_x0, umesh.nodes_y0,
-                     umesh.nodes_z0, hale_data.rezoned_nodes_x,
-                     hale_data.rezoned_nodes_y, hale_data.rezoned_nodes_z);
 
   // Main timestep loop
   int tt;

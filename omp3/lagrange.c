@@ -273,8 +273,6 @@ void calc_nodal_vol_and_c(const int nnodes, const int* nodes_to_faces_offsets,
     nodal_volumes[(nn)] = 0.0;
     nodal_soundspeed[(nn)] = 0.0;
 
-    vec_t node = {nodes_x[(nn)], nodes_y[(nn)], nodes_z[(nn)]};
-
     // Consider all faces attached to node
     for (int ff = 0; ff < nfaces_by_node; ++ff) {
       const int face_index = nodes_to_faces[(node_to_faces_off + ff)];
@@ -328,36 +326,50 @@ void calc_nodal_vol_and_c(const int nnodes, const int* nodes_to_faces_offsets,
 
         // Add contributions for both edges attached to our current node
         for (int nn2 = 0; nn2 < 2; ++nn2) {
-          // Get the halfway point on the right edge
-          vec_t half_edge = {0.5 * (nodes_x[(local_nodes[(nn2)])] + node.x),
-                             0.5 * (nodes_y[(local_nodes[(nn2)])] + node.y),
-                             0.5 * (nodes_z[(local_nodes[(nn2)])] + node.z)};
-
-          // Setup basis on plane of tetrahedron
-          vec_t ad = {(cell_centroids_x[(cell_index)] - face_c.x),
-                      (cell_centroids_y[(cell_index)] - face_c.y),
-                      (cell_centroids_z[(cell_index)] - face_c.z)};
-          vec_t bd = {(half_edge.x - face_c.x), (half_edge.y - face_c.y),
-                      (half_edge.z - face_c.z)};
-          vec_t cd = {(node.x - face_c.x), (node.y - face_c.y),
-                      (node.z - face_c.z)};
-
-          // Calculate the area vector S using cross product
-          vec_t S = {0.5 * (ad.y * bd.z - ad.z * bd.y),
-                     -0.5 * (ad.x * bd.z - ad.z * bd.x),
-                     0.5 * (ad.x * bd.y - ad.y * bd.x)};
-
-          const double subcell_volume =
-              fabs(cd.x * S.x + cd.y * S.y + cd.z * S.z) / 3.0;
-
+          const double subsubcell_volume = calc_subsubcell_volume(
+              cell_index, local_nodes[(nn2)], nn, face_c, nodes_x, nodes_y,
+              nodes_z, cell_centroids_x, cell_centroids_y, cell_centroids_z);
           nodal_soundspeed[(nn)] +=
               sqrt(GAM * (GAM - 1.0) * energy[(local_cells[(cc)])]) *
-              subcell_volume;
-          nodal_volumes[(nn)] += subcell_volume;
+              subsubcell_volume;
+          nodal_volumes[(nn)] += subsubcell_volume;
         }
       }
     }
   }
+}
+
+// Calculates the volume of a subsubcell
+double calc_subsubcell_volume(const int cc, const int next_node,
+                              const int current_node, vec_t face_c,
+                              const double* nodes_x, const double* nodes_y,
+                              const double* nodes_z,
+                              const double* cell_centroids_x,
+                              const double* cell_centroids_y,
+                              const double* cell_centroids_z) {
+
+  // Construct the vectors describing an edge tetrahedron
+  const vec_t ad = {(face_c.x - nodes_x[(current_node)]),
+                    (face_c.y - nodes_y[(current_node)]),
+                    (face_c.z - nodes_z[(current_node)])};
+  const vec_t bd = {nodes_x[(next_node)] - nodes_x[(current_node)],
+                    nodes_y[(next_node)] - nodes_y[(current_node)],
+                    nodes_z[(next_node)] - nodes_z[(current_node)]};
+  const vec_t cd = {cell_centroids_x[(cc)] - nodes_x[(current_node)],
+                    cell_centroids_y[(cc)] - nodes_y[(current_node)],
+                    cell_centroids_z[(cc)] - nodes_z[(current_node)]};
+
+  // Fetch the are vector of one of the faces of the tetrahedron
+  const vec_t area = {0.5 * (ad.y * bd.z - ad.z * bd.y),
+                      -0.5 * (ad.x * bd.z - ad.z * bd.x),
+                      0.5 * (ad.x * bd.y - ad.y * bd.x)};
+
+  // Determine the volume using standard irregular tetrahedron formula
+  const double edge_subcell_vol =
+      fabs(cd.x * area.x + cd.y * area.y + cd.z * area.z) / 3.0;
+
+  // The subsubcell is half the volume of the edge subcell
+  return 0.5 * edge_subcell_vol;
 }
 
 // Sets all of the subcell forces to 0
@@ -761,8 +773,6 @@ double calc_cell_volume(const int cc, const int nfaces_by_cell,
                   face_to_nodes_off, &face_c);
 
     // Now we will sum the contributions at each of the nodes
-    // TODO: THERE IS SOME SYMMETRY HERE THAT MEANS WE MIGHT BE ABLE TO
-    // OPTIMISE
     for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
       // Fetch the nodes attached to our current node on the current face
       const int current_node = faces_to_nodes[(face_to_nodes_off + nn2)];
@@ -770,22 +780,11 @@ double calc_cell_volume(const int cc, const int nfaces_by_cell,
                                 ? faces_to_nodes[(face_to_nodes_off + nn2 + 1)]
                                 : faces_to_nodes[(face_to_nodes_off)];
 
-      vec_t ad = {(face_c.x - nodes_x[(current_node)]),
-                  (face_c.y - nodes_y[(current_node)]),
-                  (face_c.z - nodes_z[(current_node)])};
-      vec_t bd = {nodes_x[(next_node)] - nodes_x[(current_node)],
-                  nodes_y[(next_node)] - nodes_y[(current_node)],
-                  nodes_z[(next_node)] - nodes_z[(current_node)]};
-      vec_t cd = {cell_centroids_x[(cc)] - nodes_x[(current_node)],
-                  cell_centroids_y[(cc)] - nodes_y[(current_node)],
-                  cell_centroids_z[(cc)] - nodes_z[(current_node)]};
+      const double subsubcell_volume = calc_subsubcell_volume(
+          cc, next_node, current_node, face_c, nodes_x, nodes_y, nodes_z,
+          cell_centroids_x, cell_centroids_y, cell_centroids_z);
 
-      // Calculate the area vector S using cross product
-      vec_t S = {0.5 * (ad.y * bd.z - ad.z * bd.y),
-                 -0.5 * (ad.x * bd.z - ad.z * bd.x),
-                 0.5 * (ad.x * bd.y - ad.y * bd.x)};
-
-      cv += fabs(cd.x * S.x + cd.y * S.y + cd.z * S.z) / 3.0;
+      cv += 2.0 * subsubcell_volume;
     }
   }
 
