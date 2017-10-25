@@ -27,7 +27,6 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
                        hale_data->rezoned_nodes_y, hale_data->rezoned_nodes_z);
   }
 
-  // Describe the subcell node layout
   printf("\nPerforming the Lagrangian Phase\n");
 
   // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
@@ -51,16 +50,14 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
     double initial_ke_mass = 0.0;
     vec_t initial_momentum = {0.0, 0.0, 0.0};
 
-    // gathers all of the subcell quantities on the mesh
+    // gathers all of the cell quantities on the mesh
     START_PROFILING(&compute_profile);
-    gather_subcell_quantities(umesh, hale_data, &initial_momentum,
-                              &initial_mass, &initial_ie_mass,
-                              &initial_ke_mass);
+    gather_cell_quantities(umesh, hale_data, &initial_momentum);
     STOP_PROFILING(&compute_profile, "Gather phase");
 
     printf("\nPerforming Advection Phase\n");
 
-    // Performs a remap and some scattering of the subcell values
+    // Performs a remap
     START_PROFILING(&compute_profile);
     advection_phase(umesh, hale_data);
     STOP_PROFILING(&compute_profile, "Advection phase");
