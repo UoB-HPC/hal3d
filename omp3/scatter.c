@@ -106,7 +106,7 @@ void scatter_energy_and_mass(
     cell_mass[(cc)] = total_mass;
     density[(cc)] = cell_mass[(cc)] / cell_volume[(cc)];
 
-    double total_e_mass = total_ie_mass + (total_ke_mass - new_ke_mass);
+    double total_e_mass = total_ie_mass; // + (total_ke_mass - new_ke_mass);
     energy[(cc)] = total_e_mass / cell_mass[(cc)];
 
     // Calculate the conservation data

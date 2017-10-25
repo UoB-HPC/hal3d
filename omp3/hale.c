@@ -40,7 +40,7 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
     write_unstructured_to_visit_3d(umesh->nnodes, umesh->ncells, timestep * 2,
                                    umesh->nodes_x0, umesh->nodes_y0,
                                    umesh->nodes_z0, umesh->cells_to_nodes,
-                                   hale_data->density0, 0, 1);
+                                   hale_data->energy0, 0, 1);
   }
 
   if (hale_data->perform_remap) {

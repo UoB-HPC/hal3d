@@ -88,14 +88,6 @@ double apply_cell_limiter(const int nnodes_by_cell, const int cell_to_nodes_off,
                           const double dphi, const double gmax,
                           const double gmin);
 
-// Calculates the limiter for the provided gradient
-double apply_node_limiter(const int ncells_by_node, const int node_to_cells_off,
-                          const int* nodes_to_cells, vec_t* grad,
-                          const vec_t* node, const double* cell_centroids_x,
-                          const double* cell_centroids_y,
-                          const double* cell_centroids_z, const double phi,
-                          const double gmax, const double gmin);
-
 // Calculates the cell volume, subcell volume and the subcell centroids
 void calc_volumes_centroids(
     const int ncells, const int nnodes, const int nnodes_by_subcell,
@@ -123,11 +115,6 @@ void contribute_face_volume(const int nnodes_by_face, const int* faces_to_nodes,
 double calc_cell_limiter(const double rho, const double gmax, const double gmin,
                          vec_t* grad, const double node_x, const double node_y,
                          const double node_z, const vec_t* cell_c);
-
-// Calculates the local limiter for a node
-double calc_node_limiter(const double rho, const double gmax, const double gmin,
-                         vec_t* grad, const double cell_x, const double cell_y,
-                         const double cell_z, const vec_t* node);
 
 // Perform the scatter step of the ALE remapping algorithm
 void scatter_phase(UnstructuredMesh* umesh, HaleData* hale_data,
@@ -210,3 +197,9 @@ void set_timestep(const int ncells, const double* nodes_x,
                   const double* energy, double* dt, int* cells_to_faces_offsets,
                   int* cells_to_faces, int* faces_to_nodes_offsets,
                   int* faces_to_nodes);
+
+// Calculates the limiter, allowing for values both sides of zero
+double calc_cell_limiter_flexible(const double rho, const double gmax,
+                                  const double gmin, vec_t* grad,
+                                  const double cell_x, const double cell_y,
+                                  const double cell_z, const vec_t* node);

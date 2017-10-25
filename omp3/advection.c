@@ -684,16 +684,15 @@ void contribute_momentum_flux(
     coeff[2].y += 2.0 * (i.z * i.y) / (neighbour_vol * neighbour_vol);
     coeff[2].z += 2.0 * (i.z * i.z) / (neighbour_vol * neighbour_vol);
 
+    vec_t neighbour_v = {
+        subcell_momentum_x[(sweep_neighbour_index)] / neighbour_vol,
+        subcell_momentum_y[(sweep_neighbour_index)] / neighbour_vol,
+        subcell_momentum_z[(sweep_neighbour_index)] / neighbour_vol};
+
     // Prepare differential
-    const double dneighbour_vx =
-        (subcell_momentum_x[(sweep_neighbour_index)] / neighbour_vol -
-         subcell_vx);
-    const double dneighbour_vy =
-        (subcell_momentum_y[(sweep_neighbour_index)] / neighbour_vol -
-         subcell_vy);
-    const double dneighbour_vz =
-        (subcell_momentum_z[(sweep_neighbour_index)] / neighbour_vol -
-         subcell_vz);
+    const double dneighbour_vx = (neighbour_v.x - subcell_vx);
+    const double dneighbour_vy = (neighbour_v.y - subcell_vy);
+    const double dneighbour_vz = (neighbour_v.z - subcell_vz);
 
     vx_rhs.x += 2.0 * dneighbour_vx * i.x / neighbour_vol;
     vx_rhs.y += 2.0 * dneighbour_vx * i.y / neighbour_vol;
@@ -707,12 +706,12 @@ void contribute_momentum_flux(
     vz_rhs.y += 2.0 * dneighbour_vz * i.y / neighbour_vol;
     vz_rhs.z += 2.0 * dneighbour_vz * i.z / neighbour_vol;
 
-    gmax_vx = max(gmax_vx, dneighbour_vx);
-    gmin_vx = min(gmin_vx, dneighbour_vx);
-    gmax_vy = max(gmax_vy, dneighbour_vy);
-    gmin_vy = min(gmin_vy, dneighbour_vy);
-    gmax_vz = max(gmax_vz, dneighbour_vz);
-    gmin_vz = min(gmin_vz, dneighbour_vz);
+    gmax_vx = max(gmax_vx, neighbour_v.x);
+    gmin_vx = min(gmin_vx, neighbour_v.x);
+    gmax_vy = max(gmax_vy, neighbour_v.y);
+    gmin_vy = min(gmin_vy, neighbour_v.y);
+    gmax_vz = max(gmax_vz, neighbour_v.z);
+    gmin_vz = min(gmin_vz, neighbour_v.z);
   }
 
   calc_3x3_inverse(&coeff, &inv);
@@ -730,9 +729,8 @@ void contribute_momentum_flux(
       inv[1].x * vz_rhs.x + inv[1].y * vz_rhs.y + inv[1].z * vz_rhs.z,
       inv[2].x * vz_rhs.x + inv[2].y * vz_rhs.y + inv[2].z * vz_rhs.z};
 
-/* LIMIT THE GRADIENT */
+  /* LIMIT THE GRADIENT */
 
-#if 0
   // Performing the limiting actually requires the sweep subcell's nodes
   double vx_limiter = 1.0;
   double vy_limiter = 1.0;
@@ -766,7 +764,6 @@ void contribute_momentum_flux(
   grad_vz.x *= vz_limiter;
   grad_vz.y *= vz_limiter;
   grad_vz.z *= vz_limiter;
-#endif // if 0
 
   // Calculate the flux for internal energy density in the subcell
   const double local_x_momentum_flux =
@@ -985,24 +982,6 @@ double calc_cell_limiter(const double rho, const double gmax, const double gmin,
   return limiter;
 }
 
-// Calculates the local limiter for a node
-double calc_node_limiter(const double rho, const double gmax, const double gmin,
-                         vec_t* grad, const double cell_x, const double cell_y,
-                         const double cell_z, const vec_t* node) {
-
-  double g_unlimited = rho + grad->x * (cell_x - node->x) +
-                       grad->y * (cell_y - node->y) +
-                       grad->z * (cell_z - node->z);
-
-  double limiter = 1.0;
-  if (g_unlimited - rho > 0.0) {
-    limiter = min(limiter, (gmax - rho) / (g_unlimited - rho));
-  } else if (g_unlimited - rho < 0.0) {
-    limiter = min(limiter, (gmin - rho) / (g_unlimited - rho));
-  }
-  return limiter;
-}
-
 // Calculates the limiter for the provided gradient
 double apply_cell_limiter(const int nnodes_by_cell, const int cell_to_nodes_off,
                           const int* cells_to_nodes, vec_t* grad,
@@ -1019,30 +998,6 @@ double apply_cell_limiter(const int nnodes_by_cell, const int cell_to_nodes_off,
                                              nodes_x[(node_index)],
                                              nodes_y[(node_index)],
                                              nodes_z[(node_index)], cell_c));
-  }
-
-  grad->x *= limiter;
-  grad->y *= limiter;
-  grad->z *= limiter;
-
-  return limiter;
-}
-
-// Calculates the limiter for the provided gradient
-double apply_node_limiter(const int ncells_by_node, const int node_to_cells_off,
-                          const int* nodes_to_cells, vec_t* grad,
-                          const vec_t* node, const double* cell_centroids_x,
-                          const double* cell_centroids_y,
-                          const double* cell_centroids_z, const double rho,
-                          const double gmax, const double gmin) {
-
-  // Calculate the limiter for the gradient
-  double limiter = DBL_MAX;
-  for (int cc = 0; cc < ncells_by_node; ++cc) {
-    const int cell_index = nodes_to_cells[(node_to_cells_off + cc)];
-    limiter = calc_node_limiter(
-        rho, gmax, gmin, grad, cell_centroids_x[(cell_index)],
-        cell_centroids_y[(cell_index)], cell_centroids_z[(cell_index)], node);
   }
 
   grad->x *= limiter;

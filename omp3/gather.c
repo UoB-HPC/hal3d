@@ -394,7 +394,6 @@ void gather_subcell_momentum(
     const int ncells_by_node =
         nodes_to_cells_offsets[(nn + 1)] - node_to_cells_off;
 
-#if 0
     vec_t node = {nodes_x[(nn)], nodes_y[(nn)], nodes_z[(nn)]};
     double vx_limiter = 1.0;
     double vy_limiter = 1.0;
@@ -405,19 +404,19 @@ void gather_subcell_momentum(
 
       vx_limiter =
           min(vx_limiter,
-              calc_node_limiter(node_mom_density.x, gmax.x, gmin.x, &grad_vx,
+              calc_cell_limiter(node_mom_density.x, gmax.x, gmin.x, &grad_vx,
                                 cell_centroids_x[(cell_index)],
                                 cell_centroids_y[(cell_index)],
                                 cell_centroids_z[(cell_index)], &node));
       vy_limiter =
           min(vy_limiter,
-              calc_node_limiter(node_mom_density.y, gmax.y, gmin.y, &grad_vy,
+              calc_cell_limiter(node_mom_density.y, gmax.y, gmin.y, &grad_vy,
                                 cell_centroids_x[(cell_index)],
                                 cell_centroids_y[(cell_index)],
                                 cell_centroids_z[(cell_index)], &node));
       vz_limiter =
           min(vz_limiter,
-              calc_node_limiter(node_mom_density.z, gmax.z, gmin.z, &grad_vz,
+              calc_cell_limiter(node_mom_density.z, gmax.z, gmin.z, &grad_vz,
                                 cell_centroids_x[(cell_index)],
                                 cell_centroids_y[(cell_index)],
                                 cell_centroids_z[(cell_index)], &node));
@@ -432,7 +431,6 @@ void gather_subcell_momentum(
     grad_vz.x *= vz_limiter;
     grad_vz.y *= vz_limiter;
     grad_vz.z *= vz_limiter;
-#endif // if 0
 
     for (int cc = 0; cc < ncells_by_node; ++cc) {
       const int cell_index = nodes_to_cells[(node_to_cells_off + cc)];
