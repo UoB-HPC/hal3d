@@ -11,7 +11,7 @@ void gather_subcell_mass_and_energy(
     int* cells_to_nodes_offsets, const double* nodes_x, const double* nodes_y,
     const double* nodes_z, const double* cell_volume, double* energy,
     double* density, double* velocity_x, double* velocity_y, double* velocity_z,
-    double* kinetic_energy, double* cell_mass, double* subcell_mass,
+    double* ke_mass, double* cell_mass, double* subcell_mass,
     double* subcell_volume, double* subcell_ie_mass, double* subcell_ke_mass,
     double* subcell_centroids_x, double* subcell_centroids_y,
     double* subcell_centroids_z, int* faces_to_cells0, int* faces_to_cells1,
@@ -61,7 +61,7 @@ void gather_subcell_quantities(UnstructuredMesh* umesh, HaleData* hale_data,
       umesh->cell_centroids_y, umesh->cell_centroids_z, umesh->cells_offsets,
       umesh->nodes_x0, umesh->nodes_y0, umesh->nodes_z0, hale_data->cell_volume,
       hale_data->energy0, hale_data->density0, hale_data->velocity_x0,
-      hale_data->velocity_y0, hale_data->velocity_z0, hale_data->kinetic_energy,
+      hale_data->velocity_y0, hale_data->velocity_z0, hale_data->ke_mass,
       hale_data->cell_mass, hale_data->subcell_mass, hale_data->subcell_volume,
       hale_data->subcell_ie_mass, hale_data->subcell_ke_mass,
       hale_data->subcell_centroids_x, hale_data->subcell_centroids_y,
@@ -91,7 +91,7 @@ void gather_subcell_mass_and_energy(
     int* cells_to_nodes_offsets, const double* nodes_x, const double* nodes_y,
     const double* nodes_z, const double* cell_volume, double* energy,
     double* density, double* velocity_x, double* velocity_y, double* velocity_z,
-    double* kinetic_energy, double* cell_mass, double* subcell_mass,
+    double* ke_mass, double* cell_mass, double* subcell_mass,
     double* subcell_volume, double* subcell_ie_mass, double* subcell_ke_mass,
     double* subcell_centroids_x, double* subcell_centroids_y,
     double* subcell_centroids_z, int* faces_to_cells0, int* faces_to_cells1,
@@ -112,17 +112,16 @@ void gather_subcell_mass_and_energy(
     const int nnodes_by_cell =
         cells_to_nodes_offsets[(cc + 1)] - cell_to_nodes_off;
 
-    kinetic_energy[(cc)] = 0.0;
+    ke_mass[(cc)] = 0.0;
 
     // Subcells are ordered with the nodes on a face
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int node_index = cells_to_nodes[(cell_to_nodes_off + nn)];
       const int subcell_index = cell_to_nodes_off + nn;
-      kinetic_energy[(cc)] +=
-          subcell_mass[(subcell_index)] *
-          (velocity_x[(node_index)] * velocity_x[(node_index)] +
-           velocity_y[(node_index)] * velocity_y[(node_index)] +
-           velocity_z[(node_index)] * velocity_z[(node_index)]);
+      ke_mass[(cc)] += subcell_mass[(subcell_index)] *
+                       (velocity_x[(node_index)] * velocity_x[(node_index)] +
+                        velocity_y[(node_index)] * velocity_y[(node_index)] +
+                        velocity_z[(node_index)] * velocity_z[(node_index)]);
     }
   }
 
@@ -140,7 +139,7 @@ void gather_subcell_mass_and_energy(
         cells_to_nodes_offsets[(cc + 1)] - cell_to_nodes_off;
 
     const double cell_ie = density[(cc)] * energy[(cc)];
-    const double cell_ke = kinetic_energy[(cc)] / cell_volume[(cc)];
+    const double cell_ke = ke_mass[(cc)] / cell_volume[(cc)];
     vec_t cell_c = {cell_centroids_x[(cc)], cell_centroids_y[(cc)],
                     cell_centroids_z[(cc)]};
 
@@ -185,8 +184,7 @@ void gather_subcell_mass_and_energy(
 
       const double neighbour_ie =
           density[(neighbour_index)] * energy[(neighbour_index)];
-      const double neighbour_ke =
-          kinetic_energy[(neighbour_index)] / neighbour_vol;
+      const double neighbour_ke = ke_mass[(neighbour_index)] / neighbour_vol;
 
       gmax_ie = max(gmax_ie, neighbour_ie);
       gmin_ie = min(gmin_ie, neighbour_ie);

@@ -47,7 +47,7 @@ void scatter_phase(UnstructuredMesh* umesh, HaleData* hale_data,
   scatter_energy_and_mass(
       umesh->ncells, umesh->nodes_x0, umesh->nodes_y0, umesh->nodes_z0,
       hale_data->cell_volume, hale_data->energy0, hale_data->density0,
-      hale_data->kinetic_energy, hale_data->velocity_x0, hale_data->velocity_y0,
+      hale_data->ke_mass, hale_data->velocity_x0, hale_data->velocity_y0,
       hale_data->velocity_z0, hale_data->cell_mass, hale_data->subcell_mass,
       hale_data->subcell_ie_mass, hale_data->subcell_ke_mass,
       umesh->faces_to_nodes, umesh->faces_to_nodes_offsets,
@@ -60,34 +60,12 @@ void scatter_phase(UnstructuredMesh* umesh, HaleData* hale_data,
 void scatter_energy_and_mass(
     const int ncells, const double* nodes_x, const double* nodes_y,
     const double* nodes_z, double* cell_volume, double* energy, double* density,
-    double* kinetic_energy, double* velocity_x, double* velocity_y,
-    double* velocity_z, double* cell_mass, double* subcell_mass,
-    double* subcell_ie_mass, double* subcell_ke_mass, int* faces_to_nodes,
-    int* faces_to_nodes_offsets, int* cells_to_faces_offsets,
-    int* cells_to_faces, int* cells_offsets, int* cells_to_nodes,
-    int* cells_to_nodes_offsets, double initial_mass, double initial_ie_mass,
-    double initial_ke_mass) {
-
-// We first have to determine the cell centered kinetic energy
-#pragma omp parallel for
-  for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_to_nodes_offsets[(cc)];
-    const int nnodes_by_cell =
-        cells_to_nodes_offsets[(cc + 1)] - cell_to_nodes_off;
-
-    kinetic_energy[(cc)] = 0.0;
-
-    // Subcells are ordered with the nodes on a face
-    for (int nn = 0; nn < nnodes_by_cell; ++nn) {
-      const int node_index = cells_to_nodes[(cell_to_nodes_off + nn)];
-      const int subcell_index = cell_to_nodes_off + nn;
-      kinetic_energy[(cc)] +=
-          subcell_mass[(subcell_index)] *
-          (velocity_x[(node_index)] * velocity_x[(node_index)] +
-           velocity_y[(node_index)] * velocity_y[(node_index)] +
-           velocity_z[(node_index)] * velocity_z[(node_index)]);
-    }
-  }
+    double* ke_mass, double* velocity_x, double* velocity_y, double* velocity_z,
+    double* cell_mass, double* subcell_mass, double* subcell_ie_mass,
+    double* subcell_ke_mass, int* faces_to_nodes, int* faces_to_nodes_offsets,
+    int* cells_to_faces_offsets, int* cells_to_faces, int* cells_offsets,
+    int* cells_to_nodes, int* cells_to_nodes_offsets, double initial_mass,
+    double initial_ie_mass, double initial_ke_mass) {
 
   // Scatter energy and density, and print the conservation of mass
   double rz_total_mass = 0.0;
@@ -100,14 +78,20 @@ void scatter_energy_and_mass(
     const int nfaces_by_cell =
         cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
 
+    double new_ke_mass = 0.0;
     double total_mass = 0.0;
     double total_ie_mass = 0.0;
     double total_ke_mass = 0.0;
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
+      const int node_index = cells_to_nodes[(cell_to_nodes_off + nn)];
       const int subcell_index = cell_to_nodes_off + nn;
       total_mass += subcell_mass[(subcell_index)];
       total_ie_mass += subcell_ie_mass[(subcell_index)];
       total_ke_mass += subcell_ke_mass[(subcell_index)];
+      new_ke_mass += subcell_mass[(subcell_index)] *
+                     (velocity_x[(node_index)] * velocity_x[(node_index)] +
+                      velocity_y[(node_index)] * velocity_y[(node_index)] +
+                      velocity_z[(node_index)] * velocity_z[(node_index)]);
     }
 
     // Update the volume of the cell to the new rezoned mesh
@@ -122,8 +106,7 @@ void scatter_energy_and_mass(
     cell_mass[(cc)] = total_mass;
     density[(cc)] = cell_mass[(cc)] / cell_volume[(cc)];
 
-    double total_e_mass =
-        total_ie_mass + (total_ke_mass - kinetic_energy[(cc)]);
+    double total_e_mass = total_ie_mass + (total_ke_mass - new_ke_mass);
     energy[(cc)] = total_e_mass / cell_mass[(cc)];
 
     // Calculate the conservation data
