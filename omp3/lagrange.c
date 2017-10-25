@@ -333,25 +333,22 @@ void calc_nodal_vol_and_c(const int nnodes, const int* nodes_to_faces_offsets,
                              0.5 * (nodes_y[(local_nodes[(nn2)])] + node.y),
                              0.5 * (nodes_z[(local_nodes[(nn2)])] + node.z)};
 
-          vec_t cell_c = {cell_centroids_x[(cell_index)],
-                          cell_centroids_y[(cell_index)],
-                          cell_centroids_z[(cell_index)]};
-
           // Setup basis on plane of tetrahedron
-          vec_t a = {(cell_c.x - face_c.x), (cell_c.y - face_c.y),
-                     (cell_c.z - face_c.z)};
-          vec_t b = {(half_edge.x - face_c.x), (half_edge.y - face_c.y),
-                     (half_edge.z - face_c.z)};
-          vec_t ab = {(node.x - half_edge.x), (node.y - half_edge.y),
-                      (node.z - half_edge.z)};
+          vec_t ad = {(cell_centroids_x[(cell_index)] - face_c.x),
+                      (cell_centroids_y[(cell_index)] - face_c.y),
+                      (cell_centroids_z[(cell_index)] - face_c.z)};
+          vec_t bd = {(half_edge.x - face_c.x), (half_edge.y - face_c.y),
+                      (half_edge.z - face_c.z)};
+          vec_t cd = {(node.x - face_c.x), (node.y - face_c.y),
+                      (node.z - face_c.z)};
 
           // Calculate the area vector S using cross product
-          vec_t S = {0.5 * (a.y * b.z - a.z * b.y),
-                     -0.5 * (a.x * b.z - a.z * b.x),
-                     0.5 * (a.x * b.y - a.y * b.x)};
+          vec_t S = {0.5 * (ad.y * bd.z - ad.z * bd.y),
+                     -0.5 * (ad.x * bd.z - ad.z * bd.x),
+                     0.5 * (ad.x * bd.y - ad.y * bd.x)};
 
           const double subcell_volume =
-              fabs(ab.x * S.x + ab.y * S.y + ab.z * S.z) / 3.0;
+              fabs(cd.x * S.x + cd.y * S.y + cd.z * S.z) / 3.0;
 
           nodal_soundspeed[(nn)] +=
               sqrt(GAM * (GAM - 1.0) * energy[(local_cells[(cc)])]) *
@@ -433,10 +430,9 @@ void calc_subcell_force_from_pressure(
 
         // Calculate the area vector A using cross product
         const int face_cclockwise = (faces_cclockwise_cell[(face_index)] == cc);
-        const double scale = face_cclockwise ? 0.5 : -0.5;
-        vec_t A = {scale * (a.y * b.z - a.z * b.y),
-                   -scale * (a.x * b.z - a.z * b.x),
-                   scale * (a.x * b.y - a.y * b.x)};
+        const double s = face_cclockwise ? 0.5 : -0.5;
+        vec_t A = {s * (a.y * b.z - a.z * b.y), -s * (a.x * b.z - a.z * b.x),
+                   s * (a.x * b.y - a.y * b.x)};
 
         int node_off;
         int next_node_off;
@@ -531,6 +527,7 @@ void move_nodes(const int nnodes, const double dt, const double* nodes_x0,
                 const double* velocity_x1, const double* velocity_y1,
                 const double* velocity_z1, double* nodes_x1, double* nodes_y1,
                 double* nodes_z1) {
+
 #pragma omp parallel for simd
   for (int nn = 0; nn < nnodes; ++nn) {
     nodes_x1[(nn)] = nodes_x0[(nn)] + dt * velocity_x1[(nn)];
@@ -556,54 +553,10 @@ void calc_predicted_density(const int ncells, const int* cells_to_faces_offsets,
     const int nfaces_by_cell =
         cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
 
-    double cell_volume = 0.0;
-
-    // Look at all of the faces attached to the cell
-    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
-      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
-      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-      const int nnodes_by_face =
-          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-
-      // Calculate the face center
-      vec_t face_c = {0.0, 0.0, 0.0};
-      calc_centroid(nnodes_by_face, nodes_x1, nodes_y1, nodes_z1,
-                    faces_to_nodes, face_to_nodes_off, &face_c);
-
-      // Now we will sum the contributions at each of the nodes
-      for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
-        // Fetch the nodes attached to our current node on the current face
-        const int current_node = faces_to_nodes[(face_to_nodes_off + nn2)];
-        const int next_node =
-            (nn2 + 1 < nnodes_by_face)
-                ? faces_to_nodes[(face_to_nodes_off + nn2 + 1)]
-                : faces_to_nodes[(face_to_nodes_off)];
-
-        // Get the halfway point on the right edge
-        vec_t half_edge = {
-            0.5 * (nodes_x1[(current_node)] + nodes_x1[(next_node)]),
-            0.5 * (nodes_y1[(current_node)] + nodes_y1[(next_node)]),
-            0.5 * (nodes_z1[(current_node)] + nodes_z1[(next_node)])};
-
-        // Setup basis on plane of tetrahedron
-        vec_t a = {(half_edge.x - face_c.x), (half_edge.y - face_c.y),
-                   (half_edge.z - face_c.z)};
-        vec_t b = {(cell_centroids_x[(cc)] - face_c.x),
-                   (cell_centroids_y[(cc)] - face_c.y),
-                   (cell_centroids_z[(cc)] - face_c.z)};
-        vec_t ab = {(nodes_x1[(current_node)] - half_edge.x),
-                    (nodes_y1[(current_node)] - half_edge.y),
-                    (nodes_z1[(current_node)] - half_edge.z)};
-
-        // Calculate the area vector S using cross product
-        vec_t S = {0.5 * (a.y * b.z - a.z * b.y),
-                   -0.5 * (a.x * b.z - a.z * b.x),
-                   0.5 * (a.x * b.y - a.y * b.x)};
-
-        // We are adding contribution for whole side subcell
-        cell_volume += 2.0 * fabs((ab.x * S.x + ab.y * S.y + ab.z * S.z) / 3.0);
-      }
-    }
+    const double cell_volume = calc_cell_volume(
+        cc, nfaces_by_cell, cell_to_faces_off, cells_to_faces,
+        faces_to_nodes_offsets, faces_to_nodes, nodes_x1, nodes_y1, nodes_z1,
+        cell_centroids_x, cell_centroids_y, cell_centroids_z);
 
     density1[(cc)] = cell_mass[(cc)] / cell_volume;
   }
@@ -773,60 +726,70 @@ void calc_corrected_density(
     const int nfaces_by_cell =
         cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
 
-    cell_volume[(cc)] = 0.0;
-
-    // Look at all of the faces attached to the cell
-    for (int ff = 0; ff < nfaces_by_cell; ++ff) {
-      const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
-      const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-      const int nnodes_by_face =
-          faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-
-      // Calculate the face center... SHOULD WE PRECOMPUTE?
-      vec_t face_c = {0.0, 0.0, 0.0};
-      calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes,
-                    face_to_nodes_off, &face_c);
-
-      // Now we will sum the contributions at each of the nodes
-      // TODO: THERE IS SOME SYMMETRY HERE THAT MEANS WE MIGHT BE ABLE TO
-      // OPTIMISE
-      for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
-        // Fetch the nodes attached to our current node on the current face
-        const int current_node = faces_to_nodes[(face_to_nodes_off + nn2)];
-        const int next_node =
-            (nn2 + 1 < nnodes_by_face)
-                ? faces_to_nodes[(face_to_nodes_off + nn2 + 1)]
-                : faces_to_nodes[(face_to_nodes_off)];
-
-        // Get the halfway point on the right edge
-        vec_t half_edge = {
-            0.5 * (nodes_x[(current_node)] + nodes_x[(next_node)]),
-            0.5 * (nodes_y[(current_node)] + nodes_y[(next_node)]),
-            0.5 * (nodes_z[(current_node)] + nodes_z[(next_node)])};
-
-        // Setup basis on plane of tetrahedron
-        vec_t a = {(half_edge.x - face_c.x), (half_edge.y - face_c.y),
-                   (half_edge.z - face_c.z)};
-        vec_t b = {(cell_centroids_x[(cc)] - face_c.x),
-                   (cell_centroids_y[(cc)] - face_c.y),
-                   (cell_centroids_z[(cc)] - face_c.z)};
-        vec_t ab = {nodes_x[(current_node)] - half_edge.x,
-                    nodes_y[(current_node)] - half_edge.y,
-                    nodes_z[(current_node)] - half_edge.z};
-
-        // Calculate the area vector S using cross product
-        vec_t S = {0.5 * a.y * b.z - a.z * b.y, -0.5 * a.x * b.z - a.z * b.x,
-                   0.5 * a.x * b.y - a.y * b.x};
-
-        // We are adding contribution for whole side subcell
-        cell_volume[(cc)] +=
-            2.0 * fabs(ab.x * S.x + ab.y * S.y + ab.z * S.z) / 3.0;
-      }
-    }
+    cell_volume[(cc)] = calc_cell_volume(
+        cc, nfaces_by_cell, cell_to_faces_off, cells_to_faces,
+        faces_to_nodes_offsets, faces_to_nodes, nodes_x, nodes_y, nodes_z,
+        cell_centroids_x, cell_centroids_y, cell_centroids_z);
 
     // Update the density using the new volume
     density[(cc)] = cell_mass[(cc)] / cell_volume[(cc)];
   }
+}
+
+// Calculates the volume in a cell by tetrahedral decomposition
+double calc_cell_volume(const int cc, const int nfaces_by_cell,
+                        const int cell_to_faces_off, const int* cells_to_faces,
+                        const int* faces_to_nodes_offsets,
+                        const int* faces_to_nodes, const double* nodes_x,
+                        const double* nodes_y, const double* nodes_z,
+                        const double* cell_centroids_x,
+                        const double* cell_centroids_y,
+                        const double* cell_centroids_z) {
+
+  double cv = 0.0;
+
+  // Look at all of the faces attached to the cell
+  for (int ff = 0; ff < nfaces_by_cell; ++ff) {
+    const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
+    const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+    const int nnodes_by_face =
+        faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+
+    // Calculate the face center... SHOULD WE PRECOMPUTE?
+    vec_t face_c = {0.0, 0.0, 0.0};
+    calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes,
+                  face_to_nodes_off, &face_c);
+
+    // Now we will sum the contributions at each of the nodes
+    // TODO: THERE IS SOME SYMMETRY HERE THAT MEANS WE MIGHT BE ABLE TO
+    // OPTIMISE
+    for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
+      // Fetch the nodes attached to our current node on the current face
+      const int current_node = faces_to_nodes[(face_to_nodes_off + nn2)];
+      const int next_node = (nn2 + 1 < nnodes_by_face)
+                                ? faces_to_nodes[(face_to_nodes_off + nn2 + 1)]
+                                : faces_to_nodes[(face_to_nodes_off)];
+
+      vec_t ad = {(face_c.x - nodes_x[(current_node)]),
+                  (face_c.y - nodes_y[(current_node)]),
+                  (face_c.z - nodes_z[(current_node)])};
+      vec_t bd = {nodes_x[(next_node)] - nodes_x[(current_node)],
+                  nodes_y[(next_node)] - nodes_y[(current_node)],
+                  nodes_z[(next_node)] - nodes_z[(current_node)]};
+      vec_t cd = {cell_centroids_x[(cc)] - nodes_x[(current_node)],
+                  cell_centroids_y[(cc)] - nodes_y[(current_node)],
+                  cell_centroids_z[(cc)] - nodes_z[(current_node)]};
+
+      // Calculate the area vector S using cross product
+      vec_t S = {0.5 * (ad.y * bd.z - ad.z * bd.y),
+                 -0.5 * (ad.x * bd.z - ad.z * bd.x),
+                 0.5 * (ad.x * bd.y - ad.y * bd.x)};
+
+      cv += fabs(cd.x * S.x + cd.y * S.y + cd.z * S.z) / 3.0;
+    }
+  }
+
+  return cv;
 }
 
 // Controls the timestep for the simulation

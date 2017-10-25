@@ -140,3 +140,13 @@ void calc_artificial_viscosity(
     double* subcell_force_y, double* subcell_force_z,
     int* faces_to_nodes_offsets, int* faces_to_nodes,
     int* cells_to_faces_offsets, int* cells_to_faces);
+
+// Calculates the volume in a cell by tetrahedral decomposition
+double calc_cell_volume(const int cc, const int nfaces_by_cell,
+                        const int cell_to_faces_off, const int* cells_to_faces,
+                        const int* faces_to_nodes_offsets,
+                        const int* faces_to_nodes, const double* nodes_x,
+                        const double* nodes_y, const double* nodes_z,
+                        const double* cell_centroids_x,
+                        const double* cell_centroids_y,
+                        const double* cell_centroids_z);

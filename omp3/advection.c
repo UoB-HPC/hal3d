@@ -848,7 +848,6 @@ void contribute_face_volume(const int nnodes_by_face, const int* faces_to_nodes,
                             const double* nodes_z, const vec_t* cell_c,
                             double* vol) {
 
-  double local_vol = 0.0;
   vec_t face_c = {0.0, 0.0, 0.0};
   calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes, 0,
                 &face_c);
@@ -860,34 +859,25 @@ void contribute_face_volume(const int nnodes_by_face, const int* faces_to_nodes,
                                                     : faces_to_nodes[(0)];
 
     // Get the halfway point on the right edge
-    vec_t half_edge;
-    half_edge.x = 0.5 * (nodes_x[(current_node)] + nodes_x[(next_node)]);
-    half_edge.y = 0.5 * (nodes_y[(current_node)] + nodes_y[(next_node)]);
-    half_edge.z = 0.5 * (nodes_z[(current_node)] + nodes_z[(next_node)]);
+    vec_t half_edge = {0.5 * (nodes_x[(current_node)] + nodes_x[(next_node)]),
+                       0.5 * (nodes_y[(current_node)] + nodes_y[(next_node)]),
+                       0.5 * (nodes_z[(current_node)] + nodes_z[(next_node)])};
 
     // Setup basis on plane of tetrahedron
-    vec_t a;
-    a.x = (half_edge.x - face_c.x);
-    a.y = (half_edge.y - face_c.y);
-    a.z = (half_edge.z - face_c.z);
-    vec_t b;
-    b.x = (cell_c->x - face_c.x);
-    b.y = (cell_c->y - face_c.y);
-    b.z = (cell_c->z - face_c.z);
+    vec_t a = {(half_edge.x - face_c.x), (half_edge.y - face_c.y),
+               (half_edge.z - face_c.z)};
+    vec_t b = {(cell_c->x - face_c.x), (cell_c->y - face_c.y),
+               (cell_c->z - face_c.z)};
+    vec_t ab = {(half_edge.x - nodes_x[(current_node)]),
+                (half_edge.y - nodes_y[(current_node)]),
+                (half_edge.z - nodes_z[(current_node)])};
 
     // Calculate the area vector S using cross product
-    vec_t S;
-    S.x = 0.5 * (a.y * b.z - a.z * b.y);
-    S.y = -0.5 * (a.x * b.z - a.z * b.x);
-    S.z = 0.5 * (a.x * b.y - a.y * b.x);
+    vec_t S = {0.5 * (a.y * b.z - a.z * b.y), -0.5 * (a.x * b.z - a.z * b.x),
+               0.5 * (a.x * b.y - a.y * b.x)};
 
-    local_vol += fabs(2.0 * ((half_edge.x - nodes_x[(current_node)]) * S.x +
-                             (half_edge.y - nodes_y[(current_node)]) * S.y +
-                             (half_edge.z - nodes_z[(current_node)]) * S.z) /
-                      3.0);
+    *vol += 2.0 * fabs(ab.x * S.x + ab.y * S.y + ab.z * S.z) / 3.0;
   }
-
-  *vol += local_vol;
 }
 
 // Calculates the weighted volume dist for a provided cell along x-y-z
