@@ -31,7 +31,7 @@ typedef struct {
 typedef struct {
   double* energy0;
   double* energy1;
-  double* kinetic_energy;
+  double* ke_mass;
   double* density0;
   double* density1;
   double* pressure0;

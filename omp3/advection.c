@@ -16,7 +16,7 @@ void advection_phase(UnstructuredMesh* umesh, HaleData* hale_data) {
       umesh->cells_to_faces_offsets, umesh->cells_to_faces,
       umesh->faces_to_cells0, umesh->faces_to_cells1, umesh->cell_centroids_x,
       umesh->cell_centroids_y, umesh->cell_centroids_z, hale_data->cell_volume,
-      hale_data->density0, hale_data->energy0, hale_data->kinetic_energy,
+      hale_data->density0, hale_data->energy0, hale_data->ke_mass,
       hale_data->mass_flux, hale_data->ie_mass_flux, hale_data->ke_mass_flux);
 
   // Advects mass and energy through the subcell faces using swept edge approx
@@ -47,7 +47,7 @@ void perform_mass_advection(
     const int* faces_to_cells1, const double* cell_centroids_x,
     const double* cell_centroids_y, const double* cell_centroids_z,
     const double* cell_volume, const double* density, const double* energy,
-    const double* kinetic_energy, double* mass_flux, double* ie_mass_flux,
+    const double* ke_mass, double* mass_flux, double* ie_mass_flux,
     double* ke_mass_flux) {
 
 #pragma omp parallel for
@@ -179,7 +179,7 @@ void perform_mass_advection(
       const double sweep_cell_ie_density =
           energy[(sweep_cell_index)] * density[(sweep_cell_index)];
       const double sweep_cell_ke_density =
-          kinetic_energy[(sweep_cell_index)] * density[(sweep_cell_index)];
+          ke_mass[(sweep_cell_index)] / cell_volume[(sweep_cell_index)];
 
       const int neighbour_to_faces_off =
           cells_to_faces_offsets[(sweep_cell_index)];
@@ -234,8 +234,8 @@ void perform_mass_advection(
         const double dneighbour_ie_density =
             neighbour_ie_density - sweep_cell_ie_density;
         const double neighbour_ke_density =
-            kinetic_energy[(sweep_neighbour_index)] *
-            density[(sweep_neighbour_index)];
+            ke_mass[(sweep_neighbour_index)] /
+            cell_volume[(sweep_neighbour_index)];
         const double dneighbour_ke_density =
             neighbour_ke_density - sweep_cell_ke_density;
 

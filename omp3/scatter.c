@@ -58,6 +58,7 @@ void scatter_energy_and_mass(const int ncells, double* cell_mass,
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
     double new_ie_mass = energy[(cc)] * cell_mass[(cc)] - ie_mass_flux[(cc)];
+
     cell_mass[(cc)] -= mass_flux[(cc)];
     energy[(cc)] = new_ie_mass / cell_mass[(cc)];
     density[(cc)] = cell_mass[(cc)] / cell_volume[(cc)];
