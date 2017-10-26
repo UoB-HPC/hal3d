@@ -153,8 +153,8 @@ void perform_advection(
     const double* subcell_ie_mass, double* subcell_ie_mass_flux,
     const double* subcell_ke_mass, double* subcell_ke_mass_flux);
 
-// Contributes the local mass and energy flux for a given subcell face
-void contribute_mass_and_energy_flux(
+// Contributes the local mass, energy and momentum flux for a given subcell face
+void flux_mass_energy_momentum(
     const int cc, const int neighbour_cc, const int ff, const int node_index,
     const int subcell_index, vec_t* subcell_c, vec_t* cell_c,
     const double* se_nodes_x, const double* se_nodes_y,
@@ -162,25 +162,9 @@ void contribute_mass_and_energy_flux(
     double* subcell_mass_flux, const double* subcell_ie_mass,
     double* subcell_ie_mass_flux, const double* subcell_ke_mass,
     double* subcell_ke_mass_flux, const double* subcell_volume,
-    const int* swept_edge_faces_to_nodes, const double* subcell_centroids_x,
-    const double* subcell_centroids_y, const double* subcell_centroids_z,
-    const int* swept_edge_to_faces,
-    const int* swept_edge_faces_to_nodes_offsets,
-    const int* subcells_to_subcells_offsets, const int* subcells_to_subcells,
-    const int* subcells_to_faces_offsets, const int* subcells_to_faces,
-    const int* faces_to_nodes_offsets, const int* faces_to_nodes,
-    const int* cells_offsets, const int* cells_to_nodes, const double* nodes_x,
-    const double* nodes_y, const double* nodes_z, const int internal);
-
-// Contributes the local mass and energy flux for a given subcell face
-void contribute_momentum_flux(
-    const int cc, const int neighbour_cc, const int ff, const int node_index,
-    const int subcell_index, vec_t* subcell_c, vec_t* cell_c,
-    const double* se_nodes_x, const double* se_nodes_y,
-    const double* se_nodes_z, const double* subcell_volume,
-    double* subcell_momentum_flux_x, double* subcell_momentum_flux_y,
-    double* subcell_momentum_flux_z, const double* subcell_momentum_x,
-    const double* subcell_momentum_y, const double* subcell_momentum_z,
+    const double* subcell_momentum_x, const double* subcell_momentum_y,
+    const double* subcell_momentum_z, double* subcell_momentum_flux_x,
+    double* subcell_momentum_flux_y, double* subcell_momentum_flux_z,
     const int* swept_edge_faces_to_nodes, const double* subcell_centroids_x,
     const double* subcell_centroids_y, const double* subcell_centroids_z,
     const int* swept_edge_to_faces,

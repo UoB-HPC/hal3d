@@ -210,7 +210,6 @@ void repair_extrema(const int ncells, const int* cells_offsets,
         dm_avail_receive += dm_avail_receive_local[(ss)];
         die_avail_donate += die_avail_donate_local[(ss)];
         die_avail_receive += die_avail_receive_local[(ss)];
-
         dvx_avail_donate += dvx_avail_donate_local[(ss)];
         dvx_avail_receive += dvx_avail_receive_local[(ss)];
         dvy_avail_donate += dvy_avail_donate_local[(ss)];
@@ -330,8 +329,7 @@ void redistribute_mass(double* mass, const int subcell_index,
 
   mass[(subcell_index)] = g * vol;
 
-// Loop over neighbours
-#pragma omp parallel for
+  // Loop over neighbours
   for (int ss = 0; ss < nsubcell_neighbours; ++ss) {
     const int neighbour_index =
         subcells_to_subcells[(subcell_to_subcells_off + ss)];
