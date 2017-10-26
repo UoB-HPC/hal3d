@@ -197,9 +197,3 @@ void set_timestep(const int ncells, const double* nodes_x,
                   const double* energy, double* dt, int* cells_to_faces_offsets,
                   int* cells_to_faces, int* faces_to_nodes_offsets,
                   int* faces_to_nodes);
-
-// Calculates the limiter, allowing for values both sides of zero
-double calc_cell_limiter_flexible(const double rho, const double gmax,
-                                  const double gmin, vec_t* grad,
-                                  const double cell_x, const double cell_y,
-                                  const double cell_z, const vec_t* node);

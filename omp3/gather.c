@@ -394,10 +394,10 @@ void gather_subcell_momentum(
     const int ncells_by_node =
         nodes_to_cells_offsets[(nn + 1)] - node_to_cells_off;
 
-    vec_t node = {nodes_x[(nn)], nodes_y[(nn)], nodes_z[(nn)]};
     double vx_limiter = 1.0;
     double vy_limiter = 1.0;
     double vz_limiter = 1.0;
+    vec_t node = {nodes_x[(nn)], nodes_y[(nn)], nodes_z[(nn)]};
 
     for (int cc = 0; cc < ncells_by_node; ++cc) {
       const int cell_index = nodes_to_cells[(node_to_cells_off + cc)];
