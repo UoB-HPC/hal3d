@@ -155,24 +155,24 @@ void perform_advection(
 
 // Contributes the local mass, energy and momentum flux for a given subcell face
 void flux_mass_energy_momentum(
-    const int cc, const int neighbour_cc, const int ff, const int node_index,
-    const int subcell_index, vec_t* subcell_c, vec_t* cell_c,
-    const double* se_nodes_x, const double* se_nodes_y,
-    const double* se_nodes_z, const double* subcell_mass,
-    double* subcell_mass_flux, const double* subcell_ie_mass,
-    double* subcell_ie_mass_flux, const double* subcell_ke_mass,
-    double* subcell_ke_mass_flux, const double* subcell_volume,
-    const double* subcell_momentum_x, const double* subcell_momentum_y,
-    const double* subcell_momentum_z, double* subcell_momentum_flux_x,
-    double* subcell_momentum_flux_y, double* subcell_momentum_flux_z,
-    const int* swept_edge_faces_to_nodes, const double* subcell_centroids_x,
-    const double* subcell_centroids_y, const double* subcell_centroids_z,
-    const int* swept_edge_to_faces,
+    const int cc, const int neighbour_cc, const int ff, const int subcell_index,
+    vec_t* subcell_c, vec_t* cell_c, const double* se_nodes_x,
+    const double* se_nodes_y, const double* se_nodes_z,
+    const double* subcell_mass, double* subcell_mass_flux,
+    const double* subcell_ie_mass, double* subcell_ie_mass_flux,
+    const double* subcell_ke_mass, double* subcell_ke_mass_flux,
+    const double* subcell_volume, const double* subcell_momentum_x,
+    const double* subcell_momentum_y, const double* subcell_momentum_z,
+    double* subcell_momentum_flux_x, double* subcell_momentum_flux_y,
+    double* subcell_momentum_flux_z, const int* swept_edge_faces_to_nodes,
+    const double* subcell_centroids_x, const double* subcell_centroids_y,
+    const double* subcell_centroids_z, const int* swept_edge_to_faces,
     const int* swept_edge_faces_to_nodes_offsets,
     const int* subcells_to_subcells_offsets, const int* subcells_to_subcells,
     const int* subcells_to_faces_offsets, const int* subcells_to_faces,
     const int* faces_to_nodes_offsets, const int* faces_to_nodes,
-    const int* cells_offsets, const int* cells_to_nodes, const double* nodes_x,
+    const int* cells_offsets, const int* cells_to_nodes,
+    const int* faces_cclockwise_cell, const double* nodes_x,
     const double* nodes_y, const double* nodes_z, const int internal);
 
 // Controls the timestep for the simulation
@@ -181,3 +181,17 @@ void set_timestep(const int ncells, const double* nodes_x,
                   const double* energy, double* dt, int* cells_to_faces_offsets,
                   int* cells_to_faces, int* faces_to_nodes_offsets,
                   int* faces_to_nodes);
+
+// Limits all of the gradients during flux determination
+void limit_mass_gradients(
+    vec_t nodes, vec_t* sweep_subcell_c, const double sweep_subcell_density,
+    const double sweep_subcell_ie_density,
+    const double sweep_subcell_ke_density, const double subcell_vx,
+    const double subcell_vy, const double subcell_vz, const double gmax_m,
+    const double gmin_m, const double gmax_ie, const double gmin_ie,
+    const double gmax_ke, const double gmin_ke, const double gmax_vx,
+    const double gmin_vx, const double gmax_vy, const double gmin_vy,
+    const double gmax_vz, const double gmin_vz, vec_t* grad_m, vec_t* grad_ie,
+    vec_t* grad_ke, vec_t* grad_vx, vec_t* grad_vy, vec_t* grad_vz,
+    double* m_limiter, double* ie_limiter, double* ke_limiter,
+    double* vx_limiter, double* vy_limiter, double* vz_limiter);
