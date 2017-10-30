@@ -33,6 +33,7 @@ void scatter_phase(UnstructuredMesh* umesh, HaleData* hale_data,
                    vec_t* initial_momentum, double initial_mass,
                    double initial_ie_mass, double initial_ke_mass) {
 
+#if 0
   // Scatter the subcell momentum to the node centered velocities
   scatter_momentum(
       umesh->nnodes, initial_momentum, umesh->nodes_offsets,
@@ -42,6 +43,7 @@ void scatter_phase(UnstructuredMesh* umesh, HaleData* hale_data,
       hale_data->subcell_momentum_x, hale_data->subcell_momentum_y,
       hale_data->subcell_momentum_z, hale_data->subcell_momentum_flux_x,
       hale_data->subcell_momentum_flux_y, hale_data->subcell_momentum_flux_z);
+#endif // if 0
 
   // Scatter the subcell energy and mass quantities back to the cell centers
   scatter_energy_and_mass(
@@ -168,12 +170,9 @@ void scatter_momentum(const int nnodes, vec_t* initial_momentum,
       }
 
       const int subcell_index = cell_to_nodes_off + nn2;
-      node_momentum_x += subcell_momentum_x[(subcell_index)] -
-                         subcell_momentum_flux_x[(subcell_index)];
-      node_momentum_y += subcell_momentum_y[(subcell_index)] -
-                         subcell_momentum_flux_y[(subcell_index)];
-      node_momentum_z += subcell_momentum_z[(subcell_index)] -
-                         subcell_momentum_flux_z[(subcell_index)];
+      node_momentum_x += subcell_momentum_x[(subcell_index)];
+      node_momentum_y += subcell_momentum_y[(subcell_index)];
+      node_momentum_z += subcell_momentum_z[(subcell_index)];
       mass_at_node += subcell_mass[(subcell_index)];
     }
 

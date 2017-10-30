@@ -195,3 +195,11 @@ void limit_mass_gradients(
     vec_t* grad_ke, vec_t* grad_vx, vec_t* grad_vy, vec_t* grad_vz,
     double* m_limiter, double* ie_limiter, double* ke_limiter,
     double* vx_limiter, double* vy_limiter, double* vz_limiter);
+
+// Limits all of the gradients during flux determination
+void limit_momentum_gradients(
+    vec_t nodes, vec_t* subcell_c, const double subcell_vx,
+    const double subcell_vy, const double subcell_vz, const double gmax_vx,
+    const double gmin_vx, const double gmax_vy, const double gmin_vy,
+    const double gmax_vz, const double gmin_vz, vec_t* grad_vx, vec_t* grad_vy,
+    vec_t* grad_vz, double* vx_limiter, double* vy_limiter, double* vz_limiter);
