@@ -798,8 +798,9 @@ void set_timestep(const int ncells, const double* nodes_x,
                   int* cells_to_faces, int* faces_to_nodes_offsets,
                   int* faces_to_nodes) {
 
-  // TODO: THIS IS SOO BAD, WE NEED TO CORRECTLY CALCULATE THE CHARACTERISTIC
-  // LENGTHS AND DETERMINE THE FULL CONDITION
+#if 0
+  *dt = 1.0e-4;
+#endif // if 0
 
   // Calculate the timestep based on the computational mesh and CFL
   // condition
@@ -847,6 +848,7 @@ void set_timestep(const int ncells, const double* nodes_x,
   STOP_PROFILING(&compute_profile, __func__);
 
   *dt = CFL * local_dt;
+
   printf("Timestep %.8fs\n", *dt);
 }
 

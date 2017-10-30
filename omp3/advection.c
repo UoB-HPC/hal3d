@@ -361,20 +361,16 @@ void flux_mass_energy_momentum(
                            subcell_centroids_y[(sweep_subcell_index)],
                            subcell_centroids_z[(sweep_subcell_index)]};
 
-  const double sweep_subcell_density = subcell_mass[(sweep_subcell_index)] /
-                                       subcell_volume[(sweep_subcell_index)];
+  const double subcell_vol = subcell_volume[(sweep_subcell_index)];
+  const double sweep_subcell_density =
+      subcell_mass[(sweep_subcell_index)] / subcell_vol;
   const double sweep_subcell_ie_density =
-      subcell_ie_mass[(sweep_subcell_index)] /
-      subcell_volume[(sweep_subcell_index)];
+      subcell_ie_mass[(sweep_subcell_index)] / subcell_vol;
   const double sweep_subcell_ke_density =
-      subcell_ke_mass[(sweep_subcell_index)] /
-      subcell_volume[(sweep_subcell_index)];
-  const double subcell_vx = subcell_momentum_x[(sweep_subcell_index)] /
-                            subcell_volume[(sweep_subcell_index)];
-  const double subcell_vy = subcell_momentum_y[(sweep_subcell_index)] /
-                            subcell_volume[(sweep_subcell_index)];
-  const double subcell_vz = subcell_momentum_z[(sweep_subcell_index)] /
-                            subcell_volume[(sweep_subcell_index)];
+      subcell_ke_mass[(sweep_subcell_index)] / subcell_vol;
+  vec_t subcell_v = {subcell_momentum_x[(sweep_subcell_index)] / subcell_vol,
+                     subcell_momentum_y[(sweep_subcell_index)] / subcell_vol,
+                     subcell_momentum_z[(sweep_subcell_index)] / subcell_vol};
 
   const int sweep_subcell_to_subcells_off =
       subcells_to_subcells_offsets[(sweep_subcell_index)];
@@ -391,13 +387,14 @@ void flux_mass_energy_momentum(
       continue;
     }
 
-    double neighbour_vol = subcell_volume[(sweep_neighbour_index)];
-    vec_t i = {subcell_centroids_x[(sweep_neighbour_index)] * neighbour_vol -
-                   sweep_subcell_c.x * neighbour_vol,
-               subcell_centroids_y[(sweep_neighbour_index)] * neighbour_vol -
-                   sweep_subcell_c.y * neighbour_vol,
-               subcell_centroids_z[(sweep_neighbour_index)] * neighbour_vol -
-                   sweep_subcell_c.z * neighbour_vol};
+    const double neighbour_vol = subcell_volume[(sweep_neighbour_index)];
+    vec_t i = {
+        (subcell_centroids_x[(sweep_neighbour_index)] - sweep_subcell_c.x) *
+            neighbour_vol,
+        (subcell_centroids_y[(sweep_neighbour_index)] - sweep_subcell_c.y) *
+            neighbour_vol,
+        (subcell_centroids_z[(sweep_neighbour_index)] - sweep_subcell_c.z) *
+            neighbour_vol};
 
     // Store the neighbouring cell's contribution to the coefficients
     coeff[0].x += 2.0 * (i.x * i.x) / (neighbour_vol * neighbour_vol);
@@ -410,32 +407,48 @@ void flux_mass_energy_momentum(
     coeff[2].y += 2.0 * (i.z * i.y) / (neighbour_vol * neighbour_vol);
     coeff[2].z += 2.0 * (i.z * i.z) / (neighbour_vol * neighbour_vol);
 
-    // Calculate the RHS for mass
+    // Get subcell quantities of neighbouring subcell
     const double neighbour_m_density =
         subcell_mass[(sweep_neighbour_index)] / neighbour_vol;
+    const double neighbour_ie_density =
+        subcell_ie_mass[(sweep_neighbour_index)] / neighbour_vol;
+    const double neighbour_ke_density =
+        subcell_ke_mass[(sweep_neighbour_index)] / neighbour_vol;
+    vec_t neighbour_v = {
+        subcell_momentum_x[(sweep_neighbour_index)] / neighbour_vol,
+        subcell_momentum_y[(sweep_neighbour_index)] / neighbour_vol,
+        subcell_momentum_z[(sweep_neighbour_index)] / neighbour_vol};
+
+    // Determine differentials for subcell quantities
     const double dneighbour_m_density =
         neighbour_m_density - sweep_subcell_density;
+    const double dneighbour_ie_density =
+        neighbour_ie_density - sweep_subcell_ie_density;
+    const double dneighbour_ke_density =
+        neighbour_ke_density - sweep_subcell_ke_density;
+    const double dneighbour_vx = (neighbour_v.x - subcell_v.x);
+    const double dneighbour_vy = (neighbour_v.y - subcell_v.y);
+    const double dneighbour_vz = (neighbour_v.z - subcell_v.z);
 
+    // Calculate the RHS for each gradient calculation
     m_rhs.x += 2.0 * dneighbour_m_density * i.x / neighbour_vol;
     m_rhs.y += 2.0 * dneighbour_m_density * i.y / neighbour_vol;
     m_rhs.z += 2.0 * dneighbour_m_density * i.z / neighbour_vol;
-
-    // Calculate the RHS for energy
-    const double neighbour_ie_density =
-        subcell_ie_mass[(sweep_neighbour_index)] / neighbour_vol;
-    const double dneighbour_ie_density =
-        neighbour_ie_density - sweep_subcell_ie_density;
-    const double neighbour_ke_density =
-        subcell_ke_mass[(sweep_neighbour_index)] / neighbour_vol;
-    const double dneighbour_ke_density =
-        neighbour_ke_density - sweep_subcell_ke_density;
-
     ie_rhs.x += 2.0 * dneighbour_ie_density * i.x / neighbour_vol;
     ie_rhs.y += 2.0 * dneighbour_ie_density * i.y / neighbour_vol;
     ie_rhs.z += 2.0 * dneighbour_ie_density * i.z / neighbour_vol;
     ke_rhs.x += 2.0 * dneighbour_ke_density * i.x / neighbour_vol;
     ke_rhs.y += 2.0 * dneighbour_ke_density * i.y / neighbour_vol;
     ke_rhs.z += 2.0 * dneighbour_ke_density * i.z / neighbour_vol;
+    vx_rhs.x += 2.0 * dneighbour_vx * i.x / neighbour_vol;
+    vx_rhs.y += 2.0 * dneighbour_vx * i.y / neighbour_vol;
+    vx_rhs.z += 2.0 * dneighbour_vx * i.z / neighbour_vol;
+    vy_rhs.x += 2.0 * dneighbour_vy * i.x / neighbour_vol;
+    vy_rhs.y += 2.0 * dneighbour_vy * i.y / neighbour_vol;
+    vy_rhs.z += 2.0 * dneighbour_vy * i.z / neighbour_vol;
+    vz_rhs.x += 2.0 * dneighbour_vz * i.x / neighbour_vol;
+    vz_rhs.y += 2.0 * dneighbour_vz * i.y / neighbour_vol;
+    vz_rhs.z += 2.0 * dneighbour_vz * i.z / neighbour_vol;
 
     // Store the maximum / minimum values for rho in the neighbourhood
     gmax_m = max(gmax_m, neighbour_m_density);
@@ -444,29 +457,6 @@ void flux_mass_energy_momentum(
     gmin_ie = min(gmin_ie, neighbour_ie_density);
     gmax_ke = max(gmax_ke, neighbour_ke_density);
     gmin_ke = min(gmin_ke, neighbour_ke_density);
-
-    vec_t neighbour_v = {
-        subcell_momentum_x[(sweep_neighbour_index)] / neighbour_vol,
-        subcell_momentum_y[(sweep_neighbour_index)] / neighbour_vol,
-        subcell_momentum_z[(sweep_neighbour_index)] / neighbour_vol};
-
-    // Prepare differential
-    const double dneighbour_vx = (neighbour_v.x - subcell_vx);
-    const double dneighbour_vy = (neighbour_v.y - subcell_vy);
-    const double dneighbour_vz = (neighbour_v.z - subcell_vz);
-
-    vx_rhs.x += 2.0 * dneighbour_vx * i.x / neighbour_vol;
-    vx_rhs.y += 2.0 * dneighbour_vx * i.y / neighbour_vol;
-    vx_rhs.z += 2.0 * dneighbour_vx * i.z / neighbour_vol;
-
-    vy_rhs.x += 2.0 * dneighbour_vy * i.x / neighbour_vol;
-    vy_rhs.y += 2.0 * dneighbour_vy * i.y / neighbour_vol;
-    vy_rhs.z += 2.0 * dneighbour_vy * i.z / neighbour_vol;
-
-    vz_rhs.x += 2.0 * dneighbour_vz * i.x / neighbour_vol;
-    vz_rhs.y += 2.0 * dneighbour_vz * i.y / neighbour_vol;
-    vz_rhs.z += 2.0 * dneighbour_vz * i.z / neighbour_vol;
-
     gmax_vx = max(gmax_vx, neighbour_v.x);
     gmin_vx = min(gmin_vx, neighbour_v.x);
     gmax_vy = max(gmax_vy, neighbour_v.y);
@@ -477,24 +467,18 @@ void flux_mass_energy_momentum(
 
   calc_3x3_inverse(&coeff, &inv);
 
-  // Calculate the gradient for the mass density
+  // Calculate the gradients
   vec_t grad_m = {inv[0].x * m_rhs.x + inv[0].y * m_rhs.y + inv[0].z * m_rhs.z,
                   inv[1].x * m_rhs.x + inv[1].y * m_rhs.y + inv[1].z * m_rhs.z,
                   inv[2].x * m_rhs.x + inv[2].y * m_rhs.y + inv[2].z * m_rhs.z};
-
-  // Calculate the gradient for the internal energy density
   vec_t grad_ie = {
       inv[0].x * ie_rhs.x + inv[0].y * ie_rhs.y + inv[0].z * ie_rhs.z,
       inv[1].x * ie_rhs.x + inv[1].y * ie_rhs.y + inv[1].z * ie_rhs.z,
       inv[2].x * ie_rhs.x + inv[2].y * ie_rhs.y + inv[2].z * ie_rhs.z};
-
-  // Calculate the gradient for the kinetic energy density
   vec_t grad_ke = {
       inv[0].x * ke_rhs.x + inv[0].y * ke_rhs.y + inv[0].z * ke_rhs.z,
       inv[1].x * ke_rhs.x + inv[1].y * ke_rhs.y + inv[1].z * ke_rhs.z,
       inv[2].x * ke_rhs.x + inv[2].y * ke_rhs.y + inv[2].z * ke_rhs.z};
-
-  // Calculate the gradient for momentum
   vec_t grad_vx = {
       inv[0].x * vx_rhs.x + inv[0].y * vx_rhs.y + inv[0].z * vx_rhs.z,
       inv[1].x * vx_rhs.x + inv[1].y * vx_rhs.y + inv[1].z * vx_rhs.z,
@@ -528,39 +512,34 @@ void flux_mass_energy_momentum(
   const int sweep_node_index = cells_to_nodes[(sweep_subcell_index)];
   vec_t sweep_node = {nodes_x[(sweep_node_index)], nodes_y[(sweep_node_index)],
                       nodes_z[(sweep_node_index)]};
+
   limit_mass_gradients(
       sweep_node, &sweep_subcell_c, sweep_subcell_density,
-      sweep_subcell_ie_density, sweep_subcell_ke_density, subcell_vx,
-      subcell_vy, subcell_vz, gmax_m, gmin_m, gmax_ie, gmin_ie, gmax_ke,
+      sweep_subcell_ie_density, sweep_subcell_ke_density, subcell_v.x,
+      subcell_v.y, subcell_v.z, gmax_m, gmin_m, gmax_ie, gmin_ie, gmax_ke,
       gmin_ke, gmax_vx, gmin_vx, gmax_vy, gmin_vy, gmax_vz, gmin_vz, &grad_m,
       &grad_ie, &grad_ke, &grad_vx, &grad_vy, &grad_vz, &m_limiter, &ie_limiter,
       &ke_limiter, &vx_limiter, &vy_limiter, &vz_limiter);
 
   // Get the cell center of the sweep cell
   vec_t sweep_cell_c;
-  if (is_outflux) {
-    sweep_cell_c = *cell_c;
-  } else {
-    // Faster or slower than accessing cell_centroids_... ?
-    const int cell_to_nodes_off = cells_offsets[(neighbour_cc)];
-    const int nnodes_by_cell =
-        cells_offsets[(neighbour_cc + 1)] - cell_to_nodes_off;
-    calc_centroid(nnodes_by_cell, nodes_x, nodes_y, nodes_z, cells_to_nodes,
-                  cell_to_nodes_off, &sweep_cell_c);
-  }
+  const int cell_to_nodes_off = cells_offsets[(neighbour_cc)];
+  const int nnodes_by_cell =
+      cells_offsets[(neighbour_cc + 1)] - cell_to_nodes_off;
+  calc_centroid(nnodes_by_cell, nodes_x, nodes_y, nodes_z, cells_to_nodes,
+                cell_to_nodes_off, &sweep_cell_c);
 
   // Limit at cell center
   limit_mass_gradients(
       sweep_cell_c, &sweep_subcell_c, sweep_subcell_density,
-      sweep_subcell_ie_density, sweep_subcell_ke_density, subcell_vx,
-      subcell_vy, subcell_vz, gmax_m, gmin_m, gmax_ie, gmin_ie, gmax_ke,
+      sweep_subcell_ie_density, sweep_subcell_ke_density, subcell_v.x,
+      subcell_v.y, subcell_v.z, gmax_m, gmin_m, gmax_ie, gmin_ie, gmax_ke,
       gmin_ke, gmax_vx, gmin_vx, gmax_vy, gmin_vy, gmax_vz, gmin_vz, &grad_m,
       &grad_ie, &grad_ke, &grad_vx, &grad_vy, &grad_vz, &m_limiter, &ie_limiter,
       &ke_limiter, &vx_limiter, &vy_limiter, &vz_limiter);
 
   // Limit at half edges and face centers
   for (int ff2 = 0; ff2 < nfaces_by_sweep_subcell; ++ff2) {
-
     const int sweep_face_index =
         subcells_to_faces[(sweep_subcell_to_faces_off + ff)];
     const int sweep_face_to_nodes_off =
@@ -576,8 +555,8 @@ void flux_mass_energy_momentum(
 
     limit_mass_gradients(
         sweep_face_c, &sweep_subcell_c, sweep_subcell_density,
-        sweep_subcell_ie_density, sweep_subcell_ke_density, subcell_vx,
-        subcell_vy, subcell_vz, gmax_m, gmin_m, gmax_ie, gmin_ie, gmax_ke,
+        sweep_subcell_ie_density, sweep_subcell_ke_density, subcell_v.x,
+        subcell_v.y, subcell_v.z, gmax_m, gmin_m, gmax_ie, gmin_ie, gmax_ke,
         gmin_ke, gmax_vx, gmin_vx, gmax_vy, gmin_vy, gmax_vz, gmin_vz, &grad_m,
         &grad_ie, &grad_ke, &grad_vx, &grad_vy, &grad_vz, &m_limiter,
         &ie_limiter, &ke_limiter, &vx_limiter, &vy_limiter, &vz_limiter);
@@ -590,10 +569,10 @@ void flux_mass_energy_momentum(
       }
     }
 
-    const int face_clockwise =
-        (faces_cclockwise_cell[(sweep_face_index)] != cc);
     const int next_node = (nn2 == nnodes_by_sweep_face - 1) ? 0 : nn2 + 1;
     const int prev_node = (nn2 == 0) ? nnodes_by_sweep_face - 1 : nn2 - 1;
+    const int face_clockwise =
+        (faces_cclockwise_cell[(sweep_face_index)] != cc);
     const int rnode_off = (face_clockwise ? prev_node : next_node);
     const int rnode_index =
         faces_to_nodes[(sweep_face_to_nodes_off + rnode_off)];
@@ -606,8 +585,8 @@ void flux_mass_energy_momentum(
     // Limit at cell center
     limit_mass_gradients(
         half_edge, &sweep_subcell_c, sweep_subcell_density,
-        sweep_subcell_ie_density, sweep_subcell_ke_density, subcell_vx,
-        subcell_vy, subcell_vz, gmax_m, gmin_m, gmax_ie, gmin_ie, gmax_ke,
+        sweep_subcell_ie_density, sweep_subcell_ke_density, subcell_v.x,
+        subcell_v.y, subcell_v.z, gmax_m, gmin_m, gmax_ie, gmin_ie, gmax_ke,
         gmin_ke, gmax_vx, gmin_vx, gmax_vy, gmin_vy, gmax_vz, gmin_vz, &grad_m,
         &grad_ie, &grad_ke, &grad_vx, &grad_vy, &grad_vz, &m_limiter,
         &ie_limiter, &ke_limiter, &vx_limiter, &vy_limiter, &vz_limiter);
@@ -632,43 +611,29 @@ void flux_mass_energy_momentum(
   grad_vz.y *= vz_limiter;
   grad_vz.z *= vz_limiter;
 
-  // Calculate the flux for the mass
+  const double dx = swept_edge_c.x - sweep_subcell_c.x;
+  const double dy = swept_edge_c.y - sweep_subcell_c.y;
+  const double dz = swept_edge_c.z - sweep_subcell_c.z;
+
+  // Calculate the fluxes for the different quantities
   const double local_mass_flux =
       swept_edge_vol *
-      (sweep_subcell_density + grad_m.x * (swept_edge_c.x - sweep_subcell_c.x) +
-       grad_m.y * (swept_edge_c.y - sweep_subcell_c.y) +
-       grad_m.z * (swept_edge_c.z - sweep_subcell_c.z));
-
-  // Calculate the flux for internal energy density in the subcell
+      (sweep_subcell_density + grad_m.x * dx + grad_m.y * dy + grad_m.z * dz);
   const double local_ie_flux =
-      swept_edge_vol * (sweep_subcell_ie_density +
-                        grad_ie.x * (swept_edge_c.x - sweep_subcell_c.x) +
-                        grad_ie.y * (swept_edge_c.y - sweep_subcell_c.y) +
-                        grad_ie.z * (swept_edge_c.z - sweep_subcell_c.z));
-
-  // Calculate the flux for kinetic energy density in the subcell
+      swept_edge_vol * (sweep_subcell_ie_density + grad_ie.x * dx +
+                        grad_ie.y * dy + grad_ie.z * dz);
   const double local_ke_flux =
-      swept_edge_vol * (sweep_subcell_ke_density +
-                        grad_ke.x * (swept_edge_c.x - sweep_subcell_c.x) +
-                        grad_ke.y * (swept_edge_c.y - sweep_subcell_c.y) +
-                        grad_ke.z * (swept_edge_c.z - sweep_subcell_c.z));
-
-  // Calculate the flux for internal energy density in the subcell
+      swept_edge_vol * (sweep_subcell_ke_density + grad_ke.x * dx +
+                        grad_ke.y * dy + grad_ke.z * dz);
   const double local_x_momentum_flux =
       swept_edge_vol *
-      (subcell_vx + grad_vx.x * (swept_edge_c.x - sweep_subcell_c.x) +
-       grad_vx.y * (swept_edge_c.y - sweep_subcell_c.y) +
-       grad_vx.z * (swept_edge_c.z - sweep_subcell_c.z));
+      (subcell_v.x + grad_vx.x * dx + grad_vx.y * dy + grad_vx.z * dz);
   const double local_y_momentum_flux =
       swept_edge_vol *
-      (subcell_vy + grad_vy.x * (swept_edge_c.x - sweep_subcell_c.x) +
-       grad_vy.y * (swept_edge_c.y - sweep_subcell_c.y) +
-       grad_vy.z * (swept_edge_c.z - sweep_subcell_c.z));
+      (subcell_v.y + grad_vy.x * dx + grad_vy.y * dy + grad_vy.z * dz);
   const double local_z_momentum_flux =
       swept_edge_vol *
-      (subcell_vz + grad_vz.x * (swept_edge_c.x - sweep_subcell_c.x) +
-       grad_vz.y * (swept_edge_c.y - sweep_subcell_c.y) +
-       grad_vz.z * (swept_edge_c.z - sweep_subcell_c.z));
+      (subcell_v.z + grad_vz.x * dx + grad_vz.y * dy + grad_vz.z * dz);
 
   // Mass and energy are either flowing into or out of the subcell
   if (is_outflux) {
