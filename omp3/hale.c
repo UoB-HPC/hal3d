@@ -30,7 +30,8 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
   // Describe the subcell node layout
   printf("\nPerforming the Lagrangian Phase\n");
 
-  // Perform the Lagrangian phase of the ALE algorithm where the mesh will move
+  // Perform the Lagrangian phase of the ALE algorithm where the mesh will
+  // move
   // due to the pressure (ideal gas) and artificial viscous forces
   START_PROFILING(&compute_profile);
   lagrangian_phase(mesh, umesh, hale_data);
@@ -40,7 +41,7 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
     write_unstructured_to_visit_3d(umesh->nnodes, umesh->ncells, timestep * 2,
                                    umesh->nodes_x0, umesh->nodes_y0,
                                    umesh->nodes_z0, umesh->cells_to_nodes,
-                                   hale_data->density0, 0, 1);
+                                   hale_data->velocity_x0, 1, 1);
   }
 
   if (hale_data->perform_remap) {
@@ -88,5 +89,10 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
     scatter_phase(umesh, hale_data, &initial_momentum, initial_mass,
                   initial_ie_mass, initial_ke_mass);
     STOP_PROFILING(&compute_profile, "Scatter phase");
+
+    write_unstructured_to_visit_3d(
+        umesh->nnodes, umesh->ncells, timestep * 2 + 1, umesh->nodes_x0,
+        umesh->nodes_y0, umesh->nodes_z0, umesh->cells_to_nodes,
+        hale_data->velocity_x0, 1, 1);
   }
 }

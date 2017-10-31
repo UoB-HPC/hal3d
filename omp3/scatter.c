@@ -33,23 +33,6 @@ void scatter_momentum(const int nnodes, vec_t* initial_momentum,
                       double* subcell_mass, double* subcell_momentum_x,
                       double* subcell_momentum_y, double* subcell_momentum_z);
 
-#if 0
-// Scatter the subcell momentum to the node centered velocities
-void scatter_momentum(
-    const int nnodes, vec_t* initial_momentum, int* nodes_to_cells_offsets,
-    int* nodes_to_cells, int* cells_to_nodes_offsets, int* cells_to_nodes,
-    const int* subcells_to_subcells_offsets, const int* subcells_to_subcells,
-    const int* subcells_to_faces_offsets, const int* subcells_to_faces,
-    const int* faces_to_nodes_offsets, const int* faces_to_nodes,
-    const int* faces_cclockwise_cell, const double* nodal_volumes,
-    double* velocity_x, double* velocity_y, double* velocity_z,
-    double* nodal_mass, double* subcell_mass, const double* subcell_centroids_x,
-    const double* subcell_centroids_y, const double* subcell_centroids_z,
-    const double* subcell_volume, double* nodes_x, double* nodes_y,
-    double* nodes_z, double* subcell_momentum_x, double* subcell_momentum_y,
-    double* subcell_momentum_z);
-#endif // if 0
-
 // Perform the scatter step of the ALE remapping algorithm
 void scatter_phase(UnstructuredMesh* umesh, HaleData* hale_data,
                    vec_t* initial_momentum, double initial_mass,
@@ -76,6 +59,7 @@ void scatter_phase(UnstructuredMesh* umesh, HaleData* hale_data,
                    hale_data->subcell_momentum_x, hale_data->subcell_momentum_y,
                    hale_data->subcell_momentum_z);
 
+#if 0
   // Scatter the subcell energy and mass quantities back to the cell centers
   scatter_energy_and_mass(
       umesh->ncells, umesh->nodes_x0, umesh->nodes_y0, umesh->nodes_z0,
@@ -87,23 +71,6 @@ void scatter_phase(UnstructuredMesh* umesh, HaleData* hale_data,
       umesh->cells_to_faces_offsets, umesh->cells_to_faces,
       umesh->cells_offsets, umesh->cells_to_nodes, umesh->cells_offsets,
       initial_mass, initial_ie_mass, initial_ke_mass);
-
-#if 0
-  // Scatter the subcell momentum to the node centered velocities
-  scatter_momentum(
-      umesh->nnodes, initial_momentum, umesh->nodes_offsets,
-      umesh->nodes_to_cells, umesh->cells_offsets, umesh->cells_to_nodes,
-      hale_data->subcells_to_subcells_offsets, hale_data->subcells_to_subcells,
-      hale_data->subcells_to_faces_offsets, hale_data->subcells_to_faces,
-      umesh->faces_to_nodes_offsets, umesh->faces_to_nodes,
-      umesh->faces_cclockwise_cell, hale_data->nodal_volumes,
-      hale_data->velocity_x0, hale_data->velocity_y0, hale_data->velocity_z0,
-      hale_data->nodal_mass, hale_data->subcell_mass,
-      hale_data->subcell_centroids_x, hale_data->subcell_centroids_y,
-      hale_data->subcell_centroids_z, hale_data->subcell_volume,
-      umesh->nodes_x0, umesh->nodes_y0, umesh->nodes_z0,
-      hale_data->subcell_momentum_x, hale_data->subcell_momentum_y,
-      hale_data->subcell_momentum_z);
 #endif // if 0
 }
 
@@ -157,7 +124,8 @@ void scatter_energy_and_mass(
     cell_mass[(cc)] = total_mass;
     density[(cc)] = cell_mass[(cc)] / cell_volume[(cc)];
 
-    const double total_e_mass = total_ie_mass + (total_ke_mass - new_ke_mass);
+    const double total_e_mass =
+        total_ie_mass; // + (total_ke_mass - new_ke_mass);
     energy[(cc)] = total_e_mass / cell_mass[(cc)];
 
     // Calculate the conservation data
@@ -465,12 +433,15 @@ void scatter_momentum(
       const double dx = node.x - subcell_c.x;
       const double dy = node.y - subcell_c.y;
       const double dz = node.z - subcell_c.z;
-      node_momentum.x += subcell_vol * (subcell_v.x + grad_vx.x * dx +
-                                        grad_vx.y * dy + grad_vx.z * dz);
-      node_momentum.y += subcell_vol * (subcell_v.y + grad_vy.x * dx +
-                                        grad_vy.y * dy + grad_vy.z * dz);
-      node_momentum.z += subcell_vol * (subcell_v.z + grad_vz.x * dx +
-                                        grad_vz.y * dy + grad_vz.z * dz);
+      node_momentum.x +=
+          nodal_volumes[(nn)] *
+          (subcell_v.x + grad_vx.x * dx + grad_vx.y * dy + grad_vx.z * dz);
+      node_momentum.y +=
+          nodal_volumes[(nn)] *
+          (subcell_v.y + grad_vy.x * dx + grad_vy.y * dy + grad_vy.z * dz);
+      node_momentum.z +=
+          nodal_volumes[(nn)] *
+          (subcell_v.z + grad_vz.x * dx + grad_vz.y * dy + grad_vz.z * dz);
     }
 
     velocity_x[(nn)] = node_momentum.x / nodal_mass[(nn)];
@@ -509,4 +480,34 @@ void limit_momentum_gradients(vec_t nodes, vec_t* subcell_c,
       min(*vz_limiter, calc_cell_limiter(subcell_vz, gmax_vz, gmin_vz, grad_vz,
                                          nodes.x, nodes.y, nodes.z, subcell_c));
 }
+  // Scatter the subcell momentum to the node centered velocities
+  scatter_momentum(
+      umesh->nnodes, initial_momentum, umesh->nodes_offsets,
+      umesh->nodes_to_cells, umesh->cells_offsets, umesh->cells_to_nodes,
+      hale_data->subcells_to_subcells_offsets, hale_data->subcells_to_subcells,
+      hale_data->subcells_to_faces_offsets, hale_data->subcells_to_faces,
+      umesh->faces_to_nodes_offsets, umesh->faces_to_nodes,
+      umesh->faces_cclockwise_cell, hale_data->nodal_volumes,
+      hale_data->velocity_x0, hale_data->velocity_y0, hale_data->velocity_z0,
+      hale_data->nodal_mass, hale_data->subcell_mass,
+      hale_data->subcell_centroids_x, hale_data->subcell_centroids_y,
+      hale_data->subcell_centroids_z, hale_data->subcell_volume,
+      umesh->nodes_x0, umesh->nodes_y0, umesh->nodes_z0,
+      hale_data->subcell_momentum_x, hale_data->subcell_momentum_y,
+      hale_data->subcell_momentum_z);
+// Scatter the subcell momentum to the node centered velocities
+void scatter_momentum(
+    const int nnodes, vec_t* initial_momentum, int* nodes_to_cells_offsets,
+    int* nodes_to_cells, int* cells_to_nodes_offsets, int* cells_to_nodes,
+    const int* subcells_to_subcells_offsets, const int* subcells_to_subcells,
+    const int* subcells_to_faces_offsets, const int* subcells_to_faces,
+    const int* faces_to_nodes_offsets, const int* faces_to_nodes,
+    const int* faces_cclockwise_cell, const double* nodal_volumes,
+    double* velocity_x, double* velocity_y, double* velocity_z,
+    double* nodal_mass, double* subcell_mass, const double* subcell_centroids_x,
+    const double* subcell_centroids_y, const double* subcell_centroids_z,
+    const double* subcell_volume, double* nodes_x, double* nodes_y,
+    double* nodes_z, double* subcell_momentum_x, double* subcell_momentum_y,
+    double* subcell_momentum_z);
+
 #endif // if 0

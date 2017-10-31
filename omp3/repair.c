@@ -4,12 +4,13 @@
 #include <stdio.h>
 
 // Advects mass and energy through the subcell faces using swept edge approx
-void repair_extrema(const int ncells, const int* cells_offsets,
-                    const int* subcells_to_subcells_offsets,
-                    const int* subcells_to_subcells, double* subcell_volume,
-                    double* subcell_momentum_x, double* subcell_momentum_y,
-                    double* subcell_momentum_z, double* subcell_mass,
-                    double* subcell_ie_mass);
+void repair_subcell_extrema(const int ncells, const int* cells_offsets,
+                            const int* subcells_to_subcells_offsets,
+                            const int* subcells_to_subcells,
+                            double* subcell_volume, double* subcell_momentum_x,
+                            double* subcell_momentum_y,
+                            double* subcell_momentum_z, double* subcell_mass,
+                            double* subcell_ie_mass);
 
 // Redistributes the mass according to the determined neighbour availability
 void redistribute_mass(double* mass, const int subcell_index,
@@ -25,21 +26,22 @@ void redistribute_mass(double* mass, const int subcell_index,
 void repair_phase(UnstructuredMesh* umesh, HaleData* hale_data) {
 
   // Advects mass and energy through the subcell faces using swept edge approx
-  repair_extrema(umesh->ncells, umesh->cells_offsets,
-                 hale_data->subcells_to_subcells_offsets,
-                 hale_data->subcells_to_subcells, hale_data->subcell_volume,
-                 hale_data->subcell_momentum_x, hale_data->subcell_momentum_y,
-                 hale_data->subcell_momentum_z, hale_data->subcell_mass,
-                 hale_data->subcell_ie_mass);
+  repair_subcell_extrema(
+      umesh->ncells, umesh->cells_offsets,
+      hale_data->subcells_to_subcells_offsets, hale_data->subcells_to_subcells,
+      hale_data->subcell_volume, hale_data->subcell_momentum_x,
+      hale_data->subcell_momentum_y, hale_data->subcell_momentum_z,
+      hale_data->subcell_mass, hale_data->subcell_ie_mass);
 }
 
-// Advects mass and energy through the subcell faces using swept edge approx
-void repair_extrema(const int ncells, const int* cells_offsets,
-                    const int* subcells_to_subcells_offsets,
-                    const int* subcells_to_subcells, double* subcell_volume,
-                    double* subcell_momentum_x, double* subcell_momentum_y,
-                    double* subcell_momentum_z, double* subcell_mass,
-                    double* subcell_ie_mass) {
+// Repairs the subcell extrema for mass
+void repair_subcell_extrema(const int ncells, const int* cells_offsets,
+                            const int* subcells_to_subcells_offsets,
+                            const int* subcells_to_subcells,
+                            double* subcell_volume, double* subcell_momentum_x,
+                            double* subcell_momentum_y,
+                            double* subcell_momentum_z, double* subcell_mass,
+                            double* subcell_ie_mass) {
 
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
