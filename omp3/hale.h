@@ -132,7 +132,13 @@ int test_prism_overlap(const int nnodes_by_face, const int* faces_to_nodes,
 void eulerian_rezone(UnstructuredMesh* umesh, HaleData* hale_data);
 
 // Performs a conservative repair of the mesh
-void repair_phase(UnstructuredMesh* umesh, HaleData* hale_data);
+void mass_repair_phase(UnstructuredMesh* umesh, HaleData* hale_data);
+
+// Repairs the nodal velocities
+void velocity_repair_phase(UnstructuredMesh* umesh, HaleData* hale_data);
+
+// Repairs the energy
+void energy_repair_phase(UnstructuredMesh* umesh, HaleData* hale_data);
 
 // Advects mass and energy through the subcell faces using swept edge approx
 void perform_advection(

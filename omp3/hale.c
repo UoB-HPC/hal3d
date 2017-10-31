@@ -41,7 +41,7 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
     write_unstructured_to_visit_3d(umesh->nnodes, umesh->ncells, timestep * 2,
                                    umesh->nodes_x0, umesh->nodes_y0,
                                    umesh->nodes_z0, umesh->cells_to_nodes,
-                                   hale_data->velocity_x0, 1, 1);
+                                   hale_data->density0, 0, 1);
   }
 
   if (hale_data->perform_remap) {
@@ -78,11 +78,10 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
 
     // Fixes any extrema introduced by the advection
     START_PROFILING(&compute_profile);
-    repair_phase(umesh, hale_data);
+    mass_repair_phase(umesh, hale_data);
     STOP_PROFILING(&compute_profile, "Repair phase");
-#endif // if 0
-
     printf("\nPerforming the Scattering Phase\n");
+#endif // if 0
 
     // Perform the scatter step of the ALE remapping algorithm
     START_PROFILING(&compute_profile);
@@ -90,9 +89,12 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
                   initial_ie_mass, initial_ke_mass);
     STOP_PROFILING(&compute_profile, "Scatter phase");
 
-    write_unstructured_to_visit_3d(
-        umesh->nnodes, umesh->ncells, timestep * 2 + 1, umesh->nodes_x0,
-        umesh->nodes_y0, umesh->nodes_z0, umesh->cells_to_nodes,
-        hale_data->velocity_x0, 1, 1);
+    // Fixes any extrema introduced by the advection
+    START_PROFILING(&compute_profile);
+    velocity_repair_phase(umesh, hale_data);
+#if 0
+    energy_repair_phase(umesh, hale_data);
+#endif // if 0
+    STOP_PROFILING(&compute_profile, "Repair phase");
   }
 }

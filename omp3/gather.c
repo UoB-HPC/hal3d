@@ -301,6 +301,7 @@ void gather_subcell_momentum(
     vec_t coeff[3] = {{0.0, 0.0, 0.0}};
     vec_t gmin = {DBL_MAX, DBL_MAX, DBL_MAX};
     vec_t gmax = {-DBL_MAX, -DBL_MAX, -DBL_MAX};
+    vec_t node = {nodes_x[(nn)], nodes_y[(nn)], nodes_z[(nn)]};
 
     const double nodal_density = nodal_mass[(nn)] / nodal_volumes[(nn)];
     vec_t node_mom_density = {nodal_density * velocity_x[(nn)],
@@ -323,9 +324,9 @@ void gather_subcell_momentum(
       }
 
       // Calculate the center of mass distance
-      vec_t i = {nodes_x[(neighbour_index)] - nodes_x[(nn)],
-                 nodes_y[(neighbour_index)] - nodes_y[(nn)],
-                 nodes_z[(neighbour_index)] - nodes_z[(nn)]};
+      vec_t i = {nodes_x[(neighbour_index)] - node.x,
+                 nodes_y[(neighbour_index)] - node.y,
+                 nodes_z[(neighbour_index)] - node.z};
 
       // Store the neighbouring cell's contribution to the coefficients
       double neighbour_vol = nodal_volumes[(neighbour_index)];
@@ -369,56 +370,71 @@ void gather_subcell_momentum(
       rhsz.z += 2.0 * i.z * dv.z / neighbour_vol;
     }
 
+#if 0
+    ///
+    //
+    //
+    //
+    //
+    //
+    //
+    //
+    node_mom_density.x = max(node_mom_density.x, gmin.x);
+    node_mom_density.y = max(node_mom_density.y, gmin.y);
+    node_mom_density.z = max(node_mom_density.z, gmin.z);
+    node_mom_density.x = min(node_mom_density.x, gmax.x);
+    node_mom_density.y = min(node_mom_density.y, gmax.y);
+    node_mom_density.z = min(node_mom_density.z, gmax.z);
+    ///
+    //
+    //
+    //
+    //
+    //
+    //
+    //
+#endif // if 0
+
     // Determine the inverse of the coefficient matrix
     vec_t inv[3];
     calc_3x3_inverse(&coeff, &inv);
 
-    // Solve for the x velocity gradient
+    // Solve for the velocity density gradients
     vec_t grad_vx = {inv[0].x * rhsx.x + inv[0].y * rhsx.y + inv[0].z * rhsx.z,
                      inv[1].x * rhsx.x + inv[1].y * rhsx.y + inv[1].z * rhsx.z,
                      inv[2].x * rhsx.x + inv[2].y * rhsx.y + inv[2].z * rhsx.z};
-
-    // Solve for the y velocity gradient
     vec_t grad_vy = {inv[0].x * rhsy.x + inv[0].y * rhsy.y + inv[0].z * rhsy.z,
                      inv[1].x * rhsy.x + inv[1].y * rhsy.y + inv[1].z * rhsy.z,
                      inv[2].x * rhsy.x + inv[2].y * rhsy.y + inv[2].z * rhsy.z};
-
-    // Solve for the z velocity gradient
     vec_t grad_vz = {inv[0].x * rhsz.x + inv[0].y * rhsz.y + inv[0].z * rhsz.z,
                      inv[1].x * rhsz.x + inv[1].y * rhsz.y + inv[1].z * rhsz.z,
                      inv[2].x * rhsz.x + inv[2].y * rhsz.y + inv[2].z * rhsz.z};
 
     // Limit the gradients
-    const int node_to_cells_off = nodes_to_cells_offsets[(nn)];
-    const int ncells_by_node =
-        nodes_to_cells_offsets[(nn + 1)] - node_to_cells_off;
-
     double vx_limiter = 1.0;
     double vy_limiter = 1.0;
     double vz_limiter = 1.0;
-    vec_t node = {nodes_x[(nn)], nodes_y[(nn)], nodes_z[(nn)]};
-
+    const int node_to_cells_off = nodes_to_cells_offsets[(nn)];
+    const int ncells_by_node =
+        nodes_to_cells_offsets[(nn + 1)] - node_to_cells_off;
     for (int cc = 0; cc < ncells_by_node; ++cc) {
       const int cell_index = nodes_to_cells[(node_to_cells_off + cc)];
 
+      vec_t cell_c = {cell_centroids_x[(cell_index)],
+                      cell_centroids_y[(cell_index)],
+                      cell_centroids_z[(cell_index)]};
       vx_limiter =
           min(vx_limiter,
               calc_cell_limiter(node_mom_density.x, gmax.x, gmin.x, &grad_vx,
-                                cell_centroids_x[(cell_index)],
-                                cell_centroids_y[(cell_index)],
-                                cell_centroids_z[(cell_index)], &node));
+                                cell_c.x, cell_c.y, cell_c.z, &node));
       vy_limiter =
           min(vy_limiter,
               calc_cell_limiter(node_mom_density.y, gmax.y, gmin.y, &grad_vy,
-                                cell_centroids_x[(cell_index)],
-                                cell_centroids_y[(cell_index)],
-                                cell_centroids_z[(cell_index)], &node));
+                                cell_c.x, cell_c.y, cell_c.z, &node));
       vz_limiter =
           min(vz_limiter,
               calc_cell_limiter(node_mom_density.z, gmax.z, gmin.z, &grad_vz,
-                                cell_centroids_x[(cell_index)],
-                                cell_centroids_y[(cell_index)],
-                                cell_centroids_z[(cell_index)], &node));
+                                cell_c.x, cell_c.y, cell_c.z, &node));
     }
 
     grad_vx.x *= vx_limiter;
@@ -447,10 +463,10 @@ void gather_subcell_momentum(
 
       const int subcell_index = cell_to_nodes_off + nn2;
 
-      double vol = subcell_volume[(subcell_index)];
-      double dx = subcell_centroids_x[(subcell_index)] - nodes_x[(nn)];
-      double dy = subcell_centroids_y[(subcell_index)] - nodes_y[(nn)];
-      double dz = subcell_centroids_z[(subcell_index)] - nodes_z[(nn)];
+      const double vol = subcell_volume[(subcell_index)];
+      const double dx = subcell_centroids_x[(subcell_index)] - nodes_x[(nn)];
+      const double dy = subcell_centroids_y[(subcell_index)] - nodes_y[(nn)];
+      const double dz = subcell_centroids_z[(subcell_index)] - nodes_z[(nn)];
 
       subcell_momentum_x[(subcell_index)] =
           vol * (node_mom_density.x + grad_vx.x * dx + grad_vx.y * dy +
