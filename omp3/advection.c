@@ -53,6 +53,7 @@ void perform_advection(
     vec_t cell_c = {0.0, 0.0, 0.0};
     calc_centroid(nnodes_by_cell, nodes_x, nodes_y, nodes_z, cells_to_nodes,
                   cell_to_nodes_off, &cell_c);
+
     vec_t rz_cell_c = {0.0, 0.0, 0.0};
     calc_centroid(nnodes_by_cell, rezoned_nodes_x, rezoned_nodes_y,
                   rezoned_nodes_z, cells_to_nodes, cell_to_nodes_off,
@@ -521,13 +522,17 @@ void flux_mass_energy_momentum(
       &grad_ie, &grad_ke, &grad_vx, &grad_vy, &grad_vz, &m_limiter, &ie_limiter,
       &ke_limiter, &vx_limiter, &vy_limiter, &vz_limiter);
 
-  // Get the cell center of the sweep cell
   vec_t sweep_cell_c;
-  const int cell_to_nodes_off = cells_offsets[(neighbour_cc)];
-  const int nnodes_by_cell =
-      cells_offsets[(neighbour_cc + 1)] - cell_to_nodes_off;
-  calc_centroid(nnodes_by_cell, nodes_x, nodes_y, nodes_z, cells_to_nodes,
-                cell_to_nodes_off, &sweep_cell_c);
+  if (internal || is_outflux) {
+    sweep_cell_c = *cell_c;
+  } else {
+    // Faster or slower than accessing cell_centroids_... ?
+    const int cell_to_nodes_off = cells_offsets[(neighbour_cc)];
+    const int nnodes_by_cell =
+        cells_offsets[(neighbour_cc + 1)] - cell_to_nodes_off;
+    calc_centroid(nnodes_by_cell, nodes_x, nodes_y, nodes_z, cells_to_nodes,
+                  cell_to_nodes_off, &sweep_cell_c);
+  }
 
   // Limit at cell center
   limit_mass_gradients(

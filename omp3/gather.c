@@ -102,11 +102,9 @@ void gather_subcell_mass_and_energy(
   double total_mass = 0.0;
   double total_ie_mass = 0.0;
   double total_ke_mass = 0.0;
-  double total_ie_in_subcells = 0.0;
-  double total_ke_in_subcells = 0.0;
 
 // We first have to determine the cell centered kinetic energy
-#pragma omp parallel for
+#pragma omp parallel for reduction(+ : total_ke_mass)
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_to_nodes_offsets[(cc)];
     const int nnodes_by_cell =
@@ -118,16 +116,21 @@ void gather_subcell_mass_and_energy(
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int node_index = cells_to_nodes[(cell_to_nodes_off + nn)];
       const int subcell_index = cell_to_nodes_off + nn;
-      ke_mass[(cc)] += subcell_mass[(subcell_index)] *
+      ke_mass[(cc)] += subcell_mass[(subcell_index)] * 0.5 *
                        (velocity_x[(node_index)] * velocity_x[(node_index)] +
                         velocity_y[(node_index)] * velocity_y[(node_index)] +
                         velocity_z[(node_index)] * velocity_z[(node_index)]);
     }
+
+    total_ke_mass += ke_mass[(cc)];
   }
+
+  double total_ie_in_subcells = 0.0;
+  double total_ke_in_subcells = 0.0;
 
 // Calculate the sub-cell internal and kinetic energies
 #pragma omp parallel for reduction(+ : total_mass, total_ie_mass,              \
-                                   total_ke_mass, total_ie_in_subcells)
+                                   total_ie_in_subcells, total_ke_in_subcells)
   for (int cc = 0; cc < ncells; ++cc) {
     // Calculating the volume dist necessary for the least squares
     // regression
@@ -206,21 +209,19 @@ void gather_subcell_mass_and_energy(
     vec_t inv[3];
     calc_3x3_inverse(&coeff, &inv);
 
-    // Solve for the internal energy gradient
+    // Solve for the internal and kinetic energy gradients
     vec_t grad_ie = {
         inv[0].x * ie_rhs.x + inv[0].y * ie_rhs.y + inv[0].z * ie_rhs.z,
         inv[1].x * ie_rhs.x + inv[1].y * ie_rhs.y + inv[1].z * ie_rhs.z,
         inv[2].x * ie_rhs.x + inv[2].y * ie_rhs.y + inv[2].z * ie_rhs.z};
-
-    apply_cell_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
-                       &grad_ie, &cell_c, nodes_x, nodes_y, nodes_z, cell_ie,
-                       gmax_ie, gmin_ie);
-
-    // Solve for the kinetic energy gradient
     vec_t grad_ke = {
         inv[0].x * ke_rhs.x + inv[0].y * ke_rhs.y + inv[0].z * ke_rhs.z,
         inv[1].x * ke_rhs.x + inv[1].y * ke_rhs.y + inv[1].z * ke_rhs.z,
         inv[2].x * ke_rhs.x + inv[2].y * ke_rhs.y + inv[2].z * ke_rhs.z};
+
+    apply_cell_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
+                       &grad_ie, &cell_c, nodes_x, nodes_y, nodes_z, cell_ie,
+                       gmax_ie, gmin_ie);
 
     apply_cell_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
                        &grad_ke, &cell_c, nodes_x, nodes_y, nodes_z, cell_ke,
@@ -231,35 +232,33 @@ void gather_subcell_mass_and_energy(
       const int subcell_index = cell_to_nodes_off + nn;
 
       // Calculate the center of mass distance
-      vec_t dist = {subcell_centroids_x[(subcell_index)] - cell_c.x,
-                    subcell_centroids_y[(subcell_index)] - cell_c.y,
-                    subcell_centroids_z[(subcell_index)] - cell_c.z};
+      const double dx = subcell_centroids_x[(subcell_index)] - cell_c.x;
+      const double dy = subcell_centroids_y[(subcell_index)] - cell_c.y;
+      const double dz = subcell_centroids_z[(subcell_index)] - cell_c.z;
 
-      // Determine subcell internal energy from linear function at cell
+      // Subcell internal and kinetic energy from linear function at cell
       subcell_ie_mass[(subcell_index)] =
           subcell_volume[(subcell_index)] *
-          (cell_ie + grad_ie.x * dist.x + grad_ie.y * dist.y +
-           grad_ie.z * dist.z);
-
-      // Determine subcell kinetic energy from linear function at cell
+          (cell_ie + grad_ie.x * dx + grad_ie.y * dy + grad_ie.z * dz);
       subcell_ke_mass[(subcell_index)] =
           subcell_volume[(subcell_index)] *
-          (cell_ke + grad_ke.x * dist.x + grad_ke.y * dist.y +
-           grad_ke.z * dist.z);
+          (cell_ke + grad_ke.x * dx + grad_ke.y * dy + grad_ke.z * dz);
 
       total_ie_in_subcells += subcell_ie_mass[(subcell_index)];
       total_ke_in_subcells += subcell_ke_mass[(subcell_index)];
 
-      if (subcell_ie_mass[(subcell_index)] < 0.0) {
-        printf("Negative internal energy mass %d %.12f\n", subcell_index,
-               subcell_ie_mass[(subcell_index)]);
+      if (subcell_ie_mass[(subcell_index)] < 0.0 ||
+          subcell_ke_mass[(subcell_index)] < 0.0) {
+        printf("Negative energy mass %d %.12f %.12f\n", subcell_index,
+               subcell_ie_mass[(subcell_index)],
+               subcell_ke_mass[(subcell_index)]);
       }
     }
   }
 
   *initial_mass = total_mass;
-  *initial_ie_mass = total_ie_mass;
-  *initial_ke_mass = total_ie_mass;
+  *initial_ie_mass = total_ie_in_subcells;
+  *initial_ke_mass = total_ke_in_subcells;
 
   printf("Total Energy in Cells    %.12f\n", total_ie_mass + total_ke_mass);
   printf("Total Energy in Subcells %.12f\n",
@@ -469,16 +468,16 @@ void gather_subcell_momentum(
     }
   }
 
-  initial_momentum->x = initial_momentum_x;
-  initial_momentum->y = initial_momentum_y;
-  initial_momentum->z = initial_momentum_z;
+  initial_momentum->x = total_subcell_vx;
+  initial_momentum->y = total_subcell_vy;
+  initial_momentum->z = total_subcell_vz;
 
   printf("\nTotal Momentum in Cells    (%.12f,%.12f,%.12f)\n",
-         initial_momentum->x, initial_momentum->y, initial_momentum->z);
+         initial_momentum_x, initial_momentum_y, initial_momentum_z);
   printf("Total Momentum in Subcells (%.12f,%.12f,%.12f)\n", total_subcell_vx,
          total_subcell_vy, total_subcell_vz);
   printf("Difference                 (%.12f,%.12f,%.12f)\n\n",
-         initial_momentum->x - total_subcell_vx,
-         initial_momentum->y - total_subcell_vy,
-         initial_momentum->z - total_subcell_vz);
+         initial_momentum_x - total_subcell_vx,
+         initial_momentum_y - total_subcell_vy,
+         initial_momentum_z - total_subcell_vz);
 }

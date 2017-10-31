@@ -58,6 +58,7 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
                               &initial_ke_mass);
     STOP_PROFILING(&compute_profile, "Gather phase");
 
+#if 0
     printf("\nPerforming Advection Phase\n");
 
     // Performs a remap and some scattering of the subcell values
@@ -78,6 +79,7 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
     START_PROFILING(&compute_profile);
     repair_phase(umesh, hale_data);
     STOP_PROFILING(&compute_profile, "Repair phase");
+#endif // if 0
 
     printf("\nPerforming the Scattering Phase\n");
 

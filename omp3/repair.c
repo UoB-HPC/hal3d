@@ -18,7 +18,8 @@ void redistribute_mass(double* mass, const int subcell_index,
                        const int subcell_to_subcells_off,
                        const double* dmass_avail_local,
                        const double dmass_avail, const double dmass_need,
-                       const double g, const double vol, const int is_min);
+                       const double g, const double subcell_vol,
+                       const int is_min);
 
 // Performs a conservative repair of the mesh
 void repair_phase(UnstructuredMesh* umesh, HaleData* hale_data) {
@@ -54,15 +55,17 @@ void repair_extrema(const int ncells, const int* cells_offsets,
           subcells_to_subcells_offsets[(subcell_index + 1)] -
           subcell_to_subcells_off;
 
-      const double vol = subcell_volume[(subcell_index)];
-      const double subcell_m_density = subcell_mass[(subcell_index)] / vol;
-      const double subcell_ie_density = subcell_ie_mass[(subcell_index)] / vol;
+      const double subcell_vol = subcell_volume[(subcell_index)];
+      const double subcell_m_density =
+          subcell_mass[(subcell_index)] / subcell_vol;
+      const double subcell_ie_density =
+          subcell_ie_mass[(subcell_index)] / subcell_vol;
       const double subcell_vx_density =
-          subcell_momentum_x[(subcell_index)] / vol;
+          subcell_momentum_x[(subcell_index)] / subcell_vol;
       const double subcell_vy_density =
-          subcell_momentum_y[(subcell_index)] / vol;
+          subcell_momentum_y[(subcell_index)] / subcell_vol;
       const double subcell_vz_density =
-          subcell_momentum_z[(subcell_index)] / vol;
+          subcell_momentum_z[(subcell_index)] / subcell_vol;
 
       double gmax_m = -DBL_MAX;
       double gmin_m = DBL_MAX;
@@ -186,25 +189,25 @@ void repair_extrema(const int ncells, const int* cells_offsets,
         }
 
         dm_avail_donate_local[(ss)] =
-            max((neighbour_m_density - neighbour_gmin_m) * vol, 0.0);
+            max((neighbour_m_density - neighbour_gmin_m) * subcell_vol, 0.0);
         dm_avail_receive_local[(ss)] =
-            max((neighbour_gmax_m - neighbour_m_density) * vol, 0.0);
+            max((neighbour_gmax_m - neighbour_m_density) * subcell_vol, 0.0);
         die_avail_donate_local[(ss)] =
-            max((neighbour_ie_density - neighbour_gmin_ie) * vol, 0.0);
+            max((neighbour_ie_density - neighbour_gmin_ie) * subcell_vol, 0.0);
         die_avail_receive_local[(ss)] =
-            max((neighbour_gmax_ie - neighbour_ie_density) * vol, 0.0);
+            max((neighbour_gmax_ie - neighbour_ie_density) * subcell_vol, 0.0);
         dvx_avail_donate_local[(ss)] =
-            max((neighbour_vx_density - neighbour_gmin_vx) * vol, 0.0);
+            max((neighbour_vx_density - neighbour_gmin_vx) * subcell_vol, 0.0);
         dvx_avail_receive_local[(ss)] =
-            max((neighbour_gmax_vx - neighbour_vx_density) * vol, 0.0);
+            max((neighbour_gmax_vx - neighbour_vx_density) * subcell_vol, 0.0);
         dvy_avail_donate_local[(ss)] =
-            max((neighbour_vy_density - neighbour_gmin_vy) * vol, 0.0);
+            max((neighbour_vy_density - neighbour_gmin_vy) * subcell_vol, 0.0);
         dvy_avail_receive_local[(ss)] =
-            max((neighbour_gmax_vy - neighbour_vy_density) * vol, 0.0);
+            max((neighbour_gmax_vy - neighbour_vy_density) * subcell_vol, 0.0);
         dvz_avail_donate_local[(ss)] =
-            max((neighbour_vz_density - neighbour_gmin_vz) * vol, 0.0);
+            max((neighbour_vz_density - neighbour_gmin_vz) * subcell_vol, 0.0);
         dvz_avail_receive_local[(ss)] =
-            max((neighbour_gmax_vz - neighbour_vz_density) * vol, 0.0);
+            max((neighbour_gmax_vz - neighbour_vz_density) * subcell_vol, 0.0);
 
         dm_avail_donate += dm_avail_donate_local[(ss)];
         dm_avail_receive += dm_avail_receive_local[(ss)];
@@ -229,80 +232,94 @@ void repair_extrema(const int ncells, const int* cells_offsets,
         gmin_vz = min(gmin_vz, neighbour_vz_density);
       }
 
-      const double dm_need_receive = (gmin_m - subcell_m_density) * vol;
-      const double dm_need_donate = (subcell_m_density - gmax_m) * vol;
-      const double die_need_receive = (gmin_ie - subcell_ie_density) * vol;
-      const double die_need_donate = (subcell_ie_density - gmax_ie) * vol;
-      const double dvx_need_receive = (gmin_vx - subcell_vx_density) * vol;
-      const double dvx_need_donate = (subcell_vx_density - gmax_vx) * vol;
-      const double dvy_need_receive = (gmin_vy - subcell_vy_density) * vol;
-      const double dvy_need_donate = (subcell_vy_density - gmax_vy) * vol;
-      const double dvz_need_receive = (gmin_vz - subcell_vz_density) * vol;
-      const double dvz_need_donate = (subcell_vz_density - gmax_vz) * vol;
+      const double dm_need_receive = (gmin_m - subcell_m_density) * subcell_vol;
+      const double dm_need_donate = (subcell_m_density - gmax_m) * subcell_vol;
+      const double die_need_receive =
+          (gmin_ie - subcell_ie_density) * subcell_vol;
+      const double die_need_donate =
+          (subcell_ie_density - gmax_ie) * subcell_vol;
+      const double dvx_need_receive =
+          (gmin_vx - subcell_vx_density) * subcell_vol;
+      const double dvx_need_donate =
+          (subcell_vx_density - gmax_vx) * subcell_vol;
+      const double dvy_need_receive =
+          (gmin_vy - subcell_vy_density) * subcell_vol;
+      const double dvy_need_donate =
+          (subcell_vy_density - gmax_vy) * subcell_vol;
+      const double dvz_need_receive =
+          (gmin_vz - subcell_vz_density) * subcell_vol;
+      const double dvz_need_donate =
+          (subcell_vz_density - gmax_vz) * subcell_vol;
 
       if (dm_need_receive > 0.0) {
         redistribute_mass(subcell_mass, subcell_index, nsubcell_neighbours,
                           subcells_to_subcells, subcell_to_subcells_off,
                           dm_avail_donate_local, dm_avail_donate,
-                          dm_need_receive, gmin_m, vol, 1);
+                          dm_need_receive, gmin_m, subcell_vol, 1);
 
       } else if (dm_need_donate > 0.0) {
         redistribute_mass(subcell_mass, subcell_index, nsubcell_neighbours,
                           subcells_to_subcells, subcell_to_subcells_off,
                           dm_avail_receive_local, dm_avail_receive,
-                          dm_need_donate, gmax_m, vol, 0);
+                          dm_need_donate, gmax_m, subcell_vol, 0);
       }
 
       if (die_need_receive > 0.0) {
         redistribute_mass(subcell_ie_mass, subcell_index, nsubcell_neighbours,
                           subcells_to_subcells, subcell_to_subcells_off,
                           die_avail_donate_local, die_avail_donate,
-                          die_need_receive, gmin_ie, vol, 1);
+                          die_need_receive, gmin_ie, subcell_vol, 1);
 
       } else if (die_need_donate > 0.0) {
         redistribute_mass(subcell_ie_mass, subcell_index, nsubcell_neighbours,
                           subcells_to_subcells, subcell_to_subcells_off,
                           die_avail_receive_local, die_avail_receive,
-                          die_need_donate, gmax_ie, vol, 0);
+                          die_need_donate, gmax_ie, subcell_vol, 0);
       }
 
       if (dvx_need_receive > 0.0) {
         redistribute_mass(subcell_momentum_x, subcell_index,
                           nsubcell_neighbours, subcells_to_subcells,
                           subcell_to_subcells_off, dvx_avail_donate_local,
-                          dvx_avail_donate, dvx_need_receive, gmin_vx, vol, 1);
+                          dvx_avail_donate, dvx_need_receive, gmin_vx,
+                          subcell_vol, 1);
 
       } else if (dvx_need_donate > 0.0) {
         redistribute_mass(subcell_momentum_x, subcell_index,
                           nsubcell_neighbours, subcells_to_subcells,
                           subcell_to_subcells_off, dvx_avail_receive_local,
-                          dvx_avail_receive, dvx_need_donate, gmax_vx, vol, 0);
+                          dvx_avail_receive, dvx_need_donate, gmax_vx,
+                          subcell_vol, 0);
       }
 
       if (dvy_need_receive > 0.0) {
         redistribute_mass(subcell_momentum_y, subcell_index,
                           nsubcell_neighbours, subcells_to_subcells,
                           subcell_to_subcells_off, dvy_avail_donate_local,
-                          dvy_avail_donate, dvy_need_receive, gmin_vy, vol, 1);
+                          dvy_avail_donate, dvy_need_receive, gmin_vy,
+                          subcell_vol, 1);
 
       } else if (dvy_need_donate > 0.0) {
         redistribute_mass(subcell_momentum_y, subcell_index,
                           nsubcell_neighbours, subcells_to_subcells,
                           subcell_to_subcells_off, dvy_avail_receive_local,
-                          dvy_avail_receive, dvy_need_donate, gmax_vy, vol, 0);
+                          dvy_avail_receive, dvy_need_donate, gmax_vy,
+                          subcell_vol, 0);
       }
 
       if (dvz_need_receive > 0.0) {
         redistribute_mass(subcell_momentum_z, subcell_index,
                           nsubcell_neighbours, subcells_to_subcells,
                           subcell_to_subcells_off, dvz_avail_donate_local,
-                          dvz_avail_donate, dvz_need_receive, gmin_vz, vol, 1);
+                          dvz_avail_donate, dvz_need_receive, gmin_vz,
+                          subcell_vol, 1);
 
       } else if (dvz_need_donate > 0.0) {
         redistribute_mass(subcell_momentum_z, subcell_index,
                           nsubcell_neighbours, subcells_to_subcells,
                           subcell_to_subcells_off, dvz_avail_receive_local,
-                          dvz_avail_receive, dvz_need_donate, gmax_vz, vol, 0);
+                          dvz_avail_receive, dvz_need_donate, gmax_vz,
+                          subcell_vol, 0);
       }
 
       if (dm_avail_donate < dm_need_receive ||
@@ -325,9 +342,10 @@ void redistribute_mass(double* mass, const int subcell_index,
                        const int subcell_to_subcells_off,
                        const double* dmass_avail_local,
                        const double dmass_avail, const double dmass_need,
-                       const double g, const double vol, const int is_min) {
+                       const double g, const double subcell_vol,
+                       const int is_min) {
 
-  mass[(subcell_index)] = g * vol;
+  mass[(subcell_index)] = g * subcell_vol;
 
   // Loop over neighbours
   for (int ss = 0; ss < nsubcell_neighbours; ++ss) {
