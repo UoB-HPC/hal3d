@@ -340,8 +340,8 @@ void calc_nodal_vol_and_c(const int nnodes, const int* nodes_to_faces_offsets,
 }
 
 // Calculates the volume of a subsubcell
-double calc_subsubcell_volume(const int cc, const int next_node,
-                              const int current_node, vec_t face_c,
+double calc_subsubcell_volume(const int cc, const int rnode_index,
+                              const int node_index, vec_t face_c,
                               const double* nodes_x, const double* nodes_y,
                               const double* nodes_z,
                               const double* cell_centroids_x,
@@ -349,15 +349,15 @@ double calc_subsubcell_volume(const int cc, const int next_node,
                               const double* cell_centroids_z) {
 
   // Construct the vectors describing an edge tetrahedron
-  const vec_t ad = {(face_c.x - nodes_x[(current_node)]),
-                    (face_c.y - nodes_y[(current_node)]),
-                    (face_c.z - nodes_z[(current_node)])};
-  const vec_t bd = {nodes_x[(next_node)] - nodes_x[(current_node)],
-                    nodes_y[(next_node)] - nodes_y[(current_node)],
-                    nodes_z[(next_node)] - nodes_z[(current_node)]};
-  const vec_t cd = {cell_centroids_x[(cc)] - nodes_x[(current_node)],
-                    cell_centroids_y[(cc)] - nodes_y[(current_node)],
-                    cell_centroids_z[(cc)] - nodes_z[(current_node)]};
+  const vec_t ad = {(face_c.x - nodes_x[(node_index)]),
+                    (face_c.y - nodes_y[(node_index)]),
+                    (face_c.z - nodes_z[(node_index)])};
+  const vec_t bd = {nodes_x[(rnode_index)] - nodes_x[(node_index)],
+                    nodes_y[(rnode_index)] - nodes_y[(node_index)],
+                    nodes_z[(rnode_index)] - nodes_z[(node_index)]};
+  const vec_t cd = {cell_centroids_x[(cc)] - nodes_x[(node_index)],
+                    cell_centroids_y[(cc)] - nodes_y[(node_index)],
+                    cell_centroids_z[(cc)] - nodes_z[(node_index)]};
 
   // Fetch the are vector of one of the faces of the tetrahedron
   const vec_t area = {0.5 * (ad.y * bd.z - ad.z * bd.y),
@@ -423,48 +423,47 @@ void calc_subcell_force_from_pressure(
       // OPTIMISE
       for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
         // Fetch the nodes attached to our current node on the current face
-        const int current_node = faces_to_nodes[(face_to_nodes_off + nn2)];
-        const int next_off = (nn2 + 1 < nnodes_by_face) ? nn2 + 1 : 0;
-        const int next_node = faces_to_nodes[(face_to_nodes_off + next_off)];
+        const int node_index = faces_to_nodes[(face_to_nodes_off + nn2)];
+        const int face_clockwise = (faces_cclockwise_cell[(face_index)] != cc);
+        const int next_node = (nn2 == nnodes_by_face - 1) ? 0 : nn2 + 1;
+        const int prev_node = (nn2 == 0) ? nnodes_by_face - 1 : nn2 - 1;
+        const int rnode_off = (face_clockwise ? prev_node : next_node);
+        const int rnode_index = faces_to_nodes[(face_to_nodes_off + rnode_off)];
 
         // Get the halfway point on the right edge
         vec_t half_edge = {
-            0.5 * (nodes_x[(current_node)] + nodes_x[(next_node)]),
-            0.5 * (nodes_y[(current_node)] + nodes_y[(next_node)]),
-            0.5 * (nodes_z[(current_node)] + nodes_z[(next_node)])};
+            0.5 * (nodes_x[(node_index)] + nodes_x[(rnode_index)]),
+            0.5 * (nodes_y[(node_index)] + nodes_y[(rnode_index)]),
+            0.5 * (nodes_z[(node_index)] + nodes_z[(rnode_index)])};
 
         // Setup basis on plane of tetrahedron
-        vec_t a = {(nodes_x[(current_node)] - half_edge.x),
-                   (nodes_y[(current_node)] - half_edge.y),
-                   (nodes_z[(current_node)] - half_edge.z)};
+        vec_t a = {(nodes_x[(node_index)] - half_edge.x),
+                   (nodes_y[(node_index)] - half_edge.y),
+                   (nodes_z[(node_index)] - half_edge.z)};
         vec_t b = {(face_c.x - half_edge.x), (face_c.y - half_edge.y),
                    (face_c.z - half_edge.z)};
 
         // Calculate the area vector A using cross product
-        const int face_cclockwise = (faces_cclockwise_cell[(face_index)] == cc);
-        const double s = face_cclockwise ? 0.5 : -0.5;
-        vec_t A = {s * (a.y * b.z - a.z * b.y), -s * (a.x * b.z - a.z * b.x),
-                   s * (a.x * b.y - a.y * b.x)};
+        vec_t A = {0.5 * (a.y * b.z - a.z * b.y),
+                   -0.5 * (a.x * b.z - a.z * b.x),
+                   0.5 * (a.x * b.y - a.y * b.x)};
 
-        int node_off;
-        int next_node_off;
+        int subcell_index;
+        int rsubcell_index;
         for (int nn3 = 0; nn3 < nnodes_by_cell; ++nn3) {
-          if (cells_to_nodes[(cell_to_nodes_off + nn3)] == current_node) {
-            node_off = nn3;
-          } else if (cells_to_nodes[(cell_to_nodes_off + nn3)] == next_node) {
-            next_node_off = nn3;
+          if (cells_to_nodes[(cell_to_nodes_off + nn3)] == node_index) {
+            subcell_index = cell_to_nodes_off + nn3;
+          } else if (cells_to_nodes[(cell_to_nodes_off + nn3)] == rnode_index) {
+            rsubcell_index = cell_to_nodes_off + nn3;
           }
         }
 
-        subcell_force_x[(cell_to_nodes_off + node_off)] += pressure[(cc)] * A.x;
-        subcell_force_y[(cell_to_nodes_off + node_off)] += pressure[(cc)] * A.y;
-        subcell_force_z[(cell_to_nodes_off + node_off)] += pressure[(cc)] * A.z;
-        subcell_force_x[(cell_to_nodes_off + next_node_off)] +=
-            pressure[(cc)] * A.x;
-        subcell_force_y[(cell_to_nodes_off + next_node_off)] +=
-            pressure[(cc)] * A.y;
-        subcell_force_z[(cell_to_nodes_off + next_node_off)] +=
-            pressure[(cc)] * A.z;
+        subcell_force_x[(subcell_index)] += pressure[(cc)] * A.x;
+        subcell_force_y[(subcell_index)] += pressure[(cc)] * A.y;
+        subcell_force_z[(subcell_index)] += pressure[(cc)] * A.z;
+        subcell_force_x[(rsubcell_index)] += pressure[(cc)] * A.x;
+        subcell_force_y[(rsubcell_index)] += pressure[(cc)] * A.y;
+        subcell_force_z[(rsubcell_index)] += pressure[(cc)] * A.z;
       }
     }
   }
@@ -775,13 +774,14 @@ double calc_cell_volume(const int cc, const int nfaces_by_cell,
     // Now we will sum the contributions at each of the nodes
     for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
       // Fetch the nodes attached to our current node on the current face
-      const int current_node = faces_to_nodes[(face_to_nodes_off + nn2)];
-      const int next_node = (nn2 + 1 < nnodes_by_face)
-                                ? faces_to_nodes[(face_to_nodes_off + nn2 + 1)]
-                                : faces_to_nodes[(face_to_nodes_off)];
+      const int node_index = faces_to_nodes[(face_to_nodes_off + nn2)];
+      const int rnode_index =
+          (nn2 + 1 < nnodes_by_face)
+              ? faces_to_nodes[(face_to_nodes_off + nn2 + 1)]
+              : faces_to_nodes[(face_to_nodes_off)];
 
       const double subsubcell_volume = calc_subsubcell_volume(
-          cc, next_node, current_node, face_c, nodes_x, nodes_y, nodes_z,
+          cc, rnode_index, node_index, face_c, nodes_x, nodes_y, nodes_z,
           cell_centroids_x, cell_centroids_y, cell_centroids_z);
 
       cv += 2.0 * subsubcell_volume;
@@ -797,10 +797,6 @@ void set_timestep(const int ncells, const double* nodes_x,
                   const double* energy, double* dt, int* cells_to_faces_offsets,
                   int* cells_to_faces, int* faces_to_nodes_offsets,
                   int* faces_to_nodes) {
-
-#if 0
-  *dt = 1.0e-4;
-#endif // if 0
 
   // Calculate the timestep based on the computational mesh and CFL
   // condition
@@ -823,17 +819,18 @@ void set_timestep(const int ncells, const double* nodes_x,
 
       for (int nn = 0; nn < nnodes_by_face; ++nn) {
         // Fetch the nodes attached to our current node on the current face
-        const int current_node = faces_to_nodes[(face_to_nodes_off + nn)];
+        const int node_index = faces_to_nodes[(face_to_nodes_off + nn)];
 
-        const int next_node = (nn + 1 < nnodes_by_face)
-                                  ? faces_to_nodes[(face_to_nodes_off + nn + 1)]
-                                  : faces_to_nodes[(face_to_nodes_off)];
+        const int rnode_index =
+            (nn + 1 < nnodes_by_face)
+                ? faces_to_nodes[(face_to_nodes_off + nn + 1)]
+                : faces_to_nodes[(face_to_nodes_off)];
         const double x_component =
-            nodes_x[(current_node)] - nodes_x[(next_node)];
+            nodes_x[(node_index)] - nodes_x[(rnode_index)];
         const double y_component =
-            nodes_y[(current_node)] - nodes_y[(next_node)];
+            nodes_y[(node_index)] - nodes_y[(rnode_index)];
         const double z_component =
-            nodes_z[(current_node)] - nodes_z[(next_node)];
+            nodes_z[(node_index)] - nodes_z[(rnode_index)];
 
         // Find the shortest edge of this cell
         shortest_edge = min(shortest_edge, sqrt(x_component * x_component +
@@ -867,7 +864,9 @@ void calc_artificial_viscosity(
     int* faces_to_nodes_offsets, int* faces_to_nodes,
     int* cells_to_faces_offsets, int* cells_to_faces) {
 
+#if 0
 #pragma omp parallel for
+#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
@@ -888,36 +887,34 @@ void calc_artificial_viscosity(
 
       // Now we will sum the contributions at each of the nodes
       for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
-        // Fetch the nodes attached to our current node on the current face
-        const int current_node = faces_to_nodes[(face_to_nodes_off + nn2)];
-        const int next_node =
-            (nn2 + 1 < nnodes_by_face)
-                ? faces_to_nodes[(face_to_nodes_off + nn2 + 1)]
-                : faces_to_nodes[(face_to_nodes_off)];
+        const int node_index = faces_to_nodes[(face_to_nodes_off + nn2)];
+        const int face_clockwise = (faces_cclockwise_cell[(face_index)] != cc);
+        const int next_node = (nn2 == nnodes_by_face - 1) ? 0 : nn2 + 1;
+        const int prev_node = (nn2 == 0) ? nnodes_by_face - 1 : nn2 - 1;
+        const int rnode_off = (face_clockwise ? prev_node : next_node);
+        const int rnode_index = faces_to_nodes[(face_to_nodes_off + rnode_off)];
 
         // Get the halfway point on the right edge
         vec_t half_edge = {
-            0.5 * (nodes_x[(current_node)] + nodes_x[(next_node)]),
-            0.5 * (nodes_y[(current_node)] + nodes_y[(next_node)]),
-            0.5 * (nodes_z[(current_node)] + nodes_z[(next_node)])};
+            0.5 * (nodes_x[(node_index)] + nodes_x[(rnode_index)]),
+            0.5 * (nodes_y[(node_index)] + nodes_y[(rnode_index)]),
+            0.5 * (nodes_z[(node_index)] + nodes_z[(rnode_index)])};
 
         // Setup basis on plane of tetrahedron
-        vec_t a = {(half_edge.x - face_c.x), (half_edge.y - face_c.y),
-                   (half_edge.z - face_c.z)};
-        vec_t b = {(cell_centroids_x[(cc)] - face_c.x),
+        vec_t a = {(cell_centroids_x[(cc)] - face_c.x),
                    (cell_centroids_y[(cc)] - face_c.y),
                    (cell_centroids_z[(cc)] - face_c.z)};
+        vec_t b = {(half_edge.x - face_c.x), (half_edge.y - face_c.y),
+                   (half_edge.z - face_c.z)};
 
-        const int face_cclockwise = (faces_cclockwise_cell[(face_index)] == cc);
-        const double scale = face_cclockwise ? -0.5 : 0.5;
-        vec_t S = {scale * (a.y * b.z - a.z * b.y),
-                   -scale * (a.x * b.z - a.z * b.x),
-                   scale * (a.x * b.y - a.y * b.x)};
+        vec_t S = {0.5 * (a.y * b.z - a.z * b.y),
+                   -0.5 * (a.x * b.z - a.z * b.x),
+                   0.5 * (a.x * b.y - a.y * b.x)};
 
         // Calculate the velocity gradients
-        vec_t dvel = {velocity_x[(next_node)] - velocity_x[(current_node)],
-                      velocity_y[(next_node)] - velocity_y[(current_node)],
-                      velocity_z[(next_node)] - velocity_z[(current_node)]};
+        vec_t dvel = {velocity_x[(node_index)] - velocity_x[(rnode_index)],
+                      velocity_y[(node_index)] - velocity_y[(rnode_index)],
+                      velocity_z[(node_index)] - velocity_z[(rnode_index)]};
 
         const double dvel_mag =
             sqrt(dvel.x * dvel.x + dvel.y * dvel.y + dvel.z * dvel.z);
@@ -928,12 +925,12 @@ void calc_artificial_viscosity(
                            (dvel_mag != 0.0) ? dvel.z / dvel_mag : 0.0};
 
         // Get the edge-centered density
-        double nodal_density0 =
-            nodal_mass[(current_node)] / nodal_volumes[(current_node)];
-        double nodal_density1 =
-            nodal_mass[(next_node)] / nodal_volumes[(next_node)];
-        const double density_edge = (2.0 * nodal_density0 * nodal_density1) /
-                                    (nodal_density0 + nodal_density1);
+        double nodal_density =
+            nodal_mass[(node_index)] / nodal_volumes[(node_index)];
+        double rnodal_density =
+            nodal_mass[(rnode_index)] / nodal_volumes[(rnode_index)];
+        const double density_edge = (2.0 * nodal_density * rnodal_density) /
+                                    (nodal_density + rnodal_density);
 
         // Calculate the artificial viscous force term for the edge
         double expansion_term = (dvel.x * S.x + dvel.y * S.y + dvel.z * S.z);
@@ -942,51 +939,49 @@ void calc_artificial_viscosity(
         // their contributions to the node forces
         if (expansion_term <= 0.0) {
           // Calculate the minimum soundspeed
-          const double cs = min(nodal_soundspeed[(current_node)],
-                                nodal_soundspeed[(next_node)]);
+          const double cs = min(nodal_soundspeed[(node_index)],
+                                nodal_soundspeed[(rnode_index)]);
           const double t = 0.25 * (GAM + 1.0);
           const double edge_visc_force_x =
               density_edge *
               (visc_coeff2 * t * fabs(dvel.x) +
                sqrt(visc_coeff2 * visc_coeff2 * t * t * dvel.x * dvel.x +
                     visc_coeff1 * visc_coeff1 * cs * cs)) *
-              (1.0 - limiter[(current_node)]) * expansion_term * dvel_unit.x;
+              (1.0 - limiter[(node_index)]) * expansion_term * dvel_unit.x;
           const double edge_visc_force_y =
               density_edge *
               (visc_coeff2 * t * fabs(dvel.y) +
                sqrt(visc_coeff2 * visc_coeff2 * t * t * dvel.y * dvel.y +
                     visc_coeff1 * visc_coeff1 * cs * cs)) *
-              (1.0 - limiter[(current_node)]) * expansion_term * dvel_unit.y;
+              (1.0 - limiter[(node_index)]) * expansion_term * dvel_unit.y;
           const double edge_visc_force_z =
               density_edge *
               (visc_coeff2 * t * fabs(dvel.z) +
                sqrt(visc_coeff2 * visc_coeff2 * t * t * dvel.z * dvel.z +
                     visc_coeff1 * visc_coeff1 * cs * cs)) *
-              (1.0 - limiter[(current_node)]) * expansion_term * dvel_unit.z;
+              (1.0 - limiter[(node_index)]) * expansion_term * dvel_unit.z;
 
           // TODO: I HATE SEARCHES LIKE THIS... CAN WE FIND SOME BETTER
           // CLOSED FORM SOLUTION?
-          int node_off;
-          int next_node_off;
+          int subcell_index;
+          int rsubcell_index;
           for (int nn3 = 0; nn3 < nnodes_by_cell; ++nn3) {
-            if (cells_to_nodes[(cell_to_nodes_off + nn3)] == current_node) {
-              node_off = nn3;
-            } else if (cells_to_nodes[(cell_to_nodes_off + nn3)] == next_node) {
-              next_node_off = nn3;
+            if (cells_to_nodes[(cell_to_nodes_off + nn3)] == node_index) {
+              subcell_index = cell_to_nodes_off + nn3;
+            } else if (cells_to_nodes[(cell_to_nodes_off + nn3)] ==
+                       rnode_index) {
+              rsubcell_index = cell_to_nodes_off + nn3;
             }
           }
 
           // Add the contributions of the edge based artifical viscous terms
           // to the main force terms
-          subcell_force_x[(cell_to_nodes_off + node_off)] -= edge_visc_force_x;
-          subcell_force_y[(cell_to_nodes_off + node_off)] -= edge_visc_force_y;
-          subcell_force_z[(cell_to_nodes_off + node_off)] -= edge_visc_force_z;
-          subcell_force_x[(cell_to_nodes_off + next_node_off)] +=
-              edge_visc_force_x;
-          subcell_force_y[(cell_to_nodes_off + next_node_off)] +=
-              edge_visc_force_y;
-          subcell_force_z[(cell_to_nodes_off + next_node_off)] +=
-              edge_visc_force_z;
+          subcell_force_x[(subcell_index)] += edge_visc_force_x;
+          subcell_force_y[(subcell_index)] += edge_visc_force_y;
+          subcell_force_z[(subcell_index)] += edge_visc_force_z;
+          subcell_force_x[(rsubcell_index)] -= edge_visc_force_x;
+          subcell_force_y[(rsubcell_index)] -= edge_visc_force_y;
+          subcell_force_z[(rsubcell_index)] -= edge_visc_force_z;
         }
       }
     }

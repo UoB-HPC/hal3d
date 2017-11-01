@@ -143,8 +143,9 @@ void gather_subcell_mass_and_energy(
 
     const double cell_ie = density[(cc)] * energy[(cc)];
     const double cell_ke = ke_mass[(cc)] / cell_volume[(cc)];
-    vec_t cell_c = {cell_centroids_x[(cc)], cell_centroids_y[(cc)],
-                    cell_centroids_z[(cc)]};
+    vec_t cell_c = {0.0, 0.0, 0.0};
+    calc_centroid(nnodes_by_cell, nodes_x, nodes_y, nodes_z, cells_to_nodes,
+                  cell_to_nodes_off, &cell_c);
 
     vec_t ie_rhs = {0.0, 0.0, 0.0};
     vec_t ke_rhs = {0.0, 0.0, 0.0};
@@ -240,6 +241,7 @@ void gather_subcell_mass_and_energy(
       subcell_ie_mass[(subcell_index)] =
           subcell_volume[(subcell_index)] *
           (cell_ie + grad_ie.x * dx + grad_ie.y * dy + grad_ie.z * dz);
+
       subcell_ke_mass[(subcell_index)] =
           subcell_volume[(subcell_index)] *
           (cell_ke + grad_ke.x * dx + grad_ke.y * dy + grad_ke.z * dz);
@@ -247,8 +249,8 @@ void gather_subcell_mass_and_energy(
       total_ie_in_subcells += subcell_ie_mass[(subcell_index)];
       total_ke_in_subcells += subcell_ke_mass[(subcell_index)];
 
-      if (subcell_ie_mass[(subcell_index)] < 0.0 ||
-          subcell_ke_mass[(subcell_index)] < 0.0) {
+      if (subcell_ie_mass[(subcell_index)] < -EPS ||
+          subcell_ke_mass[(subcell_index)] < -EPS) {
         printf("Negative energy mass %d %.12f %.12f\n", subcell_index,
                subcell_ie_mass[(subcell_index)],
                subcell_ke_mass[(subcell_index)]);
@@ -369,31 +371,6 @@ void gather_subcell_momentum(
       rhsz.y += 2.0 * i.y * dv.z / neighbour_vol;
       rhsz.z += 2.0 * i.z * dv.z / neighbour_vol;
     }
-
-#if 0
-    ///
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-    node_mom_density.x = max(node_mom_density.x, gmin.x);
-    node_mom_density.y = max(node_mom_density.y, gmin.y);
-    node_mom_density.z = max(node_mom_density.z, gmin.z);
-    node_mom_density.x = min(node_mom_density.x, gmax.x);
-    node_mom_density.y = min(node_mom_density.y, gmax.y);
-    node_mom_density.z = min(node_mom_density.z, gmax.z);
-    ///
-    //
-    //
-    //
-    //
-    //
-    //
-    //
-#endif // if 0
 
     // Determine the inverse of the coefficient matrix
     vec_t inv[3];

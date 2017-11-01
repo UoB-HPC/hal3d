@@ -11,7 +11,7 @@
 #define GAM 1.4
 #define C_Q 3.0
 #define C_M (1.5 / C_T)
-#define EPS 1.0e-15
+#define EPS 1.0e-14
 
 #define CFL 0.25
 #define VALIDATE_TOLERANCE 1.0e-5

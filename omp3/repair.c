@@ -63,7 +63,9 @@ void repair_velocity_extrema(const int nnodes,
                              const int* nodes_to_nodes, double* velocity_x,
                              double* velocity_y, double* velocity_z) {
 
+#if 0
 #pragma omp parallel for
+#endif // if 0
   for (int nn = 0; nn < nnodes; ++nn) {
     const int node_to_nodes_off = nodes_to_nodes_offsets[(nn)];
     const int nnodes_by_node =
@@ -268,7 +270,9 @@ void repair_energy_extrema(const int ncells, const int* cells_to_faces_offsets,
                            const int* faces_to_cells0,
                            const int* faces_to_cells1, double* energy) {
 
+#if 0
 #pragma omp parallel for
+#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
@@ -384,7 +388,9 @@ void repair_subcell_extrema(const int ncells, const int* cells_offsets,
                             const int* subcells_to_subcells,
                             double* subcell_volume, double* subcell_mass) {
 
+#if 0
 #pragma omp parallel for
+#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
