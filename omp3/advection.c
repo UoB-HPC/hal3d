@@ -362,16 +362,17 @@ void flux_mass_energy_momentum(
                            subcell_centroids_y[(sweep_subcell_index)],
                            subcell_centroids_z[(sweep_subcell_index)]};
 
-  const double subcell_vol = subcell_volume[(sweep_subcell_index)];
+  const double sweep_subcell_vol = subcell_volume[(sweep_subcell_index)];
   const double sweep_subcell_density =
-      subcell_mass[(sweep_subcell_index)] / subcell_vol;
+      subcell_mass[(sweep_subcell_index)] / sweep_subcell_vol;
   const double sweep_subcell_ie_density =
-      subcell_ie_mass[(sweep_subcell_index)] / subcell_vol;
+      subcell_ie_mass[(sweep_subcell_index)] / sweep_subcell_vol;
   const double sweep_subcell_ke_density =
-      subcell_ke_mass[(sweep_subcell_index)] / subcell_vol;
-  vec_t subcell_v = {subcell_momentum_x[(sweep_subcell_index)] / subcell_vol,
-                     subcell_momentum_y[(sweep_subcell_index)] / subcell_vol,
-                     subcell_momentum_z[(sweep_subcell_index)] / subcell_vol};
+      subcell_ke_mass[(sweep_subcell_index)] / sweep_subcell_vol;
+  vec_t subcell_v = {
+      subcell_momentum_x[(sweep_subcell_index)] / sweep_subcell_vol,
+      subcell_momentum_y[(sweep_subcell_index)] / sweep_subcell_vol,
+      subcell_momentum_z[(sweep_subcell_index)] / sweep_subcell_vol};
 
   const int sweep_subcell_to_subcells_off =
       subcells_to_subcells_offsets[(sweep_subcell_index)];
@@ -843,7 +844,7 @@ double calc_cell_limiter(const double rho, const double gmax, const double gmin,
   } else if (g_unlimited - rho < 0.0) {
     limiter = min(limiter, (gmin - rho) / (g_unlimited - rho));
   }
-  return limiter;
+  return max(limiter, 0.0);
 }
 
 // Calculates the limiter for the provided gradient

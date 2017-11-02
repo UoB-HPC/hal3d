@@ -220,13 +220,37 @@ void gather_subcell_mass_and_energy(
         inv[1].x * ke_rhs.x + inv[1].y * ke_rhs.y + inv[1].z * ke_rhs.z,
         inv[2].x * ke_rhs.x + inv[2].y * ke_rhs.y + inv[2].z * ke_rhs.z};
 
-    apply_cell_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
-                       &grad_ie, &cell_c, nodes_x, nodes_y, nodes_z, cell_ie,
-                       gmax_ie, gmin_ie);
+    // Calculate the limiter for the gradient
+    double limiter = 1.0;
+    for (int nn = 0; nn < nnodes_by_cell; ++nn) {
+      const int node_index = cells_to_nodes[(cell_to_nodes_off + nn)];
+      limiter = min(limiter, calc_cell_limiter(cell_ie, gmax_ie, gmin_ie,
+                                               &grad_ie, nodes_x[(node_index)],
+                                               nodes_y[(node_index)],
+                                               nodes_z[(node_index)], &cell_c));
+    }
 
-    apply_cell_limiter(nnodes_by_cell, cell_to_nodes_off, cells_to_nodes,
-                       &grad_ke, &cell_c, nodes_x, nodes_y, nodes_z, cell_ke,
-                       gmax_ke, gmin_ke);
+    // This stops extrema from worsening as part of the gather. Is it
+    // conservative?
+    grad_ie.x *= limiter;
+    grad_ie.y *= limiter;
+    grad_ie.z *= limiter;
+
+    // Calculate the limiter for the gradient
+    limiter = 1.0;
+    for (int nn = 0; nn < nnodes_by_cell; ++nn) {
+      const int node_index = cells_to_nodes[(cell_to_nodes_off + nn)];
+      limiter = min(limiter, calc_cell_limiter(cell_ke, gmax_ke, gmin_ke,
+                                               &grad_ke, nodes_x[(node_index)],
+                                               nodes_y[(node_index)],
+                                               nodes_z[(node_index)], &cell_c));
+    }
+
+    // This stops extrema from worsening as part of the gather. Is it
+    // conservative?
+    grad_ie.x *= limiter;
+    grad_ie.y *= limiter;
+    grad_ie.z *= limiter;
 
     // Subcells are ordered with the nodes on a face
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
@@ -414,6 +438,8 @@ void gather_subcell_momentum(
                                 cell_c.x, cell_c.y, cell_c.z, &node));
     }
 
+    // This stops extrema from worsening as part of the gather. Is it
+    // conservative?
     grad_vx.x *= vx_limiter;
     grad_vx.y *= vx_limiter;
     grad_vx.z *= vx_limiter;

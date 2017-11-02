@@ -51,7 +51,6 @@ void scatter_phase(UnstructuredMesh* umesh, HaleData* hale_data,
                    hale_data->subcell_momentum_x, hale_data->subcell_momentum_y,
                    hale_data->subcell_momentum_z);
 
-#if 0
   // Scatter the subcell energy and mass quantities back to the cell centers
   scatter_energy_and_mass(
       umesh->ncells, umesh->nodes_x0, umesh->nodes_y0, umesh->nodes_z0,
@@ -63,7 +62,6 @@ void scatter_phase(UnstructuredMesh* umesh, HaleData* hale_data,
       umesh->cells_to_faces_offsets, umesh->cells_to_faces,
       umesh->cells_offsets, umesh->cells_to_nodes, umesh->cells_offsets,
       initial_mass, initial_ie_mass, initial_ke_mass);
-#endif // if 0
 }
 
 // Scatter the subcell energy and mass quantities back to the cell centers
@@ -116,8 +114,7 @@ void scatter_energy_and_mass(
     cell_mass[(cc)] = total_mass;
     density[(cc)] = cell_mass[(cc)] / cell_volume[(cc)];
 
-    const double total_e_mass =
-        total_ie_mass; // + (total_ke_mass - new_ke_mass);
+    const double total_e_mass = total_ie_mass + (total_ke_mass - new_ke_mass);
     energy[(cc)] = total_e_mass / cell_mass[(cc)];
 
     // Calculate the conservation data

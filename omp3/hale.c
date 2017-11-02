@@ -37,14 +37,12 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
   lagrangian_phase(mesh, umesh, hale_data);
   STOP_PROFILING(&compute_profile, "Lagrangian phase");
 
-#if 0
   if (hale_data->visit_dump) {
     write_unstructured_to_visit_3d(umesh->nnodes, umesh->ncells, timestep * 2,
                                    umesh->nodes_x0, umesh->nodes_y0,
                                    umesh->nodes_z0, umesh->cells_to_nodes,
-                                   hale_data->velocity_x0, 1, 1);
+                                   hale_data->density0, 0, 1);
   }
-#endif // if 0
 
   if (hale_data->perform_remap) {
     printf("\nPerforming Gathering Phase\n");
@@ -54,6 +52,19 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
     double initial_ke_mass = 0.0;
     vec_t initial_momentum = {0.0, 0.0, 0.0};
 
+#if 0
+    //
+    //
+    //
+    //
+    mass_repair_phase(umesh, hale_data);
+    //
+    //
+    //
+    //
+    //
+#endif // if 0
+
     // gathers all of the subcell quantities on the mesh
     START_PROFILING(&compute_profile);
     gather_subcell_quantities(umesh, hale_data, &initial_momentum,
@@ -61,7 +72,6 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
                               &initial_ke_mass);
     STOP_PROFILING(&compute_profile, "Gather phase");
 
-#if 0
     printf("\nPerforming Advection Phase\n");
 
     // Performs a remap and some scattering of the subcell values
@@ -77,7 +87,6 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
     STOP_PROFILING(&compute_profile, "Rezone phase");
 
     printf("\nPerforming Repair Phase\n");
-
 
     // Fixes any extrema introduced by the advection
     START_PROFILING(&compute_profile);
@@ -96,11 +105,12 @@ void solve_unstructured_hydro_3d(Mesh* mesh, HaleData* hale_data,
     velocity_repair_phase(umesh, hale_data);
     energy_repair_phase(umesh, hale_data);
     STOP_PROFILING(&compute_profile, "Repair phase");
-#endif // if 0
 
+#if 0
     write_unstructured_to_visit_3d(umesh->nnodes, umesh->ncells, timestep * 2,
                                    umesh->nodes_x0, umesh->nodes_y0,
                                    umesh->nodes_z0, umesh->cells_to_nodes,
-                                   hale_data->subcell_mass, 0, 1);
+                                   hale_data->density0, 0, 1);
+#endif // if 0
   }
 }

@@ -318,21 +318,19 @@ void calc_nodal_vol_and_c(const int nnodes, const int* nodes_to_faces_offsets,
 
       // Add contributions from both of the cells attached to the face
       for (int cc = 0; cc < 2; ++cc) {
-        if (local_cells[(cc)] == -1) {
+        const int cell_index = local_cells[(cc)];
+        if (cell_index == -1) {
           continue;
         }
 
-        const int cell_index = local_cells[(cc)];
-
         // Add contributions for both edges attached to our current node
         for (int nn2 = 0; nn2 < 2; ++nn2) {
-          const double subsubcell_volume = calc_subsubcell_volume(
+          const double subsubcell_vol = calc_subsubcell_volume(
               cell_index, local_nodes[(nn2)], nn, face_c, nodes_x, nodes_y,
               nodes_z, cell_centroids_x, cell_centroids_y, cell_centroids_z);
           nodal_soundspeed[(nn)] +=
-              sqrt(GAM * (GAM - 1.0) * energy[(local_cells[(cc)])]) *
-              subsubcell_volume;
-          nodal_volumes[(nn)] += subsubcell_volume;
+              sqrt(GAM * (GAM - 1.0) * energy[(cell_index)]) * subsubcell_vol;
+          nodal_volumes[(nn)] += subsubcell_vol;
         }
       }
     }
@@ -381,9 +379,10 @@ void zero_subcell_forces(const int ncells, const int* cells_offsets,
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
-      subcell_force_x[(cell_to_nodes_off + nn)] = 0.0;
-      subcell_force_y[(cell_to_nodes_off + nn)] = 0.0;
-      subcell_force_z[(cell_to_nodes_off + nn)] = 0.0;
+      const int subcell_index = cell_to_nodes_off + nn;
+      subcell_force_x[(subcell_index)] = 0.0;
+      subcell_force_y[(subcell_index)] = 0.0;
+      subcell_force_z[(subcell_index)] = 0.0;
     }
   }
 }
@@ -505,16 +504,17 @@ void calc_new_velocity(const int nnodes, const double dt,
           cells_offsets[(cell_index + 1)] - cell_to_nodes_off;
 
       // ARRGHHHH
-      int node_off;
-      for (node_off = 0; node_off < nnodes_by_cell; ++node_off) {
-        if (cells_to_nodes[(cell_to_nodes_off + node_off)] == nn) {
+      int nn2;
+      for (nn2 = 0; nn2 < nnodes_by_cell; ++nn2) {
+        if (cells_to_nodes[(cell_to_nodes_off + nn2)] == nn) {
           break;
         }
       }
 
-      node_force.x += subcell_force_x[(cell_to_nodes_off + node_off)];
-      node_force.y += subcell_force_y[(cell_to_nodes_off + node_off)];
-      node_force.z += subcell_force_z[(cell_to_nodes_off + node_off)];
+      const int subcell_index = cell_to_nodes_off + nn2;
+      node_force.x += subcell_force_x[(subcell_index)];
+      node_force.y += subcell_force_y[(subcell_index)];
+      node_force.z += subcell_force_z[(subcell_index)];
     }
 
     // Determine the predicted velocity
@@ -681,12 +681,11 @@ void calc_predicted_energy(const int ncells, const double dt,
     double cell_force = 0.0;
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int node_index = cells_to_nodes[(cell_to_nodes_off + nn)];
-      cell_force += (velocity_x1[(node_index)] *
-                         subcell_force_x[(cell_to_nodes_off + nn)] +
-                     velocity_y1[(node_index)] *
-                         subcell_force_y[(cell_to_nodes_off + nn)] +
-                     velocity_z1[(node_index)] *
-                         subcell_force_z[(cell_to_nodes_off + nn)]);
+      const int subcell_index = cell_to_nodes_off + nn;
+      cell_force +=
+          (velocity_x1[(node_index)] * subcell_force_x[(subcell_index)] +
+           velocity_y1[(node_index)] * subcell_force_y[(subcell_index)] +
+           velocity_z1[(node_index)] * subcell_force_z[(subcell_index)]);
     }
     energy1[(cc)] = energy0[(cc)] - dt * cell_force / cell_mass[(cc)];
   }
@@ -710,12 +709,11 @@ void calc_corrected_energy(const int ncells, const double dt,
     double cell_force = 0.0;
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int node_index = cells_to_nodes[(cell_to_nodes_off + nn)];
-      cell_force += (velocity_x0[(node_index)] *
-                         subcell_force_x[(cell_to_nodes_off + nn)] +
-                     velocity_y0[(node_index)] *
-                         subcell_force_y[(cell_to_nodes_off + nn)] +
-                     velocity_z0[(node_index)] *
-                         subcell_force_z[(cell_to_nodes_off + nn)]);
+      const int subcell_index = cell_to_nodes_off + nn;
+      cell_force +=
+          (velocity_x0[(node_index)] * subcell_force_x[(subcell_index)] +
+           velocity_y0[(node_index)] * subcell_force_y[(subcell_index)] +
+           velocity_z0[(node_index)] * subcell_force_z[(subcell_index)]);
     }
 
     energy0[(cc)] -= dt * cell_force / cell_mass[(cc)];
@@ -757,7 +755,7 @@ double calc_cell_volume(const int cc, const int nfaces_by_cell,
                         const double* cell_centroids_y,
                         const double* cell_centroids_z) {
 
-  double cv = 0.0;
+  double cell_vol = 0.0;
 
   // Look at all of the faces attached to the cell
   for (int ff = 0; ff < nfaces_by_cell; ++ff) {
@@ -766,7 +764,6 @@ double calc_cell_volume(const int cc, const int nfaces_by_cell,
     const int nnodes_by_face =
         faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
 
-    // Calculate the face center... SHOULD WE PRECOMPUTE?
     vec_t face_c = {0.0, 0.0, 0.0};
     calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes,
                   face_to_nodes_off, &face_c);
@@ -780,15 +777,14 @@ double calc_cell_volume(const int cc, const int nfaces_by_cell,
               ? faces_to_nodes[(face_to_nodes_off + nn2 + 1)]
               : faces_to_nodes[(face_to_nodes_off)];
 
-      const double subsubcell_volume = calc_subsubcell_volume(
-          cc, rnode_index, node_index, face_c, nodes_x, nodes_y, nodes_z,
-          cell_centroids_x, cell_centroids_y, cell_centroids_z);
-
-      cv += 2.0 * subsubcell_volume;
+      cell_vol += 2.0 * calc_subsubcell_volume(
+                            cc, rnode_index, node_index, face_c, nodes_x,
+                            nodes_y, nodes_z, cell_centroids_x,
+                            cell_centroids_y, cell_centroids_z);
     }
   }
 
-  return cv;
+  return cell_vol;
 }
 
 // Controls the timestep for the simulation
@@ -961,8 +957,6 @@ void calc_artificial_viscosity(
                     visc_coeff1 * visc_coeff1 * cs * cs)) *
               (1.0 - limiter[(node_index)]) * expansion_term * dvel_unit.z;
 
-          // TODO: I HATE SEARCHES LIKE THIS... CAN WE FIND SOME BETTER
-          // CLOSED FORM SOLUTION?
           int subcell_index;
           int rsubcell_index;
           for (int nn3 = 0; nn3 < nnodes_by_cell; ++nn3) {
