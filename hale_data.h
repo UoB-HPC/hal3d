@@ -19,6 +19,9 @@
 #define HALE_PARAMS "hale.params"
 #define HALE_TESTS "hale.tests"
 #define NNODES_BY_SUBCELL_FACE 4
+#define NFACES_BY_NODE 3
+#define NNODES_BY_SUBCELL 8
+#define NSUBCELLS_BY_CELL 8
 
 enum { XYZ, YZX, ZXY };
 

@@ -12,9 +12,9 @@
 
 // Initialises the shared_data variables for two dimensional applications
 size_t init_hale_data(HaleData* hale_data, UnstructuredMesh* umesh) {
-  const int nfaces_by_node = 3;
-  hale_data->nnodes_by_subcell = 8;
-  hale_data->nsubcells_by_cell = 8;
+  const int nfaces_by_node = NFACES_BY_NODE;
+  hale_data->nnodes_by_subcell = NNODES_BY_SUBCELL;
+  hale_data->nsubcells_by_cell = NSUBCELLS_BY_CELL;
   hale_data->nsubcells = umesh->ncells * hale_data->nsubcells_by_cell;
 
   size_t allocated = allocate_data(&hale_data->pressure0, umesh->ncells);
