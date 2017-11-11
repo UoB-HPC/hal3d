@@ -5,13 +5,6 @@
 
 /*
  * NOTE: The repair phase is essentially a mesh-wide scattering stencil.
- *
- * This means that the data race is challenging to avoid on a fully unstructured
- * mesh and I have chosen to use atomics for the moment as all test problems I
- * have seen have very few spurious extrema introduced into the solution per
- * timestep. This is potentially a significant area where problem specification
- * could lead to huge performance issues, testing is ongoing, and a more robust
- * solution is in consideration.
  */
 
 // Repairs the subcell extrema for mass
@@ -189,7 +182,6 @@ void repair_velocity_extrema(const int nnodes,
         if (neighbour_index == -1) {
           continue;
         }
-#pragma omp atomic update
         velocity_x[(neighbour_index)] -=
             (dvx_avail_donate_neighbour[(nn2)] / dvx_total_avail_donate) *
             dvx_need_receive;
@@ -202,7 +194,6 @@ void repair_velocity_extrema(const int nnodes,
         if (neighbour_index == -1) {
           continue;
         }
-#pragma omp atomic update
         velocity_x[(neighbour_index)] +=
             (dvx_avail_receive_neighbour[(nn2)] / dvx_total_avail_receive) *
             dvx_need_donate;
@@ -218,7 +209,6 @@ void repair_velocity_extrema(const int nnodes,
         if (neighbour_index == -1) {
           continue;
         }
-#pragma omp atomic update
         velocity_y[(neighbour_index)] -=
             (dvy_avail_donate_neighbour[(nn2)] / dvy_total_avail_donate) *
             dvy_need_receive;
@@ -231,7 +221,6 @@ void repair_velocity_extrema(const int nnodes,
         if (neighbour_index == -1) {
           continue;
         }
-#pragma omp atomic update
         velocity_y[(neighbour_index)] +=
             (dvy_avail_receive_neighbour[(nn2)] / dvy_total_avail_receive) *
             dvy_need_donate;
@@ -247,7 +236,6 @@ void repair_velocity_extrema(const int nnodes,
         if (neighbour_index == -1) {
           continue;
         }
-#pragma omp atomic update
         velocity_z[(neighbour_index)] -=
             (dvz_avail_donate_neighbour[(nn2)] / dvz_total_avail_donate) *
             dvz_need_receive;
@@ -260,7 +248,6 @@ void repair_velocity_extrema(const int nnodes,
         if (neighbour_index == -1) {
           continue;
         }
-#pragma omp atomic update
         velocity_z[(neighbour_index)] +=
             (dvz_avail_receive_neighbour[(nn2)] / dvz_total_avail_receive) *
             dvz_need_donate;
@@ -366,7 +353,6 @@ void repair_energy_extrema(const int ncells, const int* cells_to_faces_offsets,
           continue;
         }
 
-#pragma omp atomic update
         energy[(neighbour_index)] -=
             (die_avail_donate_neighbour[(ff)] / die_total_avail_donate) *
             die_need_receive;
@@ -382,7 +368,6 @@ void repair_energy_extrema(const int ncells, const int* cells_to_faces_offsets,
         if (neighbour_index == -1) {
           continue;
         }
-#pragma omp atomic update
         energy[(neighbour_index)] +=
             (die_avail_receive_neighbour[(ff)] / die_total_avail_receive) *
             die_need_donate;
@@ -532,7 +517,6 @@ void redistribute_subcell_mass(double* mass, const int subcell_index,
   for (int ss = 0; ss < nsubcell_neighbours; ++ss) {
     const int neighbour_index =
         subcells_to_subcells[(subcell_to_subcells_off + ss)];
-#pragma omp atomic update
     mass[(neighbour_index)] += (is_min ? -1.0 : 1.0) *
                                (dmass_avail_neighbour[(ss)] / dmass_avail) *
                                dmass_need;
