@@ -5,7 +5,9 @@
 #include <assert.h>
 #include <float.h>
 #include <math.h>
+#ifdef SILO
 #include <silo.h>
+#endif
 #include <stdlib.h>
 
 // Initialises the shared_data variables for two dimensional applications
@@ -140,6 +142,7 @@ void write_unstructured_to_visit_3d(const int nnodes, int ncells,
                                     const double* arr, const int nodal,
                                     const int quads) {
 
+#ifdef SILO
   double* coords[] = {(double*)nodes_x, (double*)nodes_y, (double*)nodes_z};
 
   int shapecounts[] = {ncells};
@@ -168,4 +171,5 @@ void write_unstructured_to_visit_3d(const int nnodes, int ncells,
                DB_DOUBLE, (nodal ? DB_NODECENT : DB_ZONECENT), NULL);
 
   DBClose(dbfile);
+#endif
 }

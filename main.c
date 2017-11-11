@@ -63,16 +63,14 @@ int main(int argc, char** argv) {
     allocated += read_unstructured_mesh(&umesh, cell_variables, 2);
   } else {
     SharedData shared_data;
-    initialise_shared_data_3d(mesh.global_nx, mesh.global_ny, mesh.global_nz,
-                              mesh.local_nx, mesh.local_ny, mesh.local_nz,
-                              mesh.pad, mesh.x_off, mesh.y_off, mesh.z_off,
-                              mesh.width, mesh.height, mesh.depth, hale_params,
-                              mesh.edgex, mesh.edgey, mesh.edgez, &shared_data);
+    initialise_shared_data_3d(mesh.local_nx, mesh.local_ny, mesh.local_nz,
+                              mesh.pad, mesh.width, mesh.height, mesh.depth,
+                              hale_params, mesh.edgex, mesh.edgey, mesh.edgez,
+                              &shared_data);
 
     allocated += convert_mesh_to_umesh_3d(&umesh, &mesh);
-
-    hale_data.density0 = shared_data.rho;
-    hale_data.energy0 = shared_data.e;
+    hale_data.density0 = shared_data.density;
+    hale_data.energy0 = shared_data.energy;
   }
 
   // Initialise the hale-specific data arrays

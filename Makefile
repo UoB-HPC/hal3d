@@ -1,11 +1,12 @@
 # User defined parameters
 KERNELS          	 = omp3
-COMPILER         	 = INTEL
+COMPILER         	 = GCC
 MPI              	 = no
 DECOMP					 	 = TILES
-OPTIONS          	 = -I/Applications/VisIt.app//Contents/Resources/2.10.2/darwin-x86_64/include/silo/include/ -DENABLE_PROFILING  
-ARCH_COMPILER_CC   = icc
-ARCH_COMPILER_CPP  = icpc
+SILO      				 = yes
+OPTIONS          	 = #-DENABLE_PROFILING  
+ARCH_COMPILER_CC   = gcc
+ARCH_COMPILER_CPP  = g++
 
 # Compiler-specific flags
 MAC_RPATH				 	 = -Wl,-rpath,${COMPILER_ROOT}/lib 
@@ -60,14 +61,18 @@ endif
 
 # Default compiler
 ARCH_LINKER    			= $(ARCH_COMPILER_CC)
-ARCH_FLAGS     			= $(CFLAGS_$(COMPILER))
-ARCH_LDFLAGS   			= $(ARCH_FLAGS) -lm -lsiloh5 \
-											-L/Applications/VisIt.app//Contents/Resources/2.10.2/darwin-x86_64/lib 
-ARCH_BUILD_DIR 			= ../obj/hale/
+ARCH_FLAGS     			= $(CFLAGS_$(COMPILER)) -DAPP_3D 
+ARCH_LDFLAGS   			= $(ARCH_FLAGS) -lm 
+ARCH_BUILD_DIR 			= ../obj/hal3d/
 ARCH_DIR       			= ..
 
 ifeq ($(KERNELS), cuda)
 include Makefile.cuda
+endif
+
+ifeq ($(SILO), yes)
+ARCH_FLAGS   += -DSILO -I$(VISIT_PATH)/include/silo/include/ 
+ARCH_LDFLAGS += -lsiloh5 -L$(VISIT_PATH)/lib 
 endif
 
 # Get specialised kernels

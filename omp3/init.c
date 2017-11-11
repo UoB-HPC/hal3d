@@ -18,6 +18,8 @@ void init_mesh_mass(const int ncells, const int nnodes,
                     double* cell_volume, double* nodal_volumes,
                     double* cell_mass) {
 
+  printf("Performing Initialisation.\n");
+
   // Calculates the cell volume, subcell volume and the subcell centroids
   calc_volumes_centroids(
       ncells, nnodes, nnodes_by_subcell, cells_offsets, cells_to_nodes,
@@ -97,9 +99,8 @@ void calc_volumes_centroids(
     double* subcell_volume, double* cell_volume, double* nodal_volumes,
     int* nodes_offsets, int* nodes_to_cells) {
 
-  double total_cell_volume = 0.0;
   double total_subcell_volume = 0.0;
-#pragma omp parallel for reduction(+ : total_cell_volume, total_subcell_volume)
+#pragma omp parallel for reduction(+ : total_subcell_volume)
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_nodes_off = cells_offsets[(cc)];
     const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
@@ -108,8 +109,6 @@ void calc_volumes_centroids(
     vec_t cell_c = {0.0, 0.0, 0.0};
     calc_centroid(nnodes_by_cell, nodes_x, nodes_y, nodes_z, cells_to_nodes,
                   cell_to_nodes_off, &cell_c);
-
-    total_cell_volume += cell_volume[(cc)];
 
     // Looping over corner subcells here
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
@@ -316,8 +315,7 @@ void calc_volumes_centroids(
     }
   }
 
-  printf("Total Cell Volume    %.12f\n", total_cell_volume);
-  printf("Total Subcell Volume %.12f\n", total_subcell_volume);
+  printf("Total Subcell Volume   %.12f\n", total_subcell_volume);
 }
 
 // Initialises the centroids for each cell

@@ -491,8 +491,8 @@ void gather_subcell_momentum(
   initial_momentum->y = total_subcell_vy;
   initial_momentum->z = total_subcell_vz;
 
-  printf("\nTotal Momentum in Cells    (%.12f,%.12f,%.12f)\n",
-         initial_momentum_x, initial_momentum_y, initial_momentum_z);
+  printf("Total Momentum in Cells    (%.12f,%.12f,%.12f)\n", initial_momentum_x,
+         initial_momentum_y, initial_momentum_z);
   printf("Total Momentum in Subcells (%.12f,%.12f,%.12f)\n", total_subcell_vx,
          total_subcell_vy, total_subcell_vz);
   printf("Difference                 (%.12f,%.12f,%.12f)\n\n",
