@@ -860,9 +860,7 @@ void calc_artificial_viscosity(
     int* faces_to_nodes_offsets, int* faces_to_nodes,
     int* cells_to_faces_offsets, int* cells_to_faces) {
 
-#if 0
 #pragma omp parallel for
-#endif // if 0
   for (int cc = 0; cc < ncells; ++cc) {
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
