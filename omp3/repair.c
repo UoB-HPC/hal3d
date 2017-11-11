@@ -181,7 +181,6 @@ void repair_velocity_extrema(const int nnodes,
     const double dvz_need_donate = cell_v.z - gmax_vz;
 
     if (dvx_need_receive > 0.0) {
-#pragma omp atomic write
       velocity_x[(nn)] = gmin_vx;
 
       // Loop over the nodes attached to this node
@@ -196,8 +195,7 @@ void repair_velocity_extrema(const int nnodes,
             dvx_need_receive;
       }
     } else if (dvx_need_donate > 0.0) {
-// Loop over the nodes attached to this node
-#pragma omp atomic write
+      // Loop over the nodes attached to this node
       velocity_x[(nn)] = gmax_vx;
       for (int nn2 = 0; nn2 < nnodes_by_node; ++nn2) {
         const int neighbour_index = nodes_to_nodes[(node_to_nodes_off + nn2)];
@@ -212,7 +210,6 @@ void repair_velocity_extrema(const int nnodes,
     }
 
     if (dvy_need_receive > 0.0) {
-#pragma omp atomic write
       velocity_y[(nn)] = gmin_vy;
 
       // Loop over the nodes attached to this node
@@ -227,8 +224,7 @@ void repair_velocity_extrema(const int nnodes,
             dvy_need_receive;
       }
     } else if (dvy_need_donate > 0.0) {
-// Loop over the nodes attached to this node
-#pragma omp atomic write
+      // Loop over the nodes attached to this node
       velocity_y[(nn)] = gmax_vy;
       for (int nn2 = 0; nn2 < nnodes_by_node; ++nn2) {
         const int neighbour_index = nodes_to_nodes[(node_to_nodes_off + nn2)];
@@ -243,7 +239,6 @@ void repair_velocity_extrema(const int nnodes,
     }
 
     if (dvz_need_receive > 0.0) {
-#pragma omp atomic write
       velocity_z[(nn)] = gmin_vz;
 
       // Loop over the nodes attached to this node
@@ -258,8 +253,7 @@ void repair_velocity_extrema(const int nnodes,
             dvz_need_receive;
       }
     } else if (dvz_need_donate > 0.0) {
-// Loop over the nodes attached to this node
-#pragma omp atomic write
+      // Loop over the nodes attached to this node
       velocity_z[(nn)] = gmax_vz;
       for (int nn2 = 0; nn2 < nnodes_by_node; ++nn2) {
         const int neighbour_index = nodes_to_nodes[(node_to_nodes_off + nn2)];
@@ -361,7 +355,6 @@ void repair_energy_extrema(const int ncells, const int* cells_to_faces_offsets,
     const double die_need_donate = cell_ie - gmax_ie;
 
     if (die_need_receive > 0.0) {
-#pragma omp atomic write
       energy[(cc)] = gmin_ie;
 
       for (int ff = 0; ff < nfaces_by_cell; ++ff) {
@@ -379,8 +372,7 @@ void repair_energy_extrema(const int ncells, const int* cells_to_faces_offsets,
             die_need_receive;
       }
     } else if (die_need_donate > 0.0) {
-// Loop over the nodes attached to this node
-#pragma omp atomic write
+      // Loop over the nodes attached to this node
       energy[(cc)] = gmax_ie;
       for (int ff = 0; ff < nfaces_by_cell; ++ff) {
         const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
@@ -534,7 +526,6 @@ void redistribute_subcell_mass(double* mass, const int subcell_index,
                                const double dmass_avail,
                                const double dmass_need, const double g,
                                const double subcell_vol, const int is_min) {
-#pragma omp atomic write
   mass[(subcell_index)] = g * subcell_vol;
 
   // Loop over neighbours
