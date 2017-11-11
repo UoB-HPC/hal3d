@@ -5,6 +5,24 @@
 
 /*
  * NOTE: The repair phase is essentially a mesh-wide scattering stencil.
+ * Essentially the whole stencil needs to be owned by a single thread to stop
+ * data races...
+ *
+ * One method that could be employed here is to essentially break the problem
+ * down and analyse the dependencies at runtime.
+ *
+ * Steps:
+ *
+ * 1) determine the quantities needed to repair extrema
+ * 2) check the 2 deep stencil of each node/cell to check if we actually have a
+ * dependency.
+ * 3) construct an indirection with all independent work and one of the
+ * dependent elements from each chain
+ * 4) perform all of the work on that indirection in parallel
+ * 5) construct another list that contains another single item of the work that
+ * was considered dependent
+ * 6) perform all of the individual dependent element's work
+ * 7) repeat 5 and 6 until completion.
  */
 
 // Repairs the subcell extrema for mass
