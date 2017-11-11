@@ -21,8 +21,3 @@ perform_remap 1
 nx            32
 ny            32
 nz            32
-
-# READING UMESH IS NOT YET SUPPORTED IN 3D
-node_file     problems/tri.1.node
-ele_file      problems/tri.1.ele
-read_umesh    0

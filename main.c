@@ -39,7 +39,6 @@ int main(int argc, char** argv) {
   mesh.dt_h = mesh.dt;
   mesh.rank = MASTER;
   mesh.nranks = 1;
-  const int read_umesh = get_int_parameter("read_umesh", hale_params);
 
   double i0 = omp_get_wtime();
 
@@ -54,24 +53,15 @@ int main(int argc, char** argv) {
   // Fetch the size of the unstructured mesh
   HaleData hale_data;
   UnstructuredMesh umesh;
+  SharedData shared_data;
+  initialise_shared_data_3d(mesh.local_nx, mesh.local_ny, mesh.local_nz,
+                            mesh.pad, mesh.width, mesh.height, mesh.depth,
+                            hale_params, mesh.edgex, mesh.edgey, mesh.edgez,
+                            &shared_data);
 
-  if (read_umesh) {
-    umesh.node_filename = get_parameter("node_file", hale_params);
-    umesh.ele_filename = get_parameter("ele_file", hale_params);
-
-    double** cell_variables[2] = {&hale_data.density0, &hale_data.energy0};
-    allocated += read_unstructured_mesh(&umesh, cell_variables, 2);
-  } else {
-    SharedData shared_data;
-    initialise_shared_data_3d(mesh.local_nx, mesh.local_ny, mesh.local_nz,
-                              mesh.pad, mesh.width, mesh.height, mesh.depth,
-                              hale_params, mesh.edgex, mesh.edgey, mesh.edgez,
-                              &shared_data);
-
-    allocated += convert_mesh_to_umesh_3d(&umesh, &mesh);
-    hale_data.density0 = shared_data.density;
-    hale_data.energy0 = shared_data.energy;
-  }
+  allocated += convert_mesh_to_umesh_3d(&umesh, &mesh);
+  hale_data.density0 = shared_data.density;
+  hale_data.energy0 = shared_data.energy;
 
   // Initialise the hale-specific data arrays
   hale_data.visc_coeff1 = get_double_parameter("visc_coeff1", hale_params);
