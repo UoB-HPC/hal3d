@@ -19,7 +19,7 @@
 #define HALE_PARAMS "hale.params"
 #define HALE_TESTS "hale.tests"
 #define NNODES_BY_SUBCELL_FACE 4
-#define NFACES_BY_NODE 3
+#define NSUBCELL_FACES_BY_NODE 3
 #define NNODES_BY_SUBCELL 8
 #define NSUBCELLS_BY_CELL 8
 
@@ -103,6 +103,8 @@ typedef struct {
   double* subcell_nodes_y;
   double* subcell_nodes_z;
 
+  // Array used for CUDA reductions generally
+  double* reduce_array;
 } HaleData;
 
 // Initialises the shared_data variables for two dimensional applications

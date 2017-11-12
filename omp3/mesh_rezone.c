@@ -2,7 +2,7 @@
 #include "hale.h"
 
 // Correct the subcell data by the determined fluxes
-void correct_for_fluxes(const int ncells, const int* cells_offsets,
+void correct_for_fluxes(const int ncells, const int* cells_to_nodes_offsets,
                         double* subcell_mass, double* subcell_mass_flux,
                         double* subcell_ie_mass, double* subcell_ie_mass_flux,
                         double* subcell_ke_mass, double* subcell_ke_mass_flux,
@@ -18,7 +18,7 @@ void eulerian_rezone(UnstructuredMesh* umesh, HaleData* hale_data) {
 
   // Correct the subcell data by the determined fluxes
   correct_for_fluxes(
-      umesh->ncells, umesh->cells_offsets, hale_data->subcell_mass,
+      umesh->ncells, umesh->cells_to_nodes_offsets, hale_data->subcell_mass,
       hale_data->subcell_mass_flux, hale_data->subcell_ie_mass,
       hale_data->subcell_ie_mass_flux, hale_data->subcell_ke_mass,
       hale_data->subcell_ke_mass_flux, hale_data->subcell_momentum_x,
@@ -32,14 +32,14 @@ void eulerian_rezone(UnstructuredMesh* umesh, HaleData* hale_data) {
                       umesh->nodes_x0, umesh->nodes_y0, umesh->nodes_z0);
 
   // Determine the new cell centroids
-  init_cell_centroids(umesh->ncells, umesh->cells_offsets,
+  init_cell_centroids(umesh->ncells, umesh->cells_to_nodes_offsets,
                       umesh->cells_to_nodes, umesh->nodes_x0, umesh->nodes_y0,
                       umesh->nodes_z0, umesh->cell_centroids_x,
                       umesh->cell_centroids_y, umesh->cell_centroids_z);
 }
 
 // Correct the subcell data by the determined fluxes
-void correct_for_fluxes(const int ncells, const int* cells_offsets,
+void correct_for_fluxes(const int ncells, const int* cells_to_nodes_offsets,
                         double* subcell_mass, double* subcell_mass_flux,
                         double* subcell_ie_mass, double* subcell_ie_mass_flux,
                         double* subcell_ke_mass, double* subcell_ke_mass_flux,
@@ -59,8 +59,9 @@ void correct_for_fluxes(const int ncells, const int* cells_offsets,
 
 #pragma omp parallel for reduction(+ : dm, die, dmom_x, dmom_y, dmom_z)
   for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+    const int cell_to_nodes_off = cells_to_nodes_offsets[(cc)];
+    const int nnodes_by_cell =
+        cells_to_nodes_offsets[(cc + 1)] - cell_to_nodes_off;
 
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int subcell_index = cell_to_nodes_off + nn;

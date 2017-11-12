@@ -10,9 +10,9 @@ void init_mesh_mass(const int ncells, const int nnodes,
                     const double* nodes_z, double* subcell_mass,
                     double* nodal_mass, int* faces_to_nodes_offsets,
                     int* faces_to_nodes, int* faces_cclockwise_cell,
-                    int* cells_offsets, int* cells_to_nodes,
+                    int* cells_to_nodes_offsets, int* cells_to_nodes,
                     int* subcells_to_faces_offsets, int* subcells_to_faces,
-                    int* nodes_offsets, int* nodes_to_cells,
+                    int* nodes_to_cells_offsets, int* nodes_to_cells,
                     double* subcell_centroids_x, double* subcell_centroids_y,
                     double* subcell_centroids_z, double* subcell_volume,
                     double* cell_volume, double* nodal_volumes,
@@ -22,11 +22,11 @@ void init_mesh_mass(const int ncells, const int nnodes,
 
   // Calculates the cell volume, subcell volume and the subcell centroids
   calc_volumes_centroids(
-      ncells, nnodes, nnodes_by_subcell, cells_offsets, cells_to_nodes,
+      ncells, nnodes, nnodes_by_subcell, cells_to_nodes_offsets, cells_to_nodes,
       subcells_to_faces_offsets, subcells_to_faces, faces_to_nodes,
       faces_to_nodes_offsets, faces_cclockwise_cell, nodes_x, nodes_y, nodes_z,
       subcell_centroids_x, subcell_centroids_y, subcell_centroids_z,
-      subcell_volume, cell_volume, nodal_volumes, nodes_offsets,
+      subcell_volume, cell_volume, nodal_volumes, nodes_to_cells_offsets,
       nodes_to_cells);
 
   double total_mass_in_cells = 0.0;
@@ -37,8 +37,9 @@ void init_mesh_mass(const int ncells, const int nnodes,
 #pragma omp parallel for reduction(+ : total_mass_in_cells,                    \
                                    total_mass_in_subcells)
   for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+    const int cell_to_nodes_off = cells_to_nodes_offsets[(cc)];
+    const int nnodes_by_cell =
+        cells_to_nodes_offsets[(cc + 1)] - cell_to_nodes_off;
 
     // looping over corner subcells here
     double total_mass = 0.0;
@@ -63,16 +64,17 @@ void init_mesh_mass(const int ncells, const int nnodes,
 
 #pragma omp parallel for
   for (int nn = 0; nn < nnodes; ++nn) {
-    const int node_to_cells_off = nodes_offsets[(nn)];
-    const int ncells_by_node = nodes_offsets[(nn + 1)] - node_to_cells_off;
+    const int node_to_cells_off = nodes_to_cells_offsets[(nn)];
+    const int ncells_by_node =
+        nodes_to_cells_offsets[(nn + 1)] - node_to_cells_off;
 
     nodal_mass[(nn)] = 0.0;
 
     for (int cc = 0; cc < ncells_by_node; ++cc) {
       const int cell_index = nodes_to_cells[(node_to_cells_off + cc)];
-      const int cell_to_nodes_off = cells_offsets[(cell_index)];
+      const int cell_to_nodes_off = cells_to_nodes_offsets[(cell_index)];
       const int nnodes_by_cell =
-          cells_offsets[(cell_index + 1)] - cell_to_nodes_off;
+          cells_to_nodes_offsets[(cell_index + 1)] - cell_to_nodes_off;
 
       for (int nn2 = 0; nn2 < nnodes_by_cell; ++nn2) {
         if (cells_to_nodes[(cell_to_nodes_off + nn2)] == nn) {
@@ -90,20 +92,21 @@ void init_mesh_mass(const int ncells, const int nnodes,
 // Calculates the cell volume, subcell volume and the subcell centroids
 void calc_volumes_centroids(
     const int ncells, const int nnodes, const int nnodes_by_subcell,
-    const int* cells_offsets, const int* cells_to_nodes,
+    const int* cells_to_nodes_offsets, const int* cells_to_nodes,
     const int* subcells_to_faces_offsets, const int* subcells_to_faces,
     const int* faces_to_nodes, const int* faces_to_nodes_offsets,
     const int* faces_cclockwise_cell, const double* nodes_x,
     const double* nodes_y, const double* nodes_z, double* subcell_centroids_x,
     double* subcell_centroids_y, double* subcell_centroids_z,
     double* subcell_volume, double* cell_volume, double* nodal_volumes,
-    int* nodes_offsets, int* nodes_to_cells) {
+    int* nodes_to_cells_offsets, int* nodes_to_cells) {
 
   double total_subcell_volume = 0.0;
 #pragma omp parallel for reduction(+ : total_subcell_volume)
   for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+    const int cell_to_nodes_off = cells_to_nodes_offsets[(cc)];
+    const int nnodes_by_cell =
+        cells_to_nodes_offsets[(cc + 1)] - cell_to_nodes_off;
 
     // Calculates the weighted volume dist for a provided cell along x-y-z
     vec_t cell_c = {0.0, 0.0, 0.0};
@@ -294,16 +297,17 @@ void calc_volumes_centroids(
 
 #pragma omp parallel for
   for (int nn = 0; nn < nnodes; ++nn) {
-    const int node_to_cells_off = nodes_offsets[(nn)];
-    const int ncells_by_node = nodes_offsets[(nn + 1)] - node_to_cells_off;
+    const int node_to_cells_off = nodes_to_cells_offsets[(nn)];
+    const int ncells_by_node =
+        nodes_to_cells_offsets[(nn + 1)] - node_to_cells_off;
 
     nodal_volumes[(nn)] = 0.0;
 
     for (int cc = 0; cc < ncells_by_node; ++cc) {
       const int cell_index = nodes_to_cells[(node_to_cells_off + cc)];
-      const int cell_to_nodes_off = cells_offsets[(cell_index)];
+      const int cell_to_nodes_off = cells_to_nodes_offsets[(cell_index)];
       const int nnodes_by_cell =
-          cells_offsets[(cell_index + 1)] - cell_to_nodes_off;
+          cells_to_nodes_offsets[(cell_index + 1)] - cell_to_nodes_off;
 
       for (int nn2 = 0; nn2 < nnodes_by_cell; ++nn2) {
         if (cells_to_nodes[(cell_to_nodes_off + nn2)] == nn) {
@@ -319,7 +323,7 @@ void calc_volumes_centroids(
 }
 
 // Initialises the centroids for each cell
-void init_cell_centroids(const int ncells, const int* cells_offsets,
+void init_cell_centroids(const int ncells, const int* cells_to_nodes_offsets,
                          const int* cells_to_nodes, const double* nodes_x,
                          const double* nodes_y, const double* nodes_z,
                          double* cell_centroids_x, double* cell_centroids_y,
@@ -329,8 +333,8 @@ void init_cell_centroids(const int ncells, const int* cells_offsets,
   START_PROFILING(&compute_profile);
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
-    const int cells_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cells_off;
+    const int cells_off = cells_to_nodes_offsets[(cc)];
+    const int nnodes_by_cell = cells_to_nodes_offsets[(cc + 1)] - cells_off;
 
     vec_t cell_c = {0.0, 0.0, 0.0};
     calc_centroid(nnodes_by_cell, nodes_x, nodes_y, nodes_z, cells_to_nodes,
@@ -344,7 +348,7 @@ void init_cell_centroids(const int ncells, const int* cells_offsets,
 }
 
 void init_subcells_to_faces(
-    const int ncells, const int nsubcells, const int* cells_offsets,
+    const int ncells, const int nsubcells, const int* cells_to_nodes_offsets,
     const int* nodes_to_faces_offsets, const int* cells_to_nodes,
     const int* faces_to_cells0, const int* faces_to_cells1,
     const int* nodes_to_faces, const int* faces_to_nodes,
@@ -354,8 +358,9 @@ void init_subcells_to_faces(
 
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+    const int cell_to_nodes_off = cells_to_nodes_offsets[(cc)];
+    const int nnodes_by_cell =
+        cells_to_nodes_offsets[(cc + 1)] - cell_to_nodes_off;
 
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int node_index = cells_to_nodes[(cell_to_nodes_off + nn)];
@@ -381,8 +386,9 @@ void init_subcells_to_faces(
 
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+    const int cell_to_nodes_off = cells_to_nodes_offsets[(cc)];
+    const int nnodes_by_cell =
+        cells_to_nodes_offsets[(cc + 1)] - cell_to_nodes_off;
 
     vec_t cell_c = {0.0, 0.0, 0.0};
     calc_centroid(nnodes_by_cell, nodes_x, nodes_y, nodes_z, cells_to_nodes,
@@ -478,14 +484,15 @@ void init_subcells_to_subcells(
     const int* faces_to_nodes, const int* faces_cclockwise_cell,
     const double* nodes_x, const double* nodes_y, const double* nodes_z,
     int* subcells_to_subcells, int* subcells_to_subcells_offsets,
-    int* cells_offsets, int* nodes_to_faces_offsets, int* nodes_to_faces,
-    int* cells_to_nodes, int* subcells_to_faces,
+    int* cells_to_nodes_offsets, int* nodes_to_faces_offsets,
+    int* nodes_to_faces, int* cells_to_nodes, int* subcells_to_faces,
     int* subcells_to_faces_offsets) {
 
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+    const int cell_to_nodes_off = cells_to_nodes_offsets[(cc)];
+    const int nnodes_by_cell =
+        cells_to_nodes_offsets[(cc + 1)] - cell_to_nodes_off;
 
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int node_index = cells_to_nodes[(cell_to_nodes_off + nn)];
@@ -513,8 +520,9 @@ void init_subcells_to_subcells(
 
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+    const int cell_to_nodes_off = cells_to_nodes_offsets[(cc)];
+    const int nnodes_by_cell =
+        cells_to_nodes_offsets[(cc + 1)] - cell_to_nodes_off;
 
     vec_t cell_c = {0.0, 0.0, 0.0};
     calc_centroid(nnodes_by_cell, nodes_x, nodes_y, nodes_z, cells_to_nodes,
@@ -583,9 +591,10 @@ void init_subcells_to_subcells(
         }
 
         const int neighbour_to_nodes_off =
-            cells_offsets[(neighbour_cell_index)];
+            cells_to_nodes_offsets[(neighbour_cell_index)];
         const int nnodes_by_neighbour =
-            cells_offsets[(neighbour_cell_index + 1)] - neighbour_to_nodes_off;
+            cells_to_nodes_offsets[(neighbour_cell_index + 1)] -
+            neighbour_to_nodes_off;
 
         // NOTE: Cells to nodes is essentially cells to subcells here
         for (int nn2 = 0; nn2 < nnodes_by_neighbour; ++nn2) {

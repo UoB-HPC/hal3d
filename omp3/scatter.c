@@ -8,13 +8,12 @@
 void scatter_energy_and_mass(
     const int ncells, const double* nodes_x, const double* nodes_y,
     const double* nodes_z, double* cell_volume, double* energy, double* density,
-    double* kinetic_energy, double* velocity_x, double* velocity_y,
-    double* velocity_z, double* cell_mass, double* subcell_mass,
-    double* subcell_ie_mass, double* subcell_ke_mass, int* faces_to_nodes,
-    int* faces_to_nodes_offsets, int* cells_to_faces_offsets,
-    int* cells_to_faces, int* cells_offsets, int* cells_to_nodes,
-    int* cells_to_nodes_offsets, double initial_mass, double initial_ie_mass,
-    double initial_ke_mass);
+    double* ke_mass, double* velocity_x, double* velocity_y, double* velocity_z,
+    double* cell_mass, double* subcell_mass, double* subcell_ie_mass,
+    double* subcell_ke_mass, int* faces_to_nodes, int* faces_to_nodes_offsets,
+    int* cells_to_faces_offsets, int* cells_to_faces,
+    int* cells_to_nodes_offsets, int* cells_to_nodes, double initial_mass,
+    double initial_ie_mass, double initial_ke_mass);
 
 // Scatter the subcell momentum to the node centered velocities
 void scatter_momentum(const int nnodes, vec_t* initial_momentum,
@@ -33,23 +32,24 @@ void scatter_phase(UnstructuredMesh* umesh, HaleData* hale_data,
   // Calculates the cell volume, subcell volume and the subcell centroids
   calc_volumes_centroids(
       umesh->ncells, umesh->nnodes, hale_data->nnodes_by_subcell,
-      umesh->cells_offsets, umesh->cells_to_nodes,
+      umesh->cells_to_nodes_offsets, umesh->cells_to_nodes,
       hale_data->subcells_to_faces_offsets, hale_data->subcells_to_faces,
       umesh->faces_to_nodes, umesh->faces_to_nodes_offsets,
       umesh->faces_cclockwise_cell, umesh->nodes_x0, umesh->nodes_y0,
       umesh->nodes_z0, hale_data->subcell_centroids_x,
       hale_data->subcell_centroids_y, hale_data->subcell_centroids_z,
       hale_data->subcell_volume, hale_data->cell_volume,
-      hale_data->nodal_volumes, umesh->nodes_offsets, umesh->nodes_to_cells);
+      hale_data->nodal_volumes, umesh->nodes_to_cells_offsets,
+      umesh->nodes_to_cells);
 
   // Scatter the subcell momentum to the node centered velocities
-  scatter_momentum(umesh->nnodes, initial_momentum, umesh->nodes_offsets,
-                   umesh->nodes_to_cells, umesh->cells_offsets,
-                   umesh->cells_to_nodes, hale_data->velocity_x0,
-                   hale_data->velocity_y0, hale_data->velocity_z0,
-                   hale_data->nodal_mass, hale_data->subcell_mass,
-                   hale_data->subcell_momentum_x, hale_data->subcell_momentum_y,
-                   hale_data->subcell_momentum_z);
+  scatter_momentum(
+      umesh->nnodes, initial_momentum, umesh->nodes_to_cells_offsets,
+      umesh->nodes_to_cells, umesh->cells_to_nodes_offsets,
+      umesh->cells_to_nodes, hale_data->velocity_x0, hale_data->velocity_y0,
+      hale_data->velocity_z0, hale_data->nodal_mass, hale_data->subcell_mass,
+      hale_data->subcell_momentum_x, hale_data->subcell_momentum_y,
+      hale_data->subcell_momentum_z);
 
   // Scatter the subcell energy and mass quantities back to the cell centers
   scatter_energy_and_mass(
@@ -60,8 +60,8 @@ void scatter_phase(UnstructuredMesh* umesh, HaleData* hale_data,
       hale_data->subcell_ie_mass, hale_data->subcell_ke_mass,
       umesh->faces_to_nodes, umesh->faces_to_nodes_offsets,
       umesh->cells_to_faces_offsets, umesh->cells_to_faces,
-      umesh->cells_offsets, umesh->cells_to_nodes, umesh->cells_offsets,
-      initial_mass, initial_ie_mass, initial_ke_mass);
+      umesh->cells_to_nodes_offsets, umesh->cells_to_nodes, initial_mass,
+      initial_ie_mass, initial_ke_mass);
 }
 
 // Scatter the subcell energy and mass quantities back to the cell centers
@@ -71,8 +71,8 @@ void scatter_energy_and_mass(
     double* ke_mass, double* velocity_x, double* velocity_y, double* velocity_z,
     double* cell_mass, double* subcell_mass, double* subcell_ie_mass,
     double* subcell_ke_mass, int* faces_to_nodes, int* faces_to_nodes_offsets,
-    int* cells_to_faces_offsets, int* cells_to_faces, int* cells_offsets,
-    int* cells_to_nodes, int* cells_to_nodes_offsets, double initial_mass,
+    int* cells_to_faces_offsets, int* cells_to_faces,
+    int* cells_to_nodes_offsets, int* cells_to_nodes, double initial_mass,
     double initial_ie_mass, double initial_ke_mass) {
 
   // Scatter energy and density, and print the conservation of mass
@@ -80,8 +80,9 @@ void scatter_energy_and_mass(
   double rz_total_e_mass = 0.0;
 #pragma omp parallel for reduction(+ : rz_total_mass, rz_total_e_mass)
   for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+    const int cell_to_nodes_off = cells_to_nodes_offsets[(cc)];
+    const int nnodes_by_cell =
+        cells_to_nodes_offsets[(cc + 1)] - cell_to_nodes_off;
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
         cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;

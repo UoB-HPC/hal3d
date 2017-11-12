@@ -62,6 +62,7 @@ int main(int argc, char** argv) {
   allocated += convert_mesh_to_umesh_3d(&umesh, &mesh);
   hale_data.density0 = shared_data.density;
   hale_data.energy0 = shared_data.energy;
+  hale_data.reduce_array = shared_data.reduce_array0;
 
   // Initialise the hale-specific data arrays
   hale_data.visc_coeff1 = get_double_parameter("visc_coeff1", hale_params);

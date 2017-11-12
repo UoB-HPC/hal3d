@@ -9,15 +9,16 @@ void advection_phase(UnstructuredMesh* umesh, HaleData* hale_data) {
 
   // Advects mass and energy through the subcell faces using swept edge approx
   perform_advection(
-      umesh->ncells, umesh->cells_offsets, umesh->nodes_x0, umesh->nodes_y0,
-      umesh->nodes_z0, hale_data->rezoned_nodes_x, hale_data->rezoned_nodes_y,
-      hale_data->rezoned_nodes_z, umesh->cells_to_nodes,
-      umesh->faces_to_nodes_offsets, umesh->faces_to_nodes,
-      umesh->faces_cclockwise_cell, hale_data->subcells_to_faces_offsets,
-      hale_data->subcells_to_faces, hale_data->subcells_to_subcells_offsets,
-      hale_data->subcells_to_subcells, hale_data->subcell_centroids_x,
-      hale_data->subcell_centroids_y, hale_data->subcell_centroids_z,
-      umesh->faces_to_cells0, umesh->faces_to_cells1, hale_data->subcell_volume,
+      umesh->ncells, umesh->cells_to_nodes_offsets, umesh->nodes_x0,
+      umesh->nodes_y0, umesh->nodes_z0, hale_data->rezoned_nodes_x,
+      hale_data->rezoned_nodes_y, hale_data->rezoned_nodes_z,
+      umesh->cells_to_nodes, umesh->faces_to_nodes_offsets,
+      umesh->faces_to_nodes, umesh->faces_cclockwise_cell,
+      hale_data->subcells_to_faces_offsets, hale_data->subcells_to_faces,
+      hale_data->subcells_to_subcells_offsets, hale_data->subcells_to_subcells,
+      hale_data->subcell_centroids_x, hale_data->subcell_centroids_y,
+      hale_data->subcell_centroids_z, umesh->faces_to_cells0,
+      umesh->faces_to_cells1, hale_data->subcell_volume,
       hale_data->subcell_momentum_flux_x, hale_data->subcell_momentum_flux_y,
       hale_data->subcell_momentum_flux_z, hale_data->subcell_momentum_x,
       hale_data->subcell_momentum_y, hale_data->subcell_momentum_z,
@@ -28,7 +29,7 @@ void advection_phase(UnstructuredMesh* umesh, HaleData* hale_data) {
 
 // Advects mass and energy through the subcell faces using swept edge approx
 void perform_advection(
-    const int ncells, const int* cells_offsets, const double* nodes_x,
+    const int ncells, const int* cells_to_nodes_offsets, const double* nodes_x,
     const double* nodes_y, const double* nodes_z, const double* rezoned_nodes_x,
     const double* rezoned_nodes_y, const double* rezoned_nodes_z,
     const int* cells_to_nodes, const int* faces_to_nodes_offsets,
@@ -47,8 +48,9 @@ void perform_advection(
 
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+    const int cell_to_nodes_off = cells_to_nodes_offsets[(cc)];
+    const int nnodes_by_cell =
+        cells_to_nodes_offsets[(cc + 1)] - cell_to_nodes_off;
 
     vec_t cell_c = {0.0, 0.0, 0.0};
     calc_centroid(nnodes_by_cell, nodes_x, nodes_y, nodes_z, cells_to_nodes,
@@ -195,7 +197,7 @@ void perform_advection(
             subcell_centroids_z, swept_edge_to_faces,
             swept_edge_faces_to_nodes_offsets, subcells_to_subcells_offsets,
             subcells_to_subcells, subcells_to_faces_offsets, subcells_to_faces,
-            faces_to_nodes_offsets, faces_to_nodes, cells_offsets,
+            faces_to_nodes_offsets, faces_to_nodes, cells_to_nodes_offsets,
             cells_to_nodes, faces_cclockwise_cell, nodes_x, nodes_y, nodes_z,
             1);
 
@@ -249,7 +251,7 @@ void perform_advection(
             subcell_centroids_z, swept_edge_to_faces,
             swept_edge_faces_to_nodes_offsets, subcells_to_subcells_offsets,
             subcells_to_subcells, subcells_to_faces_offsets, subcells_to_faces,
-            faces_to_nodes_offsets, faces_to_nodes, cells_offsets,
+            faces_to_nodes_offsets, faces_to_nodes, cells_to_nodes_offsets,
             cells_to_nodes, faces_cclockwise_cell, nodes_x, nodes_y, nodes_z,
             0);
       }
@@ -275,7 +277,7 @@ void flux_mass_energy_momentum(
     const int* subcells_to_subcells_offsets, const int* subcells_to_subcells,
     const int* subcells_to_faces_offsets, const int* subcells_to_faces,
     const int* faces_to_nodes_offsets, const int* faces_to_nodes,
-    const int* cells_offsets, const int* cells_to_nodes,
+    const int* cells_to_nodes_offsets, const int* cells_to_nodes,
     const int* faces_cclockwise_cell, const double* nodes_x,
     const double* nodes_y, const double* nodes_z, const int internal) {
 
@@ -528,9 +530,9 @@ void flux_mass_energy_momentum(
     sweep_cell_c = *cell_c;
   } else {
     // Faster or slower than accessing cell_centroids_... ?
-    const int cell_to_nodes_off = cells_offsets[(neighbour_cc)];
+    const int cell_to_nodes_off = cells_to_nodes_offsets[(neighbour_cc)];
     const int nnodes_by_cell =
-        cells_offsets[(neighbour_cc + 1)] - cell_to_nodes_off;
+        cells_to_nodes_offsets[(neighbour_cc + 1)] - cell_to_nodes_off;
     calc_centroid(nnodes_by_cell, nodes_x, nodes_y, nodes_z, cells_to_nodes,
                   cell_to_nodes_off, &sweep_cell_c);
   }

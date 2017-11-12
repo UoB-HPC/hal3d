@@ -36,19 +36,20 @@ void predictor(Mesh* mesh, UnstructuredMesh* umesh, HaleData* hale_data) {
 
   // Sets all of the subcell forces to 0
   START_PROFILING(&compute_profile);
-  zero_subcell_forces(umesh->ncells, umesh->cells_offsets,
+  zero_subcell_forces(umesh->ncells, umesh->cells_to_nodes_offsets,
                       hale_data->subcell_force_x, hale_data->subcell_force_y,
                       hale_data->subcell_force_z);
   STOP_PROFILING(&compute_profile, "zero_subcell_forces");
 
   START_PROFILING(&compute_profile);
   calc_subcell_force_from_pressure(
-      umesh->ncells, umesh->cells_to_faces_offsets, umesh->cells_offsets,
-      umesh->cells_to_faces, umesh->faces_to_nodes_offsets,
-      umesh->faces_to_nodes, umesh->cells_to_nodes,
-      umesh->faces_cclockwise_cell, umesh->nodes_x0, umesh->nodes_y0,
-      umesh->nodes_z0, hale_data->pressure0, hale_data->subcell_force_x,
-      hale_data->subcell_force_y, hale_data->subcell_force_z);
+      umesh->ncells, umesh->cells_to_faces_offsets,
+      umesh->cells_to_nodes_offsets, umesh->cells_to_faces,
+      umesh->faces_to_nodes_offsets, umesh->faces_to_nodes,
+      umesh->cells_to_nodes, umesh->faces_cclockwise_cell, umesh->nodes_x0,
+      umesh->nodes_y0, umesh->nodes_z0, hale_data->pressure0,
+      hale_data->subcell_force_x, hale_data->subcell_force_y,
+      hale_data->subcell_force_z);
   STOP_PROFILING(&compute_profile, "calc_subcell_force_from_pressure");
 
   START_PROFILING(&compute_profile);
@@ -59,25 +60,27 @@ void predictor(Mesh* mesh, UnstructuredMesh* umesh, HaleData* hale_data) {
   START_PROFILING(&compute_profile);
   calc_artificial_viscosity(
       umesh->ncells, hale_data->visc_coeff1, hale_data->visc_coeff2,
-      umesh->cells_offsets, umesh->cells_to_nodes, umesh->faces_cclockwise_cell,
-      umesh->nodes_x0, umesh->nodes_y0, umesh->nodes_z0,
-      umesh->cell_centroids_x, umesh->cell_centroids_y, umesh->cell_centroids_z,
-      hale_data->velocity_x0, hale_data->velocity_y0, hale_data->velocity_z0,
-      hale_data->nodal_soundspeed, hale_data->nodal_mass,
-      hale_data->nodal_volumes, hale_data->limiter, hale_data->subcell_force_x,
-      hale_data->subcell_force_y, hale_data->subcell_force_z,
-      umesh->faces_to_nodes_offsets, umesh->faces_to_nodes,
-      umesh->cells_to_faces_offsets, umesh->cells_to_faces);
+      umesh->cells_to_nodes_offsets, umesh->cells_to_nodes,
+      umesh->faces_cclockwise_cell, umesh->nodes_x0, umesh->nodes_y0,
+      umesh->nodes_z0, umesh->cell_centroids_x, umesh->cell_centroids_y,
+      umesh->cell_centroids_z, hale_data->velocity_x0, hale_data->velocity_y0,
+      hale_data->velocity_z0, hale_data->nodal_soundspeed,
+      hale_data->nodal_mass, hale_data->nodal_volumes, hale_data->limiter,
+      hale_data->subcell_force_x, hale_data->subcell_force_y,
+      hale_data->subcell_force_z, umesh->faces_to_nodes_offsets,
+      umesh->faces_to_nodes, umesh->cells_to_faces_offsets,
+      umesh->cells_to_faces);
   STOP_PROFILING(&compute_profile, "calc_artificial_viscosity");
 
   START_PROFILING(&compute_profile);
-  calc_new_velocity(
-      umesh->nnodes, mesh->dt, umesh->nodes_offsets, umesh->nodes_to_cells,
-      umesh->cells_offsets, umesh->cells_to_nodes, hale_data->subcell_force_x,
-      hale_data->subcell_force_y, hale_data->subcell_force_z,
-      hale_data->nodal_mass, hale_data->velocity_x0, hale_data->velocity_y0,
-      hale_data->velocity_z0, hale_data->velocity_x1, hale_data->velocity_y1,
-      hale_data->velocity_z1);
+  calc_new_velocity(umesh->nnodes, mesh->dt, umesh->nodes_to_cells_offsets,
+                    umesh->nodes_to_cells, umesh->cells_to_nodes_offsets,
+                    umesh->cells_to_nodes, hale_data->subcell_force_x,
+                    hale_data->subcell_force_y, hale_data->subcell_force_z,
+                    hale_data->nodal_mass, hale_data->velocity_x0,
+                    hale_data->velocity_y0, hale_data->velocity_z0,
+                    hale_data->velocity_x1, hale_data->velocity_y1,
+                    hale_data->velocity_z1);
   STOP_PROFILING(&compute_profile, "calc_new_velocity");
 
   // TODO: NEED TO WORK OUT HOW TO HANDLE BOUNDARY CONDITIONS REASONABLY
@@ -95,7 +98,7 @@ void predictor(Mesh* mesh, UnstructuredMesh* umesh, HaleData* hale_data) {
              umesh->nodes_z1);
   STOP_PROFILING(&compute_profile, "move_nodes");
 
-  init_cell_centroids(umesh->ncells, umesh->cells_offsets,
+  init_cell_centroids(umesh->ncells, umesh->cells_to_nodes_offsets,
                       umesh->cells_to_nodes, umesh->nodes_x1, umesh->nodes_y1,
                       umesh->nodes_z1, umesh->cell_centroids_x,
                       umesh->cell_centroids_y, umesh->cell_centroids_z);
@@ -107,7 +110,7 @@ void predictor(Mesh* mesh, UnstructuredMesh* umesh, HaleData* hale_data) {
 
   // Calculate the predicted energy
   START_PROFILING(&compute_profile);
-  calc_predicted_energy(umesh->ncells, mesh->dt, umesh->cells_offsets,
+  calc_predicted_energy(umesh->ncells, mesh->dt, umesh->cells_to_nodes_offsets,
                         umesh->cells_to_nodes, hale_data->velocity_x1,
                         hale_data->velocity_y1, hale_data->velocity_z1,
                         hale_data->subcell_force_x, hale_data->subcell_force_y,
@@ -145,7 +148,7 @@ void corrector(Mesh* mesh, UnstructuredMesh* umesh, HaleData* hale_data) {
 
   // Sets all of the subcell forces to 0
   START_PROFILING(&compute_profile);
-  zero_subcell_forces(umesh->ncells, umesh->cells_offsets,
+  zero_subcell_forces(umesh->ncells, umesh->cells_to_nodes_offsets,
                       hale_data->subcell_force_x, hale_data->subcell_force_y,
                       hale_data->subcell_force_z);
   STOP_PROFILING(&compute_profile, "calc_nodal_mass_vol");
@@ -169,35 +172,37 @@ void corrector(Mesh* mesh, UnstructuredMesh* umesh, HaleData* hale_data) {
   // Calculate the pressure gradients
   START_PROFILING(&compute_profile);
   calc_subcell_force_from_pressure(
-      umesh->ncells, umesh->cells_to_faces_offsets, umesh->cells_offsets,
-      umesh->cells_to_faces, umesh->faces_to_nodes_offsets,
-      umesh->faces_to_nodes, umesh->cells_to_nodes,
-      umesh->faces_cclockwise_cell, umesh->nodes_x1, umesh->nodes_y1,
-      umesh->nodes_z1, hale_data->pressure1, hale_data->subcell_force_x,
-      hale_data->subcell_force_y, hale_data->subcell_force_z);
+      umesh->ncells, umesh->cells_to_faces_offsets,
+      umesh->cells_to_nodes_offsets, umesh->cells_to_faces,
+      umesh->faces_to_nodes_offsets, umesh->faces_to_nodes,
+      umesh->cells_to_nodes, umesh->faces_cclockwise_cell, umesh->nodes_x1,
+      umesh->nodes_y1, umesh->nodes_z1, hale_data->pressure1,
+      hale_data->subcell_force_x, hale_data->subcell_force_y,
+      hale_data->subcell_force_z);
   STOP_PROFILING(&compute_profile, "node_force_from_pressure");
 
   calc_artificial_viscosity(
       umesh->ncells, hale_data->visc_coeff1, hale_data->visc_coeff2,
-      umesh->cells_offsets, umesh->cells_to_nodes, umesh->faces_cclockwise_cell,
-      umesh->nodes_x1, umesh->nodes_y1, umesh->nodes_z1,
-      umesh->cell_centroids_x, umesh->cell_centroids_y, umesh->cell_centroids_z,
-      hale_data->velocity_x1, hale_data->velocity_y1, hale_data->velocity_z1,
-      hale_data->nodal_soundspeed, hale_data->nodal_mass,
-      hale_data->nodal_volumes, hale_data->limiter, hale_data->subcell_force_x,
-      hale_data->subcell_force_y, hale_data->subcell_force_z,
-      umesh->faces_to_nodes_offsets, umesh->faces_to_nodes,
-      umesh->cells_to_faces_offsets, umesh->cells_to_faces);
+      umesh->cells_to_nodes_offsets, umesh->cells_to_nodes,
+      umesh->faces_cclockwise_cell, umesh->nodes_x1, umesh->nodes_y1,
+      umesh->nodes_z1, umesh->cell_centroids_x, umesh->cell_centroids_y,
+      umesh->cell_centroids_z, hale_data->velocity_x1, hale_data->velocity_y1,
+      hale_data->velocity_z1, hale_data->nodal_soundspeed,
+      hale_data->nodal_mass, hale_data->nodal_volumes, hale_data->limiter,
+      hale_data->subcell_force_x, hale_data->subcell_force_y,
+      hale_data->subcell_force_z, umesh->faces_to_nodes_offsets,
+      umesh->faces_to_nodes, umesh->cells_to_faces_offsets,
+      umesh->cells_to_faces);
 
   START_PROFILING(&compute_profile);
   // Updates and time center velocity in the corrector step
   update_and_time_center_velocity(
-      umesh->nnodes, mesh->dt, umesh->nodes_offsets, umesh->nodes_to_cells,
-      umesh->cells_offsets, umesh->cells_to_nodes, hale_data->nodal_mass,
-      hale_data->subcell_force_x, hale_data->subcell_force_y,
-      hale_data->subcell_force_z, hale_data->velocity_x0,
-      hale_data->velocity_y0, hale_data->velocity_z0, hale_data->velocity_x1,
-      hale_data->velocity_y1, hale_data->velocity_z1);
+      umesh->nnodes, mesh->dt, umesh->nodes_to_cells_offsets,
+      umesh->nodes_to_cells, umesh->cells_to_nodes_offsets,
+      umesh->cells_to_nodes, hale_data->nodal_mass, hale_data->subcell_force_x,
+      hale_data->subcell_force_y, hale_data->subcell_force_z,
+      hale_data->velocity_x0, hale_data->velocity_y0, hale_data->velocity_z0,
+      hale_data->velocity_x1, hale_data->velocity_y1, hale_data->velocity_z1);
   STOP_PROFILING(&compute_profile, "calc_new_velocity");
 
   handle_unstructured_reflect_3d(
@@ -220,14 +225,15 @@ void corrector(Mesh* mesh, UnstructuredMesh* umesh, HaleData* hale_data) {
 
   // Calculate the corrected energy
   START_PROFILING(&compute_profile);
-  calc_corrected_energy(
-      umesh->ncells, mesh->dt, umesh->cells_offsets, umesh->cells_to_nodes,
-      hale_data->velocity_x0, hale_data->velocity_y0, hale_data->velocity_z0,
-      hale_data->subcell_force_x, hale_data->subcell_force_y,
-      hale_data->subcell_force_z, hale_data->cell_mass, hale_data->energy0);
+  calc_corrected_energy(umesh->ncells, mesh->dt, umesh->cells_to_nodes_offsets,
+                        umesh->cells_to_nodes, hale_data->velocity_x0,
+                        hale_data->velocity_y0, hale_data->velocity_z0,
+                        hale_data->subcell_force_x, hale_data->subcell_force_y,
+                        hale_data->subcell_force_z, hale_data->cell_mass,
+                        hale_data->energy0);
   STOP_PROFILING(&compute_profile, "calc_corrected_energy");
 
-  init_cell_centroids(umesh->ncells, umesh->cells_offsets,
+  init_cell_centroids(umesh->ncells, umesh->cells_to_nodes_offsets,
                       umesh->cells_to_nodes, umesh->nodes_x0, umesh->nodes_y0,
                       umesh->nodes_z0, umesh->cell_centroids_x,
                       umesh->cell_centroids_y, umesh->cell_centroids_z);
@@ -371,13 +377,14 @@ double calc_subsubcell_volume(const int cc, const int rnode_index,
 }
 
 // Sets all of the subcell forces to 0
-void zero_subcell_forces(const int ncells, const int* cells_offsets,
+void zero_subcell_forces(const int ncells, const int* cells_to_nodes_offsets,
                          double* subcell_force_x, double* subcell_force_y,
                          double* subcell_force_z) {
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+    const int cell_to_nodes_off = cells_to_nodes_offsets[(cc)];
+    const int nnodes_by_cell =
+        cells_to_nodes_offsets[(cc + 1)] - cell_to_nodes_off;
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
       const int subcell_index = cell_to_nodes_off + nn;
       subcell_force_x[(subcell_index)] = 0.0;
@@ -390,7 +397,7 @@ void zero_subcell_forces(const int ncells, const int* cells_offsets,
 // Calculate the subcell force from pressure gradients
 void calc_subcell_force_from_pressure(
     const int ncells, const int* cells_to_faces_offsets,
-    const int* cells_offsets, const int* cells_to_faces,
+    const int* cells_to_nodes_offsets, const int* cells_to_faces,
     const int* faces_to_nodes_offsets, const int* faces_to_nodes,
     const int* cells_to_nodes, const int* faces_cclockwise_cell,
     const double* nodes_x, const double* nodes_y, const double* nodes_z,
@@ -402,8 +409,9 @@ void calc_subcell_force_from_pressure(
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
         cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+    const int cell_to_nodes_off = cells_to_nodes_offsets[(cc)];
+    const int nnodes_by_cell =
+        cells_to_nodes_offsets[(cc + 1)] - cell_to_nodes_off;
 
     // Look at all of the faces attached to the cell
     for (int ff = 0; ff < nfaces_by_cell; ++ff) {
@@ -481,9 +489,10 @@ void scale_soundspeed(const int nnodes, const double* nodal_volumes,
 // Calculate the time centered evolved velocities, by calculating the predicted
 // values at the new timestep and averaging with current velocity
 void calc_new_velocity(const int nnodes, const double dt,
-                       const int* nodes_offsets, const int* nodes_to_cells,
-                       const int* cells_offsets, const int* cells_to_nodes,
-                       const double* subcell_force_x,
+                       const int* nodes_to_cells_offsets,
+                       const int* nodes_to_cells,
+                       const int* cells_to_nodes_offsets,
+                       const int* cells_to_nodes, const double* subcell_force_x,
                        const double* subcell_force_y,
                        const double* subcell_force_z, const double* nodal_mass,
                        const double* velocity_x0, const double* velocity_y0,
@@ -492,16 +501,17 @@ void calc_new_velocity(const int nnodes, const double dt,
 
 #pragma omp parallel for simd
   for (int nn = 0; nn < nnodes; ++nn) {
-    const int node_to_cells_off = nodes_offsets[(nn)];
-    const int ncells_by_node = nodes_offsets[(nn + 1)] - node_to_cells_off;
+    const int node_to_cells_off = nodes_to_cells_offsets[(nn)];
+    const int ncells_by_node =
+        nodes_to_cells_offsets[(nn + 1)] - node_to_cells_off;
 
     // Accumulate the force at this node
     vec_t node_force = {0.0, 0.0, 0.0};
     for (int cc = 0; cc < ncells_by_node; ++cc) {
       const int cell_index = nodes_to_cells[(node_to_cells_off + cc)];
-      const int cell_to_nodes_off = cells_offsets[(cell_index)];
+      const int cell_to_nodes_off = cells_to_nodes_offsets[(cell_index)];
       const int nnodes_by_cell =
-          cells_offsets[(cell_index + 1)] - cell_to_nodes_off;
+          cells_to_nodes_offsets[(cell_index + 1)] - cell_to_nodes_off;
 
       // ARRGHHHH
       int nn2;
@@ -602,8 +612,8 @@ void time_center_nodes(const int nnodes, const double* nodes_x0,
 
 // Updates and time center velocity in the corrector step
 void update_and_time_center_velocity(
-    const int nnodes, const double dt, const int* nodes_offsets,
-    const int* nodes_to_cells, const int* cells_offsets,
+    const int nnodes, const double dt, const int* nodes_to_cells_offsets,
+    const int* nodes_to_cells, const int* cells_to_nodes_offsets,
     const int* cells_to_nodes, const double* nodal_mass,
     const double* subcell_force_x, const double* subcell_force_y,
     const double* subcell_force_z, double* velocity_x0, double* velocity_y0,
@@ -612,16 +622,17 @@ void update_and_time_center_velocity(
 
 #pragma omp parallel for simd
   for (int nn = 0; nn < nnodes; ++nn) {
-    const int node_to_cells_off = nodes_offsets[(nn)];
-    const int ncells_by_node = nodes_offsets[(nn + 1)] - node_to_cells_off;
+    const int node_to_cells_off = nodes_to_cells_offsets[(nn)];
+    const int ncells_by_node =
+        nodes_to_cells_offsets[(nn + 1)] - node_to_cells_off;
 
     // Consider all faces attached to node
     vec_t node_force = {0.0, 0.0, 0.0};
     for (int cc = 0; cc < ncells_by_node; ++cc) {
       const int cell_index = nodes_to_cells[(node_to_cells_off + cc)];
-      const int cell_to_nodes_off = cells_offsets[(cell_index)];
+      const int cell_to_nodes_off = cells_to_nodes_offsets[(cell_index)];
       const int nnodes_by_cell =
-          cells_offsets[(cell_index + 1)] - cell_to_nodes_off;
+          cells_to_nodes_offsets[(cell_index + 1)] - cell_to_nodes_off;
 
       int nn2;
       for (nn2 = 0; nn2 < nnodes_by_cell; ++nn2) {
@@ -665,9 +676,9 @@ void advance_nodes_corrected(const int nnodes, const double dt,
 
 // Calculate the new energy base on subcell forces
 void calc_predicted_energy(const int ncells, const double dt,
-                           const int* cells_offsets, const int* cells_to_nodes,
-                           const double* velocity_x1, const double* velocity_y1,
-                           const double* velocity_z1,
+                           const int* cells_to_nodes_offsets,
+                           const int* cells_to_nodes, const double* velocity_x1,
+                           const double* velocity_y1, const double* velocity_z1,
                            const double* subcell_force_x,
                            const double* subcell_force_y,
                            const double* subcell_force_z, const double* energy0,
@@ -675,8 +686,9 @@ void calc_predicted_energy(const int ncells, const double dt,
 
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+    const int cell_to_nodes_off = cells_to_nodes_offsets[(cc)];
+    const int nnodes_by_cell =
+        cells_to_nodes_offsets[(cc + 1)] - cell_to_nodes_off;
 
     double cell_force = 0.0;
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
@@ -693,9 +705,9 @@ void calc_predicted_energy(const int ncells, const double dt,
 
 // Calculates the energy from the correct subcell pressures and velocity
 void calc_corrected_energy(const int ncells, const double dt,
-                           const int* cells_offsets, const int* cells_to_nodes,
-                           const double* velocity_x0, const double* velocity_y0,
-                           const double* velocity_z0,
+                           const int* cells_to_nodes_offsets,
+                           const int* cells_to_nodes, const double* velocity_x0,
+                           const double* velocity_y0, const double* velocity_z0,
                            const double* subcell_force_x,
                            const double* subcell_force_y,
                            const double* subcell_force_z,
@@ -703,8 +715,9 @@ void calc_corrected_energy(const int ncells, const double dt,
 
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+    const int cell_to_nodes_off = cells_to_nodes_offsets[(cc)];
+    const int nnodes_by_cell =
+        cells_to_nodes_offsets[(cc + 1)] - cell_to_nodes_off;
 
     double cell_force = 0.0;
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {
@@ -848,7 +861,7 @@ void set_timestep(const int ncells, const double* nodes_x,
 // Calculates the artificial viscous forces for momentum acceleration
 void calc_artificial_viscosity(
     const int ncells, const double visc_coeff1, const double visc_coeff2,
-    const int* cells_offsets, const int* cells_to_nodes,
+    const int* cells_to_nodes_offsets, const int* cells_to_nodes,
     const int* faces_cclockwise_cell, const double* nodes_x,
     const double* nodes_y, const double* nodes_z,
     const double* cell_centroids_x, const double* cell_centroids_y,
@@ -865,8 +878,9 @@ void calc_artificial_viscosity(
     const int cell_to_faces_off = cells_to_faces_offsets[(cc)];
     const int nfaces_by_cell =
         cells_to_faces_offsets[(cc + 1)] - cell_to_faces_off;
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+    const int cell_to_nodes_off = cells_to_nodes_offsets[(cc)];
+    const int nnodes_by_cell =
+        cells_to_nodes_offsets[(cc + 1)] - cell_to_nodes_off;
 
     // Look at all of the faces attached to the cell
     for (int ff = 0; ff < nfaces_by_cell; ++ff) {
