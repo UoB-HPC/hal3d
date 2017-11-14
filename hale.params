@@ -15,9 +15,9 @@ problem_1 density=1.0 energy=2.5 xpos=0.0 ypos=0.0 zpos=0.0 width=0.5 height=1.0
 dt            1.0e-4
 visc_coeff1   1.0
 visc_coeff2   1.0
-iterations    1
+iterations    10
 visit_dump    1
 perform_remap 1
-nx            32
-ny            32
-nz            32
+nx            128
+ny            128
+nz            128

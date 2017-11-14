@@ -23,21 +23,21 @@ CFLAGS_CRAY      	 = -lrt -hlist=a
 CFLAGS_XL		 			 = -O5 -qsmp=omp -qarch=pwr8 -qtune=pwr8 -qaltivec
 CFLAGS_XL_OMP4		 = -O5 -qsmp -qoffload
 CFLAGS_CLANG_OMP4  = -O3 -Wall -fopenmp-targets=nvptx64-nvidia-cuda \
-										 -fopenmp=libomp --cuda-path=$(CUDAROOT) -DCLANG #\
+										 -fopenmp=libomp --cuda-path=$(CUDA_PATH) -DCLANG #\
 										 -Xclang -target-feature -Xclang +ptx42
 CFLAGS_CLANG			 = -std=gnu99 -fopenmp=libiomp5 -march=native -Wall
 CFLAGS_PGI				 = -O3 -fast -mp
 
 ifeq ($(KERNELS), cuda)
-  CHECK_CUDA_ROOT = yes
+  CHECK_CUDA_PATH = yes
 endif
 ifeq ($(COMPILER), CLANG_OMP4)
-  CHECK_CUDA_ROOT = yes
+  CHECK_CUDA_PATH = yes
 endif
 
-ifeq ($(CHECK_CUDA_ROOT), yes)
-ifeq ("${CUDAROOT}", "")
-$(error "$$CUDAROOT is not set, please set this to the root of your CUDA install.")
+ifeq ($(CHECK_CUDA_PATH), yes)
+ifeq ("${CUDA_PATH}", "")
+$(error "$$CUDA_PATH is not set, please set this to the root of your CUDA install.")
 endif
 endif
 
