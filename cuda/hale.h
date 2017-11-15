@@ -54,11 +54,6 @@ void store_rezoned_mesh(const int nnodes, const double* nodes_x,
                         double* rezoned_nodes_x, double* rezoned_nodes_y,
                         double* rezoned_nodes_z);
 
-// Calculate the centroid
-void calc_centroid(const int nnodes, const double* nodes_x,
-                   const double* nodes_y, const double* nodes_z,
-                   const int* indirection, const int offset, vec_t* centroid);
-
 // Calculate the inverse coefficient matrix for a subcell, in order to
 // determine the gradients of the subcell quantities using least squares.
 void calc_inverse_coefficient_matrix(
@@ -180,13 +175,6 @@ void flux_mass_energy_momentum(
     const int* cells_offsets, const int* cells_to_nodes,
     const int* faces_cclockwise_cell, const double* nodes_x,
     const double* nodes_y, const double* nodes_z, const int internal);
-
-// Controls the timestep for the simulation
-void set_timestep(const int ncells, const double* nodes_x,
-                  const double* nodes_y, const double* nodes_z,
-                  const double* energy, double* dt, int* cells_to_faces_offsets,
-                  int* cells_to_faces, int* faces_to_nodes_offsets,
-                  int* faces_to_nodes);
 
 // Limits all of the gradients during flux determination
 void limit_mass_gradients(

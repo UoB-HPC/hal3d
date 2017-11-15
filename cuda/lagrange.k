@@ -1,14 +1,103 @@
+#include <float.h>
+#include "../../cuda/reduction.k"
 
 // A simple ideal gas equation of state
 __global__ void equation_of_state(const int ncells, const double* energy,
                                   const double* density, double* pressure) {
 
-  const int cc = blockId.x * blockDim.x + threadIdx.x;
+  const int cc = blockIdx.x * blockDim.x + threadIdx.x;
   if (cc >= ncells) {
     return;
   }
 
   pressure[(cc)] = (GAM - 1.0) * energy[(cc)] * density[(cc)];
+}
+
+// Calculates the volume of a subsubcell
+__device__ double calc_subsubcell_volume(
+    const int cc, const int rnode_index, const int node_index, vec_t face_c,
+    const double* nodes_x, const double* nodes_y, const double* nodes_z,
+    const double* cell_centroids_x, const double* cell_centroids_y,
+    const double* cell_centroids_z) {
+
+  // Construct the vectors describing an edge tetrahedron
+  const vec_t ad = {(face_c.x - nodes_x[(node_index)]),
+                    (face_c.y - nodes_y[(node_index)]),
+                    (face_c.z - nodes_z[(node_index)])};
+  const vec_t bd = {nodes_x[(rnode_index)] - nodes_x[(node_index)],
+                    nodes_y[(rnode_index)] - nodes_y[(node_index)],
+                    nodes_z[(rnode_index)] - nodes_z[(node_index)]};
+  const vec_t cd = {cell_centroids_x[(cc)] - nodes_x[(node_index)],
+                    cell_centroids_y[(cc)] - nodes_y[(node_index)],
+                    cell_centroids_z[(cc)] - nodes_z[(node_index)]};
+
+  // Fetch the are vector of one of the faces of the tetrahedron
+  const vec_t area = {0.5 * (ad.y * bd.z - ad.z * bd.y),
+                      -0.5 * (ad.x * bd.z - ad.z * bd.x),
+                      0.5 * (ad.x * bd.y - ad.y * bd.x)};
+
+  // Determine the volume using standard irregular tetrahedron formula
+  const double edge_subcell_vol =
+      fabs(cd.x * area.x + cd.y * area.y + cd.z * area.z) / 3.0;
+
+  // The subsubcell is half the volume of the edge subcell
+  return 0.5 * edge_subcell_vol;
+}
+
+// Calculates the volume in a cell by tetrahedral decomposition
+__device__ double calc_cell_volume(
+    const int cc, const int nfaces_by_cell, const int cell_to_faces_off,
+    const int* cells_to_faces, const int* faces_to_nodes_offsets,
+    const int* faces_to_nodes, const double* nodes_x, const double* nodes_y,
+    const double* nodes_z, const double* cell_centroids_x,
+    const double* cell_centroids_y, const double* cell_centroids_z) {
+
+  double cell_vol = 0.0;
+
+  // Look at all of the faces attached to the cell
+  for (int ff = 0; ff < nfaces_by_cell; ++ff) {
+    const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
+    const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
+    const int nnodes_by_face =
+        faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
+
+    vec_t face_c = {0.0, 0.0, 0.0};
+    calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes,
+                  face_to_nodes_off, &face_c);
+
+    // Now we will sum the contributions at each of the nodes
+    for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
+      // Fetch the nodes attached to our current node on the current face
+      const int node_index = faces_to_nodes[(face_to_nodes_off + nn2)];
+      const int rnode_index =
+          (nn2 + 1 < nnodes_by_face)
+              ? faces_to_nodes[(face_to_nodes_off + nn2 + 1)]
+              : faces_to_nodes[(face_to_nodes_off)];
+
+      cell_vol += 2.0 * calc_subsubcell_volume(
+                            cc, rnode_index, node_index, face_c, nodes_x,
+                            nodes_y, nodes_z, cell_centroids_x,
+                            cell_centroids_y, cell_centroids_z);
+    }
+  }
+
+  return cell_vol;
+}
+
+// Calculate the centroid
+__device__ void calc_centroid(const int nnodes, const double* nodes_x,
+                   const double* nodes_y, const double* nodes_z,
+                   const int* indirection, const int offset, vec_t* centroid) {
+
+  centroid->x = 0.0;
+  centroid->y = 0.0;
+  centroid->z = 0.0;
+  for (int nn2 = 0; nn2 < nnodes; ++nn2) {
+    const int node_index = indirection[(offset + nn2)];
+    centroid->x += nodes_x[(node_index)] / nnodes;
+    centroid->y += nodes_y[(node_index)] / nnodes;
+    centroid->z += nodes_z[(node_index)] / nnodes;
+  }
 }
 
 // Calculates the nodal volume and sound speed
@@ -21,7 +110,7 @@ __global__ void calc_nodal_vol_and_c(
     const double* cell_centroids_y, const double* cell_centroids_z,
     const double* energy, double* nodal_volumes, double* nodal_soundspeed) {
 
-  const int nn = blockId.x * blockDim.x + threadIdx.x;
+  const int nn = blockIdx.x * blockDim.x + threadIdx.x;
   if (nn >= nnodes) {
     return;
   }
@@ -96,37 +185,6 @@ __global__ void calc_nodal_vol_and_c(
   }
 }
 
-// Calculates the volume of a subsubcell
-__device__ double calc_subsubcell_volume(
-    const int cc, const int rnode_index, const int node_index, vec_t face_c,
-    const double* nodes_x, const double* nodes_y, const double* nodes_z,
-    const double* cell_centroids_x, const double* cell_centroids_y,
-    const double* cell_centroids_z) {
-
-  // Construct the vectors describing an edge tetrahedron
-  const vec_t ad = {(face_c.x - nodes_x[(node_index)]),
-                    (face_c.y - nodes_y[(node_index)]),
-                    (face_c.z - nodes_z[(node_index)])};
-  const vec_t bd = {nodes_x[(rnode_index)] - nodes_x[(node_index)],
-                    nodes_y[(rnode_index)] - nodes_y[(node_index)],
-                    nodes_z[(rnode_index)] - nodes_z[(node_index)]};
-  const vec_t cd = {cell_centroids_x[(cc)] - nodes_x[(node_index)],
-                    cell_centroids_y[(cc)] - nodes_y[(node_index)],
-                    cell_centroids_z[(cc)] - nodes_z[(node_index)]};
-
-  // Fetch the are vector of one of the faces of the tetrahedron
-  const vec_t area = {0.5 * (ad.y * bd.z - ad.z * bd.y),
-                      -0.5 * (ad.x * bd.z - ad.z * bd.x),
-                      0.5 * (ad.x * bd.y - ad.y * bd.x)};
-
-  // Determine the volume using standard irregular tetrahedron formula
-  const double edge_subcell_vol =
-      fabs(cd.x * area.x + cd.y * area.y + cd.z * area.z) / 3.0;
-
-  // The subsubcell is half the volume of the edge subcell
-  return 0.5 * edge_subcell_vol;
-}
-
 // Sets all of the subcell forces to 0
 __global__ void zero_subcell_forces(const int ncells,
                                     const int* cells_to_nodes_offsets,
@@ -138,7 +196,7 @@ __global__ void zero_subcell_forces(const int ncells,
   // actually need to use the indirections if we are simply stepping through the
   // subcells in order...
 
-  const int cc = blockId.x * blockDim.x + threadIdx.x;
+  const int cc = blockIdx.x * blockDim.x + threadIdx.x;
   if (cc >= ncells) {
     return;
   }
@@ -164,7 +222,7 @@ __global__ void calc_subcell_force_from_pressure(
     const double* pressure, double* subcell_force_x, double* subcell_force_y,
     double* subcell_force_z) {
 
-  const int cc = blockId.x * blockDim.x + threadIdx.x;
+  const int cc = blockIdx.x * blockDim.x + threadIdx.x;
   if (cc >= ncells) {
     return;
   }
@@ -241,7 +299,7 @@ __global__ void calc_subcell_force_from_pressure(
 __global__ void scale_soundspeed(const int nnodes, const double* nodal_volumes,
                                  double* nodal_soundspeed) {
 
-  const int nn = blockId.x * blockDim.x + threadIdx.x;
+  const int nn = blockIdx.x * blockDim.x + threadIdx.x;
   if (nn >= nnodes) {
     return;
   }
@@ -261,7 +319,7 @@ calc_new_velocity(const int nnodes, const double dt,
                   const double* velocity_z0, double* velocity_x1,
                   double* velocity_y1, double* velocity_z1) {
 
-  const int nn = blockId.x * blockDim.x + threadIdx.x;
+  const int nn = blockIdx.x * blockDim.x + threadIdx.x;
   if (nn >= nnodes) {
     return;
   }
@@ -311,7 +369,7 @@ __global__ void move_nodes(const int nnodes, const double dt,
                            double* nodes_x1, double* nodes_y1,
                            double* nodes_z1) {
 
-  const int nn = blockId.x * blockDim.x + threadIdx.x;
+  const int nn = blockIdx.x * blockDim.x + threadIdx.x;
   if (nn >= nnodes) {
     return;
   }
@@ -330,7 +388,7 @@ __global__ void calc_predicted_density(
     const double* cell_centroids_y, const double* cell_centroids_z,
     const double* cell_mass, double* density1) {
 
-  const int cc = blockId.x * blockDim.x + threadIdx.x;
+  const int cc = blockIdx.x * blockDim.x + threadIdx.x;
   if (cc >= ncells) {
     return;
   }
@@ -353,7 +411,7 @@ __global__ void time_center_pressure(const int ncells, const double* energy1,
                                      const double* pressure0,
                                      double* pressure1) {
 
-  const int cc = blockId.x * blockDim.x + threadIdx.x;
+  const int cc = blockIdx.x * blockDim.x + threadIdx.x;
   if (cc >= ncells) {
     return;
   }
@@ -371,7 +429,7 @@ __global__ void time_center_nodes(const int nnodes, const double* nodes_x0,
                                   const double* nodes_z0, double* nodes_x1,
                                   double* nodes_y1, double* nodes_z1) {
 
-  const int nn = blockId.x * blockDim.x + threadIdx.x;
+  const int nn = blockIdx.x * blockDim.x + threadIdx.x;
   if (nn >= nnodes) {
     return;
   }
@@ -391,7 +449,7 @@ __global__ void update_and_time_center_velocity(
     double* velocity_z0, double* velocity_x1, double* velocity_y1,
     double* velocity_z1) {
 
-  const int nn = blockId.x * blockDim.x + threadIdx.x;
+  const int nn = blockIdx.x * blockDim.x + threadIdx.x;
   if (nn >= nnodes) {
     return;
   }
@@ -440,7 +498,7 @@ __global__ void advance_nodes_corrected(const int nnodes, const double dt,
                                         double* nodes_x0, double* nodes_y0,
                                         double* nodes_z0) {
 
-  const int nn = blockId.x * blockDim.x + threadIdx.x;
+  const int nn = blockIdx.x * blockDim.x + threadIdx.x;
   if (nn >= nnodes) {
     return;
   }
@@ -459,7 +517,7 @@ __global__ void calc_predicted_energy(
     const double* subcell_force_z, const double* energy0,
     const double* cell_mass, double* energy1) {
 
-  const int cc = blockId.x * blockDim.x + threadIdx.x;
+  const int cc = blockIdx.x * blockDim.x + threadIdx.x;
   if (cc >= ncells) {
     return;
   }
@@ -488,7 +546,7 @@ __global__ void calc_corrected_energy(
     const double* subcell_force_x, const double* subcell_force_y,
     const double* subcell_force_z, const double* cell_mass, double* energy0) {
 
-  const int cc = blockId.x * blockDim.x + threadIdx.x;
+  const int cc = blockIdx.x * blockDim.x + threadIdx.x;
   if (cc >= ncells) {
     return;
   }
@@ -519,7 +577,7 @@ __global__ void calc_corrected_density(
     const double* cell_centroids_y, const double* cell_centroids_z,
     const double* cell_mass, double* cell_volume, double* density) {
 
-  const int cc = blockId.x * blockDim.x + threadIdx.x;
+  const int cc = blockIdx.x * blockDim.x + threadIdx.x;
   if (cc >= ncells) {
     return;
   }
@@ -537,46 +595,6 @@ __global__ void calc_corrected_density(
   density[(cc)] = cell_mass[(cc)] / cell_volume[(cc)];
 }
 
-// Calculates the volume in a cell by tetrahedral decomposition
-__device__ double calc_cell_volume(
-    const int cc, const int nfaces_by_cell, const int cell_to_faces_off,
-    const int* cells_to_faces, const int* faces_to_nodes_offsets,
-    const int* faces_to_nodes, const double* nodes_x, const double* nodes_y,
-    const double* nodes_z, const double* cell_centroids_x,
-    const double* cell_centroids_y, const double* cell_centroids_z) {
-
-  double cell_vol = 0.0;
-
-  // Look at all of the faces attached to the cell
-  for (int ff = 0; ff < nfaces_by_cell; ++ff) {
-    const int face_index = cells_to_faces[(cell_to_faces_off + ff)];
-    const int face_to_nodes_off = faces_to_nodes_offsets[(face_index)];
-    const int nnodes_by_face =
-        faces_to_nodes_offsets[(face_index + 1)] - face_to_nodes_off;
-
-    vec_t face_c = {0.0, 0.0, 0.0};
-    calc_centroid(nnodes_by_face, nodes_x, nodes_y, nodes_z, faces_to_nodes,
-                  face_to_nodes_off, &face_c);
-
-    // Now we will sum the contributions at each of the nodes
-    for (int nn2 = 0; nn2 < nnodes_by_face; ++nn2) {
-      // Fetch the nodes attached to our current node on the current face
-      const int node_index = faces_to_nodes[(face_to_nodes_off + nn2)];
-      const int rnode_index =
-          (nn2 + 1 < nnodes_by_face)
-              ? faces_to_nodes[(face_to_nodes_off + nn2 + 1)]
-              : faces_to_nodes[(face_to_nodes_off)];
-
-      cell_vol += 2.0 * calc_subsubcell_volume(
-                            cc, rnode_index, node_index, face_c, nodes_x,
-                            nodes_y, nodes_z, cell_centroids_x,
-                            cell_centroids_y, cell_centroids_z);
-    }
-  }
-
-  return cell_vol;
-}
-
 // Controls the timestep for the simulation
 __global__ void calc_timestep(const int ncells, const double* nodes_x,
                               const double* nodes_y, const double* nodes_z,
@@ -585,7 +603,7 @@ __global__ void calc_timestep(const int ncells, const double* nodes_x,
                               int* faces_to_nodes_offsets, int* faces_to_nodes,
                               double* reduce_array) {
 
-  const int cc = blockId.x * blockDim.x + threadIdx.x;
+  const int cc = blockIdx.x * blockDim.x + threadIdx.x;
   const int tid = threadIdx.x;
 
   __shared__ double sdata[NTHREADS];
@@ -653,7 +671,7 @@ __global__ void calc_artificial_viscosity(
     int* faces_to_nodes_offsets, int* faces_to_nodes,
     int* cells_to_faces_offsets, int* cells_to_faces) {
 
-  const int cc = blockId.x * blockDim.x + threadIdx.x;
+  const int cc = blockIdx.x * blockDim.x + threadIdx.x;
   if (cc >= ncells) {
     return;
   }

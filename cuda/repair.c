@@ -26,7 +26,7 @@
  */
 
 // Repairs the subcell extrema for mass
-void repair_subcell_extrema(const int ncells, const int* cells_offsets,
+void repair_subcell_extrema(const int ncells, const int* cells_to_nodes_offsets,
                             const int* subcells_to_subcells_offsets,
                             const int* subcells_to_subcells,
                             double* subcell_volume, double* subcell_mass);
@@ -57,7 +57,7 @@ void redistribute_subcell_mass(double* mass, const int subcell_index,
 void mass_repair_phase(UnstructuredMesh* umesh, HaleData* hale_data) {
 
   // Advects mass and energy through the subcell faces using swept edge approx
-  repair_subcell_extrema(umesh->ncells, umesh->cells_offsets,
+  repair_subcell_extrema(umesh->ncells, umesh->cells_to_nodes_offsets,
                          hale_data->subcells_to_subcells_offsets,
                          hale_data->subcells_to_subcells,
                          hale_data->subcell_volume, hale_data->subcell_mass);
@@ -401,15 +401,15 @@ void repair_energy_extrema(const int ncells, const int* cells_to_faces_offsets,
 }
 
 // Repairs the subcell extrema for mass
-void repair_subcell_extrema(const int ncells, const int* cells_offsets,
+void repair_subcell_extrema(const int ncells, const int* cells_to_nodes_offsets,
                             const int* subcells_to_subcells_offsets,
                             const int* subcells_to_subcells,
                             double* subcell_volume, double* subcell_mass) {
 
 #pragma omp parallel for
   for (int cc = 0; cc < ncells; ++cc) {
-    const int cell_to_nodes_off = cells_offsets[(cc)];
-    const int nnodes_by_cell = cells_offsets[(cc + 1)] - cell_to_nodes_off;
+    const int cell_to_nodes_off = cells_to_nodes_offsets[(cc)];
+    const int nnodes_by_cell = cells_to_nodes_offsets[(cc + 1)] - cell_to_nodes_off;
 
     // Looping over corner subcells here
     for (int nn = 0; nn < nnodes_by_cell; ++nn) {

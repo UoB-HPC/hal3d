@@ -1,5 +1,6 @@
 #include "../../comms.h"
 #include "../../shared.h"
+#include "../../cuda/shared.h"
 #include "hale.h"
 #include "lagrange.h"
 #include "lagrange.k"
@@ -18,9 +19,11 @@ void lagrangian_phase(Mesh* mesh, UnstructuredMesh* umesh,
 // Performs the predictor step of the Lagrangian phase
 void predictor(Mesh* mesh, UnstructuredMesh* umesh, HaleData* hale_data) {
 
+  const int nblocks_cells = ceil(umesh->ncells / NTHREADS);
+  const int nblocks_nodes = ceil(umesh->nnodes / NTHREADS);
+
   // Update the pressure
   START_PROFILING(&compute_profile);
-  const int nblocks_cells = ceil(umesh->ncells / NTHREADS);
   equation_of_state<<<nblocks_cells, NTHREADS>>>(
       umesh->ncells, hale_data->energy0, hale_data->density0,
       hale_data->pressure0);
@@ -28,7 +31,6 @@ void predictor(Mesh* mesh, UnstructuredMesh* umesh, HaleData* hale_data) {
 
   // Calculate the nodal volume and sound speed
   START_PROFILING(&compute_profile);
-  const int nblocks_nodes = ceil(umesh->nnodes / NTHREADS);
   calc_nodal_vol_and_c<<<nblocks_nodes, NTHREADS>>>(
       umesh->nnodes, umesh->nodes_to_faces_offsets, umesh->nodes_to_faces,
       umesh->faces_to_nodes_offsets, umesh->faces_to_nodes,
@@ -117,7 +119,7 @@ void predictor(Mesh* mesh, UnstructuredMesh* umesh, HaleData* hale_data) {
   set_timestep(umesh->ncells, umesh->nodes_x1, umesh->nodes_y1, umesh->nodes_z1,
                hale_data->energy0, &mesh->dt, umesh->cells_to_faces_offsets,
                umesh->cells_to_faces, umesh->faces_to_nodes_offsets,
-               umesh->faces_to_nodes, reduce_array);
+               umesh->faces_to_nodes, hale_data->reduce_array);
 
   // Calculate the predicted energy
   START_PROFILING(&compute_profile);
@@ -161,6 +163,9 @@ void predictor(Mesh* mesh, UnstructuredMesh* umesh, HaleData* hale_data) {
 
 // Performs the corrector step of the Lagrangian phase
 void corrector(Mesh* mesh, UnstructuredMesh* umesh, HaleData* hale_data) {
+
+  const int nblocks_cells = ceil(umesh->ncells / NTHREADS);
+  const int nblocks_nodes = ceil(umesh->nnodes / NTHREADS);
 
   // Sets all of the subcell forces to 0
   START_PROFILING(&compute_profile);
@@ -283,17 +288,17 @@ void set_timestep(const int ncells, const double* nodes_x,
 
   START_PROFILING(&compute_profile);
 
-  const int nblocks_cells = ceil(umesh->ncells / NTHREADS);
+  const int nblocks_cells = ceil(ncells / NTHREADS);
   calc_timestep<<<nblocks_cells, NTHREADS>>>(
       ncells, nodes_x, nodes_y, nodes_z, energy, dt, cells_to_faces_offsets,
       cells_to_faces, faces_to_nodes_offsets, faces_to_nodes, reduce_array);
   gpu_check(cudaDeviceSynchronize());
 
   double local_min_dt;
-  finish_min_reduce(nblocks, reduce_array, &local_min_dt);
+  finish_min_reduce(nblocks_cells, reduce_array, &local_min_dt);
   gpu_check(cudaDeviceSynchronize());
 
-  *dt = CFL * local_dt;
+  *dt = CFL * local_min_dt;
   printf("Timestep %.8fs\n", *dt);
   STOP_PROFILING(&compute_profile, __func__);
 }
